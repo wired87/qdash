@@ -2,7 +2,7 @@
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { getEdgeColor, getNodeColor } from "../../../../brainmaster_client/src/get_color";
+import {getEdgeColor} from "./get_color";
 
 export const ThreeScene = ({ nodes, edges, onNodeClick }) => {
   const canvasRef = useRef(null);

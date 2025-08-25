@@ -1,5 +1,6 @@
 import React from 'react';
 import { Chip } from "@heroui/react";
+import {SingleMessage, SingleMessageTypes} from "./chat/message";
 
 // Farben für ein konsistentes Aussehen
 const COLORS = {
@@ -14,7 +15,7 @@ const COLORS = {
 
 /**
  * Eine eigenständige Terminal-Konsole mit Optionen im Kopfbereich.
- *
+ * include cfg logik send backend
  * @param {object} props - Die Props der Komponente.
  * @param {string} props.error - Eine Fehlermeldung, falls vorhanden.
  * @param {string} props.statusClass - CSS-Klasse für den Verbindungsstatus.
@@ -25,16 +26,28 @@ const COLORS = {
  * @param {function} props.updateParam - Callback-Funktion zum Setzen von Parametern (z.B. durch Klick auf Optionen).
  * @param {Array<{label: string, value: string}>} props.options - Eine Liste von Objekten für die klickbaren Chips im Kopfbereich.
  */
-export default function TerminalConsole({
+
+interface TerminalConsoleProps {
+    error: Error | null;
+    statusClass: string;
+    handleSubmit: (e: React.FormEvent) => void;
+    isConnected: boolean;
+    messages: string[];
+    inputValue: string;
+    updateInputValue: (value: string) => void;
+    options: string[]; // Nur Strings, da wir die Chip-Komponente nicht verwenden
+    // updateParam ist hier nicht direkt in TerminalConsole selbst, sondern wird übergeben
+}
+export const TerminalConsole: React.FC<TerminalConsoleProps> = ({
   error,
   statusClass,
   handleSubmit,
   isConnected,
   inputValue,
   updateInputValue,
-  updateParam,
-  options = []
-}) {
+  options,
+  messages
+}) => {
   const statusEmoji = isConnected ? "✔" : "✖";
 
   return (
@@ -47,16 +60,15 @@ export default function TerminalConsole({
     >
       {/* Kopfbereich mit klickbaren Optionen (Chips) */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {options.map((option) => (
+        {options.map((option:string) => (
           <Chip
-            key={option.value}
+            key={option}
             variant="solid"
             color="primary"
-            onClick={() => updateParam('selectedTerminalOption', option.value)}
             className="cursor-pointer"
             size="sm"
           >
-            {option.label}
+            {option}
           </Chip>
         ))}
       </div>
@@ -76,12 +88,20 @@ export default function TerminalConsole({
         )}
       </div>
 
+      <div>
+         {messages.map((item: any) => (
+          <SingleMessage
+            item={item}
+          />
+        ))}
+      </div>
+
       {/* Terminal-Eingabefeld */}
       <form onSubmit={handleSubmit} className="input-line flex items-center mt-auto">
         <span
           className="text-blue-400 mr-2 whitespace-nowrap"
         >
-          [client.email()] ~ $
+          :
         </span>
         <input
           type="text"

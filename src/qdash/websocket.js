@@ -15,7 +15,7 @@ const handleDownload = (data) => {
 };
 
 const _useWebSocket = (
-  url, nodes, edges, updateNodes, updateEdges, updateCreds,  updateActiveNodes
+  url, nodes, edges, updateNodes, updateEdges, updateCreds, updateCfg, updateDataset
 ) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -49,16 +49,25 @@ const _useWebSocket = (
           data.forEach(node => { // forEach ist hier passender, da nichts zurückgegeben wird
             if (node.meta) {
               const state = node.meta.status?.state; // Optional Chaining für "status"
-              if (state === "ALIVE") {
-                console.log("Add", node.id, "to activeNodes");
-                updateActiveNodes(node.id);
-              }
+
+              /*
+                if (state === "ALIVE") {
+                  console.log("Add", node.id, "to activeNodes");
+                  updateActiveNodes(node.id);
+                }
+              */
             }
           });
         }
 
     } else if (message.type === 'creds') { //  iun demo receive entire G at once
         if (message.data) updateCreds(message.data)
+
+    } else if (message.type === 'dataset') { //  iun demo receive entire G at once
+        if (message.data) updateDataset(message.data)
+
+    } else if (message.type === 'cfg_schema') { //  iun demo receive entire G at once
+        if (message.data) updateCfg(message.data)
 
     } else if (message.type === "conversation") {
       setMessages((prevMessages) => [...prevMessages, message]);
@@ -116,7 +125,7 @@ const _useWebSocket = (
     };
   }, [url]); // Abhängigkeit: Verbindet sich neu, wenn sich die URL ändert
 
-  return { messages, sendMessage, isConnected, error, deactivate };
+  return { messages, sendMessage, isConnected, error };
 };
 
 export default _useWebSocket;

@@ -1,18 +1,18 @@
 import React, {useCallback, useEffect, useRef, useState} from "react";
-import {child, get, off, onChildChanged, query, ref, limitToLast} from "firebase/database";
+import {get, off, onChildChanged, query, ref, limitToLast} from "firebase/database";
 import {Button, Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader} from "@heroui/react";
-import {NodeStatusSection} from "@/app/(site)/qdash/components/node_info";
-import {NodeLogsSection} from "@/app/(site)/qdash/components/node_logs";
+import {NodeStatusSection} from "./node_info";
+import {NodeLogsSection} from "./node_logs";
 
-export const NodeInfoPanel = (
-  { node, onClose, onDownloadSingle, onDownloadAll, firebaseDb, fbCreds, fbIsConnected, deactivate }
+export const NodeInfoPanel:React.FC<any> = (
+  {node, onClose, onDownloadSingle, onDownloadAll, firebaseDb, fbCreds, fbIsConnected, deactivate}
 ) => {
   // ALLE Hooks müssen am Anfang stehen, VOR JEDEM bedingten Return.
   const [logs, setLogs] = useState({});
   const listenerRefs = useRef([]);
   console.log("node, firebaseDb,fbIsConnected", node, firebaseDb, fbIsConnected)
 
-  const updateLogs = useCallback((newLogs) => {
+  const updateLogs = useCallback((newLogs:any) => {
     setLogs(prevLogs => {
       if (newLogs && newLogs.id) {
         return {
@@ -42,6 +42,7 @@ export const NodeInfoPanel = (
     );
     listenerRefs.current = [];
 
+    // @ts-ignore
     const dbRef = ref(firebaseDb.current, logs_path);
     const logsQuery = query(dbRef, limitToLast(30));
     console.log("Fetching initial log data...");
@@ -59,14 +60,18 @@ export const NodeInfoPanel = (
       console.error("Initial data fetch failed:", error);
     });
 
-    const onChildChangedCallback = (snapshot) => {
+    const onChildChangedCallback = (snapshot:any) => {
       const changedData = snapshot.val();
       console.log("Child changed detected:", changedData);
       updateLogs({ id: snapshot.key, ...changedData });
     };
 
     onChildChanged(logsQuery, onChildChangedCallback);
-    listenerRefs.current.push({ refObj: logsQuery, callback: onChildChangedCallback });
+
+    listenerRefs.current.push(
+      // @ts-ignore
+      { refObj: logsQuery, callback: onChildChangedCallback }
+    );
 
     return () => {
       console.log("Cleaning up listeners.");
@@ -75,7 +80,6 @@ export const NodeInfoPanel = (
       );
     };
   }, [node, fbIsConnected, firebaseDb, updateLogs]);
-
 
 
   // Der bedingte Render kommt erst nach den Hooks.

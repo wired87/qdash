@@ -14,7 +14,7 @@ interface Node {
   [key: string]: any;
 }
 
-export const NodeStatusSection = ({ node }) => {
+export const NodeStatusSection:React.FC<any> = ({ node }) => {
   if (!node) {
     return <p className="text-default-400">Error fetching.</p>;
   }

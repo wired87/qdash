@@ -1,19 +1,20 @@
-"use client"
-
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import _useWebSocket from "./websocket";
 import {initializeApp} from "firebase/app";
 import {getDatabase, off, onChildChanged, ref} from "firebase/database";
 import {ThreeScene} from "./_use_three.js";
 import {getNodeColor} from "./get_color";
-import {NodeInfoPanel} from "@/app/(site)/qdash/components/node_info_panel";
-import NodeDrawer from "@/app/(site)/qdash/components/options_terminal";
-import TerminalConsole from "@/app/(site)/qdash/components/terminal";
-import DataTable from "@/app/(site)/qdash/table";
+import CfgCreator, {CfgContent} from "./components/cfg_cereator";
+import {DataTable} from "./table";
+import NodeDrawer from "./components/options_terminal";
+import {NodeInfoPanel} from "./components/node_info_panel";
+import {TerminalConsole} from "./components/terminal";
 
 
+const quey_str = "?user_id=rajtigesomnlhfyqzbvx&env_id=env_bare_rajtigesomnlhfyqzbvx&mode=demo";
+const WS_URL = `wss://www.bestbrain.tech/sim/run/${quey_str}`;
+const WS_URL_LOCAL = `ws://127.0.0.1:8000/sim/run/${quey_str}`;
 
-const WS_URL_LOCAL = "ws://127.0.0.1:8000/"
 
 // --- Style Constants ---
 const COLORS = {
@@ -40,22 +41,15 @@ const buttonStyle = {
   justifyContent: 'center'
 };
 
-const disabledButtonStyle = {
-    ...buttonStyle,
-    backgroundColor: COLORS.containerBg,
-    color: COLORS.textSecondary,
-    cursor: 'not-allowed',
-};
-
 
 // Helper function to trigger CSV download for Logs
-const downloadLogsCSV = (data, filename) => {
+const downloadLogsCSV = (data:any, filename:any) => {
   const csvRows = [];
   csvRows.push("node_id,log_index,log_message");
 
   for (const nodeId in data) {
     if (data.hasOwnProperty(nodeId)) {
-      data[nodeId].forEach((log, index) => {
+      data[nodeId].forEach((log:any, index:any) => {
         const sanitizedLog = `"${String(log).replace(/"/g, '""')}"`;
         csvRows.push(`${nodeId},${index},${sanitizedLog}`);
       });
@@ -74,298 +68,469 @@ const downloadLogsCSV = (data, filename) => {
   document.body.removeChild(a);
 };
 
-// Helper function to trigger CSV download for Table Data
-const downloadTableDataCSV = (data, filename) => {
-    if (!data || data.length === 0) return;
-    const headers = Object.keys(data[0]);
-    const csvRows = [headers.join(',')];
+// Basis-Struktur für einen Knoten
+interface Node {
+  id: string;
+  pos?: any; // Koordinaten oder Position, genauerer Typ je nach Three.js
+  type?: string;
+  name?: string;
+  status?: { state: string }; // Oder detailliertere Status-Struktur
+  meta?: { status: { state: string } };
+  color?: string; // Farbe des Knotens
+  session_id?: string;
+}
 
-    for (const row of data) {
-        const values = headers.map(header => {
-            const escaped = ('' + row[header]).replace(/"/g, '""');
-            return `"${escaped}"`;
-        });
-        csvRows.push(values.join(','));
+// Basis-Struktur für eine Kante
+interface Edge {
+  id: string;
+  src: string; // Quell-Knoten-ID
+  trgt: string; // Ziel-Knoten-ID
+  session_id?: string;
+}
+
+// Struktur für Firebase-Anmeldeinformationen und Listener-Pfade
+interface FbCreds {
+  creds: any; // Firebase Credential Objekt, z.B. from serviceAccountKey.json
+  listener_paths: string[];
+  status_path: string;
+  db_path: string; // databaseURL
+}
+
+// Struktur für eine Chat-Nachricht
+interface ChatMessage {
+  text: string;
+  type: "CHAT_MESSAGE" | "COMMAND" | "LOGS" | "FILE_UPLOAD" | "REQUEST_TABLE_DATA" | "TRAIN_MODEL";
+  timestamp: string; // ISO-String
+  info?: { nodeId: string }; // Optional für LOGS-Typ
+  file?: { name: string; type: string; size: number; content: string; }; // Optional für FILE_UPLOAD
+}
+
+// Struktur für ein Log-Eintrag
+interface NodeLogEntry {
+  id: string; // log_id
+  err?: string;
+  out?: string;
+  // weitere Log-Details
+}
+
+// Struktur für NodeLogs (Objekt, das Log-Einträge pro Node-ID enthält)
+interface NodeLogs {
+  [nodeId: string]: { [logId: string]: NodeLogEntry } | NodeLogEntry[]; // Kann ein Objekt von Logs oder ein Array sein
+}
+
+// Struktur für Tabellendaten
+interface TableDataRow {
+  [key: string]: any;
+}
+
+interface Dataset {
+  keys: string[];
+  rows: TableDataRow[];
+}
+
+// --- Placeholder/Mock Komponenten und Funktionen ---
+
+
+
+const QDash: React.FC<any> = () => {
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [historyNodes, setHistoryNodes] = useState<Node[]>([]);
+  const [historyEdges, setHistoryEdges] = useState<Edge[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
+  const [fbCreds, setFbCreds] = useState<FbCreds | null>(null);
+  const [inputValue, setInputValue] = useState<string>("");
+  const [chatInputValue, setChatInputValue] = useState<string>("");
+  const [fbIsConnected, setfbIsConnected] = useState<boolean>(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [nodeLogs, setNodeLogs] = useState<NodeLogs>({});
+  const [isDataSidebarOpen, setIsDataSidebarOpen] = useState<boolean>(false);
+  const [tableData, setTableData] = useState<TableDataRow[]>([]);
+  const [isTraining, setIsTraining] = useState<boolean>(false);
+  const [cfg_content, setCfg_content] = useState<any>({});
+  const [dataset, setDataset] = useState<Dataset>(
+    {
+      keys: [],
+      rows: []
     }
-
-    const csvString = csvRows.join('\n');
-    const blob = new Blob([csvString], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('hidden', '');
-    a.setAttribute('href', url);
-    a.setAttribute('download', filename);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-};
-
-
-
-
-
-// Data View Sidebar Component (Positioned on the Left)
-
-const DataSidebar = ({
-  isOpen,
-  onToggle,
-  nodes = [],
-  edges = [],
-  onDownload
-}) => {
-  // ---- Safe style fallbacks (no Tailwind) ----
-  const C = (typeof COLORS !== "undefined" && COLORS) || {
-    panelBg: "#111",
-    containerBg: "#181818",
-    text: "#eaeaea",
-    textSecondary: "#9aa0a6",
-    border: "#2a2a2a",
-  };
-
-  const baseBtn = {
-    background: "#2c2c2c",
-    color: "#fff",
-    border: `1px solid ${C.border}`,
-    padding: "8px 10px",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontSize: 12,
-  };
-  const buttonStyle =
-    (typeof window !== "undefined" && window?.buttonStyle) || baseBtn;
-  const disabledButtonStyle = { ...buttonStyle, opacity: 0.6, cursor: "not-allowed" };
-
-  // ---- Local state ----
-  const [activeSection, setActiveSection] = React.useState("data"); // "data" | "logs"
-  const [dataSource, setDataSource] = React.useState("nodes"); // "nodes" | "edges"
-  const [expandedNode, setExpandedNode] = React.useState(null); // accordion
-
-  // Build local logs state: accept either { [nodeId]: {err:[], out:[]} } or {err:[], out:[]}
-  const buildLogsMap = React.useCallback(
-    (input) => {
-      if (!input) return {};
-      // Case A: already a map per node
-      const isPerNodeMap =
-        typeof input === "object" &&
-        !Array.isArray(input) &&
-        Object.values(input).some((v) => v && typeof v === "object" && (Array.isArray(v.err) || Array.isArray(v.out)));
-      if (isPerNodeMap) return input;
-
-      // Case B: global arrays: replicate for each node
-      const globalErr = Array.isArray(input.err) ? input.err : [];
-      const globalOut = Array.isArray(input.out) ? input.out : [];
-      const map = {};
-      (nodes || []).forEach((n) => {
-        if (!n || typeof n.id === "undefined") return;
-        map[n.id] = { err: globalErr, out: globalOut };
-      });
-      return map;
-    },
-    [nodes]
   );
 
-  // ---- Utilities ----
-  const flatten = (obj, parentKey = "", res = {}) => {
-    if (!obj || typeof obj !== "object") return res;
-    for (const k in obj) {
-      if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
-      const key = parentKey ? `${parentKey}.${k}` : k;
-      const val = obj[k];
-      if (val && typeof val === "object" && !Array.isArray(val)) {
-        flatten(val, key, res);
-      } else {
-        res[key] = Array.isArray(val) ? JSON.stringify(val) : String(val);
-      }
-    }
-    return res;
+  const updateDataset = (data: Dataset) => {
+    setDataset(data);
   };
 
-  const makeTableData = React.useCallback((arr) => {
-    if (!Array.isArray(arr) || arr.length === 0) return [];
-    const flat = arr.map((o) => flatten(o));
-    const unionKeys = Array.from(new Set(flat.flatMap((o) => Object.keys(o))));
-    // Ensure first row has all union keys so headers are complete
-    return flat.map((o) => {
-      const row = {};
-      unionKeys.forEach((k) => (row[k] = Object.prototype.hasOwnProperty.call(o, k) ? o[k] : ""));
-      return row;
+  const updateCfg = (data: CfgContent) => {
+    setCfg_content(data);
+  };
+
+  // Korrektur: `value` war undefiniert, sollte `data` sein
+  const updateInputValue = (data: string) => {
+    setInputValue(data);
+  };
+
+  const updateHistoryNodes = useCallback((data: Node | Node[]) => {
+    setHistoryNodes(prev => {
+        const items = Array.isArray(data) ? data : [data];
+        let newHNodes = [...prev];
+        items.forEach(item => {
+            const index = newHNodes.findIndex(e => e.id === item.id);
+            if (index > -1) newHNodes[index] = { ...newHNodes[index], ...item };
+            else newHNodes.push(item);
+        });
+        return newHNodes;
     });
   }, []);
 
-  const tableData = React.useMemo(() => {
-    const src = dataSource === "nodes" ? nodes : edges;
-    return makeTableData(src);
-  }, [dataSource, nodes, edges, makeTableData]);
+  function randomId(len = 30): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < len; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
 
-  // ---- Renders ----
-  const renderTabs = () => (
-    <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-      <button
-        onClick={() => setActiveSection("data")}
-        style={{
-          ...buttonStyle,
-          background: activeSection === "data" ? "#3a3a3a" : buttonStyle.background,
-          borderBottom: activeSection === "data" ? `2px solid ${C.text}` : `1px solid ${C.border}`,
-        }}
-      >
-        Data
-      </button>
-      <button
-        onClick={() => setActiveSection("logs")}
-        style={{
-          ...buttonStyle,
-          background: activeSection === "logs" ? "#3a3a3a" : buttonStyle.background,
-          borderBottom: activeSection === "logs" ? `2px solid ${C.text}` : `1px solid ${C.border}`,
-        }}
-      >
-        Logs
-      </button>
-    </div>
+  const updateHistoryEdges = useCallback((data: Edge | Edge[]) => {
+    // Korrektur: Muss setHistoryEdges aufrufen, nicht setHistoryNodes
+    setHistoryEdges(prev => {
+        const items = Array.isArray(data) ? data : [data];
+        let newHEdges = [...prev];
+        items.forEach(item => {
+            const index = newHEdges.findIndex(e => e.id === item.id);
+            if (index > -1) newHEdges[index] = { ...newHEdges[index], ...item };
+            else newHEdges.push(item);
+        });
+        return newHEdges;
+    });
+  }, []);
+
+
+  const updateEdges = useCallback((data: Edge | Edge[]) => {
+    setEdges(prev => {
+        const items = Array.isArray(data) ? data : [data];
+        let newEdges = [...prev];
+        items.forEach(item => {
+            const index = newEdges.findIndex(e => e.id === item.id);
+            if (index > -1) newEdges[index] = { ...newEdges[index], ...item };
+            else newEdges.push(item);
+        });
+        return newEdges;
+    });
+  },[]);
+
+  const updateNodes = useCallback((data: Node | Node[]) => {
+    setNodes(prev => {
+        const items = Array.isArray(data) ? data : [data];
+        let newNodes = [...prev];
+        items.forEach(item => {
+            const index = newNodes.findIndex(n => n.id === item.id);
+            if (index > -1) newNodes[index] = { ...newNodes[index], ...item };
+            else newNodes.push(item);
+        });
+        return newNodes;
+    });
+  },[]);
+
+  const updateCreds = useCallback((data: FbCreds | null) => {
+    if (data) {
+        setFbCreds({
+            creds: data.creds,
+            listener_paths: data.listener_paths,
+            status_path: data.status_path,
+            db_path: data.db_path,
+        });
+    } else {
+        setFbCreds(null);
+    }
+  },[]);
+
+  // Korrektur: updateNodeLogs Funktion hinzugefügt
+  const updateNodeLogs = useCallback((nodeId: string, logId: string, logEntry: NodeLogEntry) => {
+    setNodeLogs(prevLogs => ({
+      ...prevLogs,
+      [nodeId]: {
+        ...(prevLogs[nodeId] || {}), // Sicherstellen, dass ein Objekt vorhanden ist
+        [logId]: logEntry
+      }
+    }));
+  }, []);
+
+
+  const {
+    messages, sendMessage,
+    isConnected, error,
+  } = _useWebSocket(
+    "WS_URL_PLACEHOLDER", nodes, // WS_URL muss definiert sein
+    edges, updateNodes,
+    updateEdges, updateCreds,
+    updateCfg, updateDataset
   );
 
-  const renderDataSection = () => (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "4px 0 8px 0" }}>
-        <label htmlFor="datasource-select" style={{ color: C.textSecondary, fontSize: 12 }}>Database:</label>
-        <select
-          id="datasource-select"
-          value={dataSource}
-          onChange={(e) => setDataSource(e.target.value)}
-          style={{
-            background: C.panelBg,
-            color: C.text,
-            border: `1px solid ${C.border}`,
-            padding: "6px 8px",
-            borderRadius: 6,
-            fontSize: 12,
-          }}
-        >
-          <option value="nodes">nodes</option>
-          <option value="edges">edges</option>
-        </select>
-      </div>
+  const statusClass = isConnected ? 'text-green-400' : 'text-red-400'; // Tailwind-Klassen
+  // const statusEmoji = isConnected ? '✔' : '✖'; // Nicht direkt verwendet, aber zur Referenz
 
-      <div style={{ flex: 1, overflowY: "auto", backgroundColor: C.containerBg, borderRadius: 8, padding: 8 }}>
-        {tableData.length > 0 ? (
-          <DataTable rows={tableData} keys={Object.keys(tableData[0])} />
-        ) : (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-            <p style={{ color: C.textSecondary }}>No data available. Start a sim or wait till its complete.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  const firebaseApp = useRef<any>(null);
+  const firebaseDb = useRef<any>(null);
+  const listenerRefs = useRef<Array<{ refObj: any, callback: Function }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const renderLogsSection = () => (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div style={{ color: C.textSecondary, fontSize: 12, margin: "4px 0 8px 0" }}>Nodes</div>
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {(nodes && nodes.length > 0) ? (
-          nodes.map((n) => {
-            const nodeId = n && typeof n.id !== "undefined" ? n.id : "(no-id)";
-            const isOpen = expandedNode === nodeId;
-            const logsForNode = logsMap[nodeId] || { err: [], out: [] };
-            return (
-              <div key={nodeId} style={{ marginBottom: 8, border: `1px solid ${C.border}`, borderRadius: 6, background: C.containerBg }}>
-                <button
-                  onClick={() => setExpandedNode(isOpen ? null : nodeId)}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    background: "transparent",
-                    color: C.text,
-                    border: "none",
-                    padding: "8px 10px",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  {String(nodeId)} {isOpen ? "▲" : "▼"}
-                </button>
-                {isOpen && (
-                  <div style={{ padding: "8px 10px", borderTop: `1px solid ${C.border}` }}>
-                    <div style={{ marginBottom: 6, color: C.textSecondary, fontSize: 12 }}>err</div>
-                    {Array.isArray(logsForNode.err) && logsForNode.err.length > 0 ? (
-                      <ul style={{ margin: 0, paddingLeft: 16 }}>
-                        {logsForNode.err.map((line, i) => (
-                          <li key={`err-${i}`} style={{ marginBottom: 4, whiteSpace: "pre-wrap" }}>{String(line)}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div style={{ color: C.textSecondary, fontSize: 12, marginBottom: 8 }}>No error logs.</div>
-                    )}
+  useEffect(() => {
+    if (!fbIsConnected && fbCreds) {
+      try {
+        firebaseApp.current = initializeApp({
+          credential: fbCreds?.creds,
+          databaseURL: fbCreds.db_path
+        });
+        console.log('Firebase-Initialisierung erfolgreich'); // Korrektur von console.error zu console.log
 
-                    <div style={{ margin: "10px 0 6px 0", color: C.textSecondary, fontSize: 12 }}>out</div>
-                    {Array.isArray(logsForNode.out) && logsForNode.out.length > 0 ? (
-                      <ul style={{ margin: 0, paddingLeft: 16 }}>
-                        {logsForNode.out.map((line, i) => (
-                          <li key={`out-${i}`} style={{ marginBottom: 4, whiteSpace: "pre-wrap" }}>{String(line)}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div style={{ color: C.textSecondary, fontSize: 12 }}>No output logs.</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })
-        ) : (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-            <p style={{ color: C.textSecondary }}>No nodes available. Provide nodes to view logs.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+        firebaseDb.current = getDatabase(firebaseApp.current);
+        setfbIsConnected(true);
+      } catch (e: any) { // Typisierung des Fehlers
+        console.error('Firebase-Initialisierung fehlgeschlagen:', e);
+        setfbIsConnected(false);
+      }
+    }
+  }, [fbCreds, fbIsConnected]);
 
+  // Updated handler to process all data changes from Firebase, including logs
+  const handleDataChange = useCallback((snapshot: any) => { // snapshot Typisierung
+    const changedData = snapshot.val();
+    const nodeIdWithSuffix = snapshot.key; // Der Schlüssel, der vom Snapshot kommt
+
+    if (!changedData) return;
+
+    // Firebase-Pfade können variieren. Hier wird angenommen, dass der Schlüssel bereits die Node-ID ist oder einen Suffix hat.
+    // Beispiel: logs/{nodeId} oder logs/{nodeId}_logkey
+    // Wenn der Pfad 'nodes/{nodeId}' ist, dann ist snapshot.key die nodeId
+    // Wenn der Pfad 'logs/{nodeId}_logId' ist, muss der Schlüssel gesplittet werden.
+
+    // Wenn der Schlüssel z.B. "pixel_id_alpha__log123" ist
+    const parts = nodeIdWithSuffix.split('__');
+    const actualNodeId = parts[0]; // Dies wäre die Node-ID
+
+    // Logic for Node/Edge updates based on changedData structure
+    if (changedData.session_id && !changedData.src) {
+        // history node change - here assuming snapshot.key is the actual node id
+        updateNodes({ id: nodeIdWithSuffix, ...changedData });
+    } else if (changedData.session_id && changedData.src) {
+        // History Edges - here assuming snapshot.key is the actual edge id
+        updateHistoryEdges({ id: nodeIdWithSuffix, ...changedData });
+    } else if (changedData.src && changedData.trgt) { // Check for edge properties
+        updateEdges({ id: nodeIdWithSuffix, ...changedData });
+    } else if (changedData.pos && changedData.type) { // Check for node properties
+        updateNodes({ id: nodeIdWithSuffix, ...changedData });
+    } else if (changedData.err || changedData.out) { // loggs (Check for log properties)
+        console.log("Log change detected:", nodeIdWithSuffix);
+        // Annahme: Wenn der Schlüssel des Snapshots ein Log ist (z.B. node_id__log_id)
+        const nodeForLog = parts.length > 1 ? parts[0] : nodeIdWithSuffix; // Wenn der Schlüssel gesplittet wurde
+        const logId = parts.length > 1 ? parts[1] : randomId(10); // Oder generiere eine neue ID
+        updateNodeLogs(nodeForLog, logId, { id: logId, ...changedData });
+    } else if (changedData.status && changedData.meta) { // metadata
+        updateNodes(
+            {
+                id: nodeIdWithSuffix, // Hier auch nodeIdWithSuffix verwenden
+                meta: changedData.meta,
+                color: getNodeColor(changedData.meta.status.state)
+            }
+        );
+    }
+    // Spezifische Prüfung für Logs im Array-Format, falls sie als komplettes Array unter einer Node-ID kommen
+    // Dies würde einen anderen Firebase-Pfad erfordern, z.B. /nodes/{nodeId}/logs_array
+    if (Array.isArray(changedData.logs)) {
+        setNodeLogs(prevLogs => ({
+            ...prevLogs,
+            [nodeIdWithSuffix]: changedData.logs // Direkt das Array setzen
+        }));
+    }
+  }, [updateNodes, updateEdges, updateHistoryEdges, updateNodeLogs]); // updateNodeLogs hinzugefügt
+
+  useEffect(() => {
+    if (fbIsConnected && fbCreds && firebaseDb.current) {
+        // Bereinige bestehende Listener, bevor neue hinzugefügt werden
+        listenerRefs.current.forEach(({refObj, callback}) => off(refObj, 'child_changed', callback));
+        listenerRefs.current = [];
+
+        fbCreds.listener_paths.forEach(path => {
+          const dbRef = ref(firebaseDb.current, path);
+          onChildChanged(dbRef, handleDataChange);
+          listenerRefs.current.push({refObj: dbRef, callback: handleDataChange});
+        });
+
+        // updateCreds(null); // Kommentiert, da dies die Creds sofort löschen würde, was nicht immer gewünscht ist
+    }
+    return () => {
+      // Cleanup-Funktion für den Effekt
+      listenerRefs.current.forEach(({ refObj, callback }) => off(refObj, 'child_changed', callback));
+      listenerRefs.current = [];
+    };
+  }, [fbIsConnected, fbCreds, handleDataChange]); // updateCreds aus den Abhängigkeiten entfernt
+
+  // Simplified message handler, as logs are now handled by Firebase listener
+  useEffect(() => {
+    if (messages.length > 0) {
+      const latestMessage = messages[messages.length - 1];
+      if (latestMessage?.type === "CHAT_MESSAGE") {
+        setChatMessages(prev => [...prev, latestMessage]);
+      }
+      else if (latestMessage?.type === "TABLE_DATA" && Array.isArray(latestMessage?.data)) { // data nicht typisiert im ChatMessage
+        setTableData(latestMessage?.data as TableDataRow[]); // Type Assertion
+        setIsTraining(false);
+      }
+      else if (latestMessage?.type === "TRAINING_COMPLETE") {
+        setIsTraining(false);
+      }
+    }
+  }, [messages]);
+
+  const handleSubmit = useCallback((e: React.FormEvent) => { // Typisierung des Events
+    e.preventDefault();
+    if (inputValue.trim() && isConnected) {
+      sendMessage({ text: inputValue, type: "COMMAND", timestamp: new Date().toISOString() });
+      setInputValue('');
+    }
+  }, [inputValue, isConnected, sendMessage]);
+
+  // When a node is clicked, select it and send a message to the backend to trigger log generation
+  const handleNodeClick = useCallback((nodeId: string) => {
+    const nodeData = nodes.find(n => n.id === nodeId);
+    if (nodeData) {
+      setSelectedNode(nodeData);
+      sendMessage({ type: "LOGS", info: { nodeId }, timestamp: new Date().toISOString() });
+    }
+  }, [sendMessage, nodes]);
+
+  const handleChatSubmit = useCallback((e: React.FormEvent) => { // Typisierung des Events
+    e.preventDefault();
+    if (chatInputValue.trim() && isConnected) {
+      sendMessage({ text: chatInputValue, type: "CHAT_MESSAGE", timestamp: new Date().toISOString() });
+      setChatInputValue('');
+    }
+  }, [chatInputValue, isConnected, sendMessage]);
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { // Typisierung des Events
+    const file = e.target.files?.[0]; // Sicherer Zugriff
+    if (file && isConnected) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        sendMessage({
+          type: "FILE_UPLOAD",
+          file: {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            content: (event.target?.result as string).split(',')[1], // Type Assertion
+          },
+          timestamp: new Date().toISOString()
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  }, [isConnected, sendMessage]);
+
+  const handleDownloadLogs = useCallback((nodeId: string) => {
+    const logsToDownload = { [nodeId]: nodeLogs[nodeId] };
+    downloadLogsCSV(logsToDownload, `node_${nodeId}_logs.csv`);
+  }, [nodeLogs]);
+
+  const handleDownloadAllLogs = useCallback(() => {
+    downloadLogsCSV(nodeLogs, 'all_nodes_logs.csv');
+  }, [nodeLogs]);
+
+  const handleToggleDataSidebar = useCallback(() => {
+      const willBeOpen = !isDataSidebarOpen;
+      setIsDataSidebarOpen(willBeOpen);
+      if (willBeOpen) {
+          sendMessage({ type: "REQUEST_TABLE_DATA", timestamp: new Date().toISOString() });
+      }
+  }, [isDataSidebarOpen, sendMessage]);
+
+  const handleTrainModel = useCallback(() => {
+      setIsTraining(true);
+      sendMessage({ type: "TRAIN_MODEL", timestamp: new Date().toISOString() });
+  }, [sendMessage]);
+
+
+  const renderScene = useCallback(() => {
+    return <ThreeScene edges={edges} nodes={nodes} onNodeClick={handleNodeClick} />;
+  }, [edges, nodes, handleNodeClick]);
+
+
+  const render_data_view = useCallback(() => {
+    // Only render if sidebar is open, and pass correct props
+    if (!isDataSidebarOpen) return null;
+    return (
+      <>
+        <DataTable
+          rows={dataset.rows}
+          keys={dataset.keys}
+        />
+      </>
+    );
+  }, [dataset, isDataSidebarOpen]); // Abhängigkeit von isDataSidebarOpen
+
+  const nodeSection = useCallback(() => {
+    console.log("selectedNode, firebaseDb,fbIsConnected", selectedNode, firebaseDb,fbIsConnected);
+    if (selectedNode) {
+      return(
+        <NodeInfoPanel
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+          onDownloadSingle={handleDownloadLogs}
+          onDownloadAll={handleDownloadAllLogs}
+          firebaseDb={firebaseDb}
+          fbIsConnected={fbIsConnected}
+          deactivate={(nodeId) => console.log(`Deactivating node: ${nodeId}`)} // Placeholder für deactivate
+        />
+      );
+    }
+    return(
+      <NodeDrawer />
+    );
+  },[selectedNode, firebaseDb, fbIsConnected, handleDownloadLogs, handleDownloadAllLogs]);
+
+
+  // @ts-ignore // Kann entfernt werden, wenn alle Typen korrekt sind
   return (
-    <div style={{ display: "flex", height: "100vh", position: "fixed", left: 0, top: 0, zIndex: 1000, pointerEvents: "none" }}>
-      <div
-        style={{
-          width: isOpen ? "400px" : "0px",
-          backgroundColor: C.panelBg,
-          color: C.text,
-          padding: isOpen ? "16px" : "0",
-          transition: "width 0.3s ease, padding 0.3s ease",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          borderRight: `1px solid ${C.border}`,
-          pointerEvents: "auto",
-        }}
-      >
-        <h3 style={{ margin: "0 0 12px 0", fontWeight: 500 }}>Data View</h3>
-        {renderTabs()}
-        <div style={{ flex: 1, overflow: "hidden" }}>
-          {activeSection === "data" ? renderDataSection() : renderLogsSection()}
-        </div>
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', backgroundColor: "#131314", color: "#e3e3e3", fontFamily: 'sans-serif' }}> {/* COLORS.background/text */}
+
+      {render_data_view()} {/* Conditional rendering for data view */}
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
+        {nodes.length === 0 && edges.length === 0 ? (
+          <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}>Loading...</div>
+        ) : (
+          renderScene()
+        )}
+
+      <TerminalConsole
+        error={error}
+        statusClass={statusClass}
+        handleSubmit={handleSubmit}
+        isConnected={isConnected}
+        inputValue={inputValue}
+        updateInputValue={updateInputValue}
+        options={["config creation", "QA"]}
+        messages={messages}
+      />
+
       </div>
 
-      <button
-        onClick={onToggle}
-        style={{
-          ...buttonStyle,
-          width: 40,
-          height: 40,
-          borderRadius: "0 50% 50% 0",
-          padding: 0,
-          alignSelf: "center",
-          marginLeft: -1,
-          pointerEvents: "auto",
-        }}
-      >
-        {isOpen ? "<" : ">"}
-      </button>
+      {nodeSection()}
+      {/* Conditionally render CfgCreator, e.g., based on a state variable */}
+      {/* For demo, it's always rendered, but in a real app, you might have a button to open/close it */}
+      <CfgCreator cfg_content={cfg_content} />
     </div>
   );
 };
 
+export default QDash;
+
+
+/*
 
 
 
-const QDash = (callback, deps) => {
+const QDash = () => {
   const [nodes, setNodes] = useState([]);
   const [historyNodes, setHistoryNodes] = useState([]);
   const [historyEdges, setHistoryEdges] = useState([]);
@@ -380,22 +545,39 @@ const QDash = (callback, deps) => {
   const [isDataSidebarOpen, setIsDataSidebarOpen] = useState(false);
   const [tableData, setTableData] = useState([]);
   const [isTraining, setIsTraining] = useState(false);
-  const [userId, setUserId] = useState(randomId());
+  const [cfg_content, setCfg_content] = useState({});
+  const [dataset, setDataset] = useState(
+    {
+      keys: [],
+      rows: []
+    }
+  );
+
+  const updateDataset = (data:object) => {
+    setDataset(data)
+  }
+
+
+  const updateCfg = (data:object) => {
+    setCfg_content(data)
+  }
 
   const updateInputValue = (data) =>  {
     setInputValue(value)
   }
+
   const updateHistoryNodes = (data) =>  {
-    setHistoryNodes(prev => {
+    setHistoryNodes(prev:any => {
         if (prev.length === 0) return Array.isArray(data) ? data : [data];
         const newHNodes = [...prev];
         const item = Array.isArray(data) ? data[0] : data;
-        const index = newHNodes.findIndex(e => e.id === item.id);
-        if (index > -1) newHNodes[index] = { ...newHNodes[index], ...item };
+        const index: number = newHNodes.findIndex(e => e.id === item.id);
+        if (index > -1) newHNodes?[index] = { ...newHNodes?[index], ...item };
         else newHNodes.push(item);
         return newHNodes;
     });
   }
+
   function randomId(len = 30) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
@@ -404,8 +586,8 @@ const QDash = (callback, deps) => {
     }
     return result;
   }
-  const updateHistoryEdges = (data) =>  {
-    setHistoryNodes(prev => {
+  const updateHistoryEdges = (data:any) =>  {
+    setHistoryNodes(prev:any => {
         if (prev.length === 0) return Array.isArray(data) ? data : [data];
         const newHNodes = [...prev];
         const item = Array.isArray(data) ? data[0] : data;
@@ -416,12 +598,9 @@ const QDash = (callback, deps) => {
     });
   }
 
-  const updateLogge = (logs) =>{
-    console.log("sut loggs...")
-    setLoggs(logs);
-  }
-  const updateEdges = useCallback((data) => {
-    setEdges(prev => {
+
+  const updateEdges = useCallback((data: any) => {
+    setEdges(prev:any => {
         if (prev.length === 0) return Array.isArray(data) ? data : [data];
         const newEdges = [...prev];
         const item = Array.isArray(data) ? data[0] : data;
@@ -460,12 +639,11 @@ const QDash = (callback, deps) => {
   const {
     messages, sendMessage,
     isConnected, error,
-    deactivate
   } = _useWebSocket(
     WS_URL, nodes,
     edges, updateNodes,
     updateEdges, updateCreds,
-    () => {}
+    updateCfg, updateDataset
   );
 
   const statusClass = isConnected ? 'status-connected' : 'status-disconnected';
@@ -541,7 +719,7 @@ const QDash = (callback, deps) => {
   }, [updateNodes, updateEdges]);
 
   useEffect(() => {
-    if (!deactivate && fbIsConnected && fbCreds && firebaseDb.current) {
+    if (fbIsConnected && fbCreds && firebaseDb.current) {
         listenerRefs.current.forEach(({refObj, callback}) => off(refObj, 'child_changed', callback));
         listenerRefs.current = [];
 
@@ -556,7 +734,7 @@ const QDash = (callback, deps) => {
     return () => {
       listenerRefs.current.forEach(({ refObj, callback }) => off(refObj, 'child_changed', callback));
     };
-  }, [fbIsConnected, deactivate, fbCreds, handleDataChange, updateCreds]);
+  }, [fbIsConnected, fbCreds, handleDataChange, updateCreds]);
 
   // Simplified message handler, as logs are now handled by Firebase listener
   useEffect(() => {
@@ -649,12 +827,9 @@ const QDash = (callback, deps) => {
 
   const render_data_view = useCallback(() => {
     return (
-      <DataSidebar
-        isOpen={isDataSidebarOpen}
-        onToggle={handleToggleDataSidebar}
-        onDownload={() => downloadTableDataCSV(tableData, 'table_data.csv')}
-        nodes={historyNodes}
-        edges={historyEdges}
+      <DataTable
+        rows={dataset.rows}
+        keys={dataset.keys}
       />
     )
   }, [historyNodes, historyEdges, isDataSidebarOpen]);
@@ -678,6 +853,7 @@ const QDash = (callback, deps) => {
     )
   },[selectedNode, firebaseDb,fbIsConnected]);
 
+  // @ts-ignore
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', backgroundColor: COLORS.background, color: COLORS.text, fontFamily: 'sans-serif' }}>
 
@@ -689,6 +865,7 @@ const QDash = (callback, deps) => {
         ) : (
           renderScene()
         )}
+
       <TerminalConsole
         error={error}
         statusClass={statusClass}
@@ -702,36 +879,10 @@ const QDash = (callback, deps) => {
       </div>
 
       {nodeSection()}
-
+      <CfgCreator cfg_content={cfg_content} />
     </div>
   );
 };
 
-export default QDash; x
-// nichts darf deine gefühle beeinflussen (negativ oder positiv)
-
-
-
-
-/*
-
-<table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {Object.keys(tableData[0]).map((key) => (
-                  <th key={key} style={{ borderBottom: `1px solid ${C.border}`, padding: 8, textAlign: "left" }}>{key}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {tableData.map((row, index) => (
-                <tr key={index}>
-                  {Object.values(row).map((val, i) => (
-                    <td key={i} style={{ padding: 8, borderTop: `1px solid ${C.border}` }}>{String(val)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
+export default QDash;
  */

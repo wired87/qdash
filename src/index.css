@@ -1,3 +1,12 @@
+/* Fügt die Tailwind-Basisstile hinzu, die für alle Projekte gelten. */
+@tailwind base;
+
+/* Fügt Tailwind-Komponentenklassen hinzu, wie Buttons, Formulare usw. */
+@tailwind components;
+
+/* Fügt Tailwind-Dienstprogramme hinzu (Utility Classes) wie flex, pt-4, text-center etc. */
+@tailwind utilities;
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
