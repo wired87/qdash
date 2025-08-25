@@ -1,5 +1,3 @@
-"use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onChildChanged, off } from "firebase/database";

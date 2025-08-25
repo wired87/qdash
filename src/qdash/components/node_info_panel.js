@@ -4,7 +4,7 @@ import {Button, Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader} f
 import {NodeStatusSection} from "./node_info";
 import {NodeLogsSection} from "./node_logs";
 
-export const NodeInfoPanel:React.FC<any> = (
+export const NodeInfoPanel = (
   {node, onClose, onDownloadSingle, onDownloadAll, firebaseDb, fbCreds, fbIsConnected, deactivate}
 ) => {
   // ALLE Hooks müssen am Anfang stehen, VOR JEDEM bedingten Return.
@@ -12,7 +12,7 @@ export const NodeInfoPanel:React.FC<any> = (
   const listenerRefs = useRef([]);
   console.log("node, firebaseDb,fbIsConnected", node, firebaseDb, fbIsConnected)
 
-  const updateLogs = useCallback((newLogs:any) => {
+  const updateLogs = useCallback((newLogs) => {
     setLogs(prevLogs => {
       if (newLogs && newLogs.id) {
         return {
@@ -60,7 +60,7 @@ export const NodeInfoPanel:React.FC<any> = (
       console.error("Initial data fetch failed:", error);
     });
 
-    const onChildChangedCallback = (snapshot:any) => {
+    const onChildChangedCallback = (snapshot) => {
       const changedData = snapshot.val();
       console.log("Child changed detected:", changedData);
       updateLogs({ id: snapshot.key, ...changedData });

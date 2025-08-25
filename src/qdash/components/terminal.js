@@ -27,18 +27,8 @@ const COLORS = {
  * @param {Array<{label: string, value: string}>} props.options - Eine Liste von Objekten für die klickbaren Chips im Kopfbereich.
  */
 
-interface TerminalConsoleProps {
-    error: Error | null;
-    statusClass: string;
-    handleSubmit: (e: React.FormEvent) => void;
-    isConnected: boolean;
-    messages: string[];
-    inputValue: string;
-    updateInputValue: (value: string) => void;
-    options: string[]; // Nur Strings, da wir die Chip-Komponente nicht verwenden
-    // updateParam ist hier nicht direkt in TerminalConsole selbst, sondern wird übergeben
-}
-export const TerminalConsole: React.FC<TerminalConsoleProps> = ({
+
+export const TerminalConsole= ({
   error,
   statusClass,
   handleSubmit,
@@ -60,7 +50,7 @@ export const TerminalConsole: React.FC<TerminalConsoleProps> = ({
     >
       {/* Kopfbereich mit klickbaren Optionen (Chips) */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {options.map((option:string) => (
+        {options.map((option) => (
           <Chip
             key={option}
             variant="solid"
@@ -89,7 +79,7 @@ export const TerminalConsole: React.FC<TerminalConsoleProps> = ({
       </div>
 
       <div>
-         {messages.map((item: any) => (
+         {messages.map((item) => (
           <SingleMessage
             item={item}
           />

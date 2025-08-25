@@ -1,26 +1,8 @@
 import React, { useCallback } from 'react';
 
-// Schnittstelle für das Nachrichtenobjekt
-export interface userMesssageObject {
-    id: string; // Wird für die Farbwechsel-Logik verwendet (Konvertierung zu Nummer)
-    message: string;
-    timeToken: string; // Zeitstempel der Nachricht
-    file?: string; // Optionale URL für ein Bild
-    class: 'user' | 'ai'; // 'user' oder 'ai' zur Unterscheidung der Nachrichten
-}
-
-// Props für die SingleMessage Komponente
-export interface SingleMessageTypes {
-    item: userMesssageObject;
-    // Im Web-Kontext werden diese typischerweise direkt als Tailwind-Klassen übergeben
-    // oder die Standardstile werden direkt in der Komponente definiert.
-    // Daher sind 'primaryTextStyles' und 'secondaryTextStylesText' hier nicht direkt als 'StyleProps' anwendbar
-    // und werden ignoriert, da die Styling-Philosophie auf Tailwind umgestellt wird.
-    // Gleiches gilt für 'styles'.
-}
 
 // Hilfsfunktion zum Kopieren von Text in die Zwischenablage
-const copyToClipboard = (text: string) => {
+const copyToClipboard = (text) => {
     // Verwendung von document.execCommand('copy') aufgrund von iFrame-Einschränkungen
     const textarea = document.createElement('textarea');
     textarea.value = text;
@@ -37,7 +19,7 @@ const copyToClipboard = (text: string) => {
     document.body.removeChild(textarea);
 };
 
-export const SingleMessage: React.FC<SingleMessageTypes> = ({ item }) => {
+export const SingleMessage = ({ item }) => {
     // Konvertiere die ID in eine Zahl für die Hintergrundfarb-Logik
     const messageIdNum = Number(item.id);
 
@@ -112,7 +94,7 @@ export const SingleMessage: React.FC<SingleMessageTypes> = ({ item }) => {
 // Ein Beispiel zur Verwendung der SingleMessage Komponente in einer App
 // Dies wäre typischerweise ein übergeordneter Container, der Nachrichten rendert
 export default function DemoApp() {
-    const mockMessages: userMesssageObject[] = [
+    const mockMessages= [
         { id: "1", message: "Hallo Benedikt, wie geht es dir heute?", timeToken: "10:00", class: "user" },
         { id: "2", message: "Mir geht es gut, danke! Und dir?", timeToken: "10:01", class: "ai" },
         { id: "3", message: "Ich bin auch gut. Ich habe gerade ein interessantes Bild gesehen.", timeToken: "10:02", class: "user", file: "https://placehold.co/600x400/FF0000/FFFFFF?text=Awesome+Image" },

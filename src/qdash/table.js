@@ -1,8 +1,8 @@
 import {Table, TableHeader, TableColumn, TableBody, TableRow, TableCell} from "@heroui/react";
 
 export const DataTable = (
-  rows:any,
-  keys:any
+  rows,
+  keys
 ) => {
   if (!rows?.length || !keys.length) return <></>
 
@@ -23,14 +23,14 @@ export const DataTable = (
       >
 
       <TableHeader>
-        {keys.map((key:any) => (
+        {keys.map((key) => (
           <TableColumn key={key}>{key}</TableColumn>
         ))}
       </TableHeader>
       <TableBody>
-        {rows.map((row:[], idx:string) => (
+        {rows.map((row, idx) => (
           <TableRow key={idx}>
-            {keys.map((key:string) => (
+            {keys.map((key) => (
               <TableCell key={key}>{row?[key] : null}</TableCell>
             ))}
           </TableRow>

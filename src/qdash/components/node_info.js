@@ -1,20 +1,9 @@
 import React from "react";
 import { Listbox, ListboxItem } from "@heroui/react";
 
-interface Node {
-  id: string;
-  name?: string;
-  meta?: {
-    status?: {
-      state?: string;
-      message?: string;
-    };
-    [key: string]: any; // erlaubt Zusatzdaten
-  };
-  [key: string]: any;
-}
 
-export const NodeStatusSection:React.FC<any> = ({ node }) => {
+
+export const NodeStatusSection = ({ node }) => {
   if (!node) {
     return <p className="text-default-400">Error fetching.</p>;
   }

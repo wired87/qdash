@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 
 export default function NodeDrawer({}) {
   const [inputValue, setInputValue] = useState('');
-  const [error, setError] = useState<Error | null>(null);
+  const [error, setError] = useState(null);
 
 
   // Mock-Funktion für das Absenden des Terminalbefehls
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     console.log('Befehl gesendet:', inputValue);
     alert(`Befehl gesendet: ${inputValue}`);
@@ -14,7 +14,7 @@ export default function NodeDrawer({}) {
     setError(null); // Fehler zurücksetzen
   };
 
-  const updateInputValue = (value: string) => {
+  const updateInputValue = (value) => {
     setInputValue(value);
   };
 

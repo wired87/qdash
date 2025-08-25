@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 // CsvComponent - Eine Komponente zur Darstellung von CSV-ähnlichen Daten in einer Tabelle.
 // Diese Komponente wird die extrahierten Daten oder die formatierten Nodes/Edges anzeigen.

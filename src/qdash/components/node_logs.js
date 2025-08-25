@@ -1,10 +1,8 @@
 import React from "react";
 import { Listbox, ListboxItem } from "@heroui/react";
 
-interface LogsMap {
-  [id: string]: string[]; // id -> array of log strings
-}
-export const NodeLogsSection: React.FC<any> = ({ logs }) => {
+
+export const NodeLogsSection = ({ logs }) => {
   const entries = Object.entries(logs || {});
   console.log("Log section rendered:", logs);
 

@@ -1,43 +1,11 @@
-import React, {useState, useCallback, useEffect, FC} from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 
-// Schnittstelle für ein einzelnes Phase-Item
-interface PhaseType {
-    id: string;
-    iterations: number;
-    max_val_multiplier: number;
-}
 
-// Schnittstelle für die Attribute eines Fermion-Sub-Eintrags
-interface FermionSubAttrs {
-    max_value: number | string; // Kann Zahl oder String sein, wie im Beispiel
-    phase: PhaseType[];
-}
-
-// Schnittstelle für einen SID-Eintrag (Sammlung von FermionSubAttrs)
-interface SidEntry {
-    [sid: string]: FermionSubAttrs;
-}
-
-// Schnittstelle für einen Pixel-ID-Eintrag (Sammlung von SidEntry)
-interface PixelIdEntry {
-    [pixelId: string]: SidEntry;
-}
-
-// Schnittstelle für die Haupt-Konfiguration (entspricht der Struktur von 'cfg')
-export interface CfgContent {
-    [pixelId: string]: SidEntry;
-}
-
-// Props-Definition für die CfgCreator Komponente
-interface CfgCreatorProps {
-    cfg_content?: CfgContent; // Optional gemacht, um Initialisierung mit leerem Objekt zu ermöglichen
-}
-
-export const CfgCreator: FC<CfgCreatorProps> = (
+export const CfgCreator= (
   { cfg_content }
 ) => {
     // Initialer Mock-Konfigurationszustand. Der Typ ist nun CfgContent.
-    const [cfg, setCfg] = useState<CfgContent>({
+    const [cfg, setCfg] = useState({
         "pixel_id_alpha": {
             "fermion_sub_A": {
                 "max_value": 100.5,
@@ -75,10 +43,10 @@ export const CfgCreator: FC<CfgCreatorProps> = (
     }, [cfg_content]);
 
     // Zustand für das aktuell geöffnete Akkordeon-Element. Typ ist string oder null.
-    const [openPixelId, setOpenPixelId] = useState<string | null>(null);
+    const [openPixelId, setOpenPixelId] = useState(null);
 
     // Callback-Funktion zur Aktualisierung des 'max_value' für ein spezifisches 'fermion_sub'.
-    const handleValueChange = useCallback((pixelId: string, sid: string, newValue: string) => {
+    const handleValueChange = useCallback((pixelId, sid, newValue) => {
         setCfg(prevCfg => {
             // Eine tiefe Kopie für die Unveränderlichkeit des Zustands
             const updatedCfg = { ...prevCfg };
@@ -96,7 +64,7 @@ export const CfgCreator: FC<CfgCreatorProps> = (
     }, []);
 
     // Callback-Funktion zum Umschalten des Akkordeon-Zustands (Öffnen/Schließen).
-    const toggleAccordion = useCallback((pixelId: string) => {
+    const toggleAccordion = useCallback((pixelId) => {
         setOpenPixelId(prevId => (prevId === pixelId ? null : pixelId));
     }, []);
 
@@ -109,17 +77,6 @@ export const CfgCreator: FC<CfgCreatorProps> = (
         // Haupt-Container: Ein Flexbox-Layout, das den Bildschirm füllt.
         // Der linke Bereich ist der Hauptinhalt, der rechte Bereich ist das Konfigurationspanel.
         <div className="flex h-screen bg-gray-50 font-inter">
-            {/* Hauptinhaltsbereich (links) - Platzhalter */}
-            <div className="flex-grow p-6 bg-white shadow-inner rounded-l-lg m-4">
-                <h1 className="text-3xl font-extrabold text-gray-900 mb-4">Hauptanwendung</h1>
-                <p className="text-gray-700 leading-relaxed">
-                    Dies ist der Hauptbereich Ihrer Anwendung. Das Konfigurationspanel befindet sich auf der rechten Seite und ermöglicht die dynamische Anpassung verschiedener Parameter.
-                </p>
-                <p className="mt-4 text-gray-600 text-sm">
-                    Änderungen im Konfigurationspanel werden in der Konsole protokolliert, wenn Sie auf "Konfiguration bestätigen" klicken.
-                </p>
-            </div>
-
             {/* Rechtes Seitenpanel für die Konfiguration */}
             <div className="w-96 bg-gray-100 p-6 border-l border-gray-200 shadow-lg flex flex-col h-full overflow-y-auto rounded-r-lg m-4">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6">Konfigurationspanel</h2>
@@ -193,7 +150,7 @@ export function DemoApp() {
     // Hier kannst du die cfg_content-Prop steuern.
     // Initialisiere mit einem leeren Objekt, um den Fehler zu vermeiden, wenn noch keine Daten vorhanden sind.
     // Oder übergebe direkt eine initiale Konfiguration:
-    const initialCfg: CfgContent = {
+    const initialCfg = {
         "pixel_id_demo": {
             "fermion_sub_test": {
                 "max_value": 42,
@@ -202,7 +159,7 @@ export function DemoApp() {
         }
     };
 
-    const [currentCfgContent, setCurrentCfgContent] = useState<CfgContent>(initialCfg);
+    const [currentCfgContent, setCurrentCfgContent] = useState(initialCfg);
     const [showPanel, setShowPanel] = useState(true);
 
     const handleTogglePanel = useCallback(() => {
