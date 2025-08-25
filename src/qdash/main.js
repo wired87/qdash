@@ -1,7 +1,19 @@
 import React, {useState, useCallback, useEffect, useRef} from "react";
 import {initializeApp} from "firebase/app";
-import {getDatabase, get, off, onChildChanged, query, ref, limitToLast} from "firebase/database";
+import {getDatabase, off, onChildChanged, ref} from "firebase/database";
 import CfgCreator from "./components/cfg_cereator";
+import _useWebSocket from "./websocket";
+import {getNodeColor} from "./get_color";
+import {ThreeScene} from "./_use_three";
+import {DataTable} from "./table";
+import {NodeInfoPanel} from "./components/node_info_panel";
+import NodeDrawer from "./components/options_terminal";
+import {TerminalConsole} from "./components/terminal";
+
+const defaultCfg = {
+
+}
+
 
 // --- CfgCreator Komponente (hierher verschoben und nach JS konvertiert) ---
 
@@ -95,358 +107,6 @@ import CfgCreator from "./components/cfg_cereator";
  * @param {(data: CfgContent) => void} _updateCfg
  * @param {(data: Dataset) => void} _updateDataset
  */
-const _useWebSocket = (
-  _wsUrl,
-  _nodes,
-  _edges,
-  _updateNodes,
-  _updateEdges,
-  _updateCreds,
-  _updateCfg,
-  _updateDataset
-) => {
-  const [messages, setMessages] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    setIsConnected(true);
-    const timer = setTimeout(() => {
-      setMessages(prev => [...prev, { type: "CHAT_MESSAGE", text: "Welcome to QDash!", timestamp: new Date().toISOString() }]);
-      _updateCfg({
-          "mock_pixel": {
-              "mock_fermion": {
-                  "max_value": 99.9,
-                  "phase": []
-              }
-          }
-      });
-      _updateDataset({
-        keys: ["col1", "col2"],
-        rows: [{col1: "data1", col2: "data2"}]
-      });
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  /**
-   * @param {ChatMessage} msg
-   */
-  const sendMessage = useCallback((msg) => {
-    console.log("WebSocket: Sending message:", msg);
-    setMessages(prev => [...prev, msg]);
-  }, []);
-
-  return { messages, sendMessage, isConnected, error };
-};
-
-/**
- * Mock für ThreeScene Komponente
- * @param {object} props
- * @param {Edge[]} props.edges
- * @param {Node[]} props.nodes
- * @param {(nodeId: string) => void} props.onNodeClick
- */
-const ThreeScene = ({ edges, nodes, onNodeClick }) => {
-  return (
-    <div className="flex-1 bg-gray-900 flex items-center justify-center text-gray-400">
-      <p>3D Scene Placeholder</p>
-      <div className="absolute inset-0 flex flex-wrap justify-center items-center gap-4">
-        {nodes.map(node => (
-          <button
-            key={node.id}
-            onClick={() => onNodeClick(node.id)}
-            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-200"
-          >
-            Node: {node.id} ({node.status?.state || 'N/A'})
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-/**
- * Mock für DataTable Komponente
- * @param {object} props
- * @param {TableDataRow[]} props.rows
- * @param {string[]} props.keys
- */
-const DataTable = ({ rows, keys }) => {
-  if (rows.length === 0) {
-    return (
-      <div className="p-4 bg-gray-700 text-gray-300 rounded-lg shadow-md max-h-96 overflow-y-auto w-full">
-        <h3 className="text-xl font-semibold mb-3">Data Table (Placeholder)</h3>
-        <p>No table data available.</p>
-      </div>
-    );
-  }
-  return (
-    <div className="p-4 bg-gray-700 text-gray-300 rounded-lg shadow-md max-h-96 overflow-y-auto w-full">
-      <h3 className="text-xl font-semibold mb-3">Data Table (Placeholder)</h3>
-      <table className="min-w-full divide-y divide-gray-600">
-        <thead className="bg-gray-600">
-          <tr>
-            {keys.map(key => (
-              <th key={key} className="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">
-                {key}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-gray-700 divide-y divide-gray-600">
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {keys.map(key => (
-                <td key={key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                  {String(row[key])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-/**
- * Mock für NodeDrawer Komponente
- */
-const NodeDrawer = () => {
-  return (
-    <div className="fixed right-0 top-0 h-full w-96 bg-gray-800 text-white shadow-xl z-50 flex flex-col p-4">
-      <h2 className="text-xl font-semibold mb-4">Node Drawer (Placeholder)</h2>
-      <p>Details about all nodes or other information.</p>
-    </div>
-  );
-};
-
-/**
- * Mock für TerminalConsole Komponente
- * @param {object} props
- * @param {Error | null} props.error
- * @param {string} props.statusClass
- * @param {(e: React.FormEvent) => void} props.handleSubmit
- * @param {boolean} props.isConnected
- * @param {string} props.inputValue
- * @param {(value: string) => void} props.updateInputValue
- * @param {string[]} props.options
- */
-const TerminalConsole = ({ error, statusClass, handleSubmit, isConnected, inputValue, updateInputValue, options }) => {
-  const statusEmoji = isConnected ? "✔" : "✖";
-  const messagesEndRef = useRef(null);
-  const [messages, setMessages] = useState([]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleLocalSubmit = useCallback((e) => {
-    e.preventDefault();
-    if (inputValue.trim()) {
-      setMessages(prev => [...prev, `> ${inputValue}`]);
-      handleSubmit(e);
-      updateInputValue('');
-    }
-  }, [inputValue, handleSubmit, updateInputValue]);
-
-  return (
-    <div className="p-4 bg-gray-800 text-gray-100 rounded-lg m-4">
-      <div className="flex flex-wrap gap-2 mb-4">
-        {options.map((option) => (
-          <button
-            key={option}
-            className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
-            onClick={() => console.log(`Option selected: ${option}`)}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-      <div className="mb-2 text-sm max-h-48 overflow-y-auto bg-gray-700 p-2 rounded-md">
-        <p className="text-gray-400">Connection: <span className={statusClass}>{isConnected ? "Established" : "Disconnected"} {statusEmoji}</span></p>
-        {error && <p className="text-red-400">Error: {error.message || "Unknown Error"}</p>}
-        {messages.map((msg, idx) => <p key={idx}>{msg}</p>)}
-        <div ref={messagesEndRef} />
-      </div>
-      <form onSubmit={handleLocalSubmit} className="flex items-center">
-        <span className="text-blue-400 mr-2">:</span>
-        <input
-          type="text"
-          className="flex-1 bg-transparent border-none text-white text-sm outline-none focus:ring-0"
-          value={inputValue}
-          onChange={(e) => updateInputValue(e.target.value)}
-          placeholder="Enter command..."
-          disabled={!isConnected}
-        />
-      </form>
-    </div>
-  );
-};
-
-/**
- * Mock für NodeInfoPanel
- * @param {object} props
- * @param {Node | null} props.node
- * @param {() => void} props.onClose
- * @param {(nodeId: string) => void} props.onDownloadSingle
- * @param {(nodeId: string) => void} props.onDownloadAll
- * @param {React.MutableRefObject<any>} props.firebaseDb
- * @param {any} props.fbCreds
- * @param {boolean} props.fbIsConnected
- * @param {(nodeId: string) => void} props.deactivate
- */
-const NodeInfoPanel = ({ node, onClose, onDownloadSingle, onDownloadAll, firebaseDb, fbCreds, fbIsConnected, deactivate }) => {
-    /** @type {React.MutableRefObject<Array<{ refObj: import("firebase/database").Query; callback: Function }>>} */
-    const listenerRefs = useRef([]);
-    const [logs, setLogs] = useState({});
-    const [isOpen, setIsOpen] = useState(true);
-    const updateLogs = useCallback((newLogEntry) => {
-      setLogs(prevLogs => {
-        if (newLogEntry && newLogEntry.id) {
-          return {
-            ...prevLogs,
-            [newLogEntry.id]: newLogEntry
-          };
-        }
-        return prevLogs;
-      });
-    }, []);
-    useEffect(() => {
-      setIsOpen(!!node);
-    }, [node]);
-    useEffect(() => {
-      listenerRefs.current.forEach(({ refObj, callback }) => off(refObj, "child_changed", callback));
-      listenerRefs.current = [];
-      if (!node || !fbIsConnected || !firebaseDb.current) {
-        console.log("Firebase DB oder Node nicht verfügbar. Listener werden nicht initialisiert oder bereinigt.");
-        return;
-      }
-      const logs_path = `nodes/${node.id}/logs`;
-      if (!logs_path) {
-          console.error("logs_path konnte nicht erstellt werden. Node-ID möglicherweise ungültig.");
-          return;
-      }
-      const dbRef = ref(firebaseDb.current, logs_path);
-      const logsQuery = query(dbRef, limitToLast(30));
-      console.log(`Fetching initial log data for node ${node.id} from path: ${logs_path}`);
-      get(logsQuery).then((snapshot) => {
-        if (snapshot.exists()) {
-          const initialData = snapshot.val();
-          console.log("Initial data loaded:", initialData);
-          setLogs(initialData);
-        } else {
-          console.log("No initial data available.");
-          setLogs({});
-        }
-      }).catch((error) => {
-        console.error("Initial data fetch failed:", error);
-        setLogs({});
-      });
-      const onChildChangedCallback = (snapshot) => {
-        const changedData = snapshot.val();
-        console.log("Child changed detected:", { key: snapshot.key, data: changedData });
-        updateLogs({ id: snapshot.key, ...changedData });
-      };
-      onChildChanged(logsQuery, onChildChangedCallback);
-      listenerRefs.current.push({ refObj: logsQuery, callback: onChildChangedCallback });
-      return () => {
-        console.log("Cleaning up Firebase listeners for node:", node?.id);
-        listenerRefs.current.forEach(({ refObj, callback }) =>
-          off(refObj, "child_changed", callback)
-        );
-        listenerRefs.current = [];
-      };
-    }, [node, fbIsConnected, firebaseDb, updateLogs]);
-    if (!node || !isOpen) return null;
-    return (
-        <div
-          className="fixed right-0 top-0 h-full w-96 bg-gray-800 text-white shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-in-out"
-          style={{
-            transform: isOpen ? 'translateX(0)' : 'translateX(100%)'
-          }}
-        >
-          <div className="flex flex-col gap-1 p-4 border-b border-gray-700 bg-gray-900">
-            <h2 className="text-xl font-semibold">Info: {node?.id}</h2>
-            {node?.name && <p className="text-gray-400 text-sm">{node.name}</p>}
-            {node?.status && <p className="text-gray-400 text-sm">Status: {node.status}</p>}
-          </div>
-          <div className="flex-grow p-4 overflow-y-auto">
-            <div className="bg-gray-700 p-3 rounded-lg mb-4">
-                <h3 className="text-lg font-medium mb-2">Node Status (Placeholder)</h3>
-                <p className="text-gray-300">Hier würden detaillierte Statusinformationen des Knotens angezeigt werden.</p>
-                <p className="text-gray-400 text-sm mt-1">Aktueller Status: {node?.status || 'Unbekannt'}</p>
-            </div>
-            <div className="bg-gray-700 p-3 rounded-lg">
-                <h3 className="text-lg font-medium mb-2">Node Logs (Placeholder)</h3>
-                {Object.keys(logs).length === 0 ? (
-                    <p className="text-gray-300">Keine Logs verfügbar.</p>
-                ) : (
-                    <ul className="space-y-1 text-sm text-gray-300 max-h-48 overflow-y-auto custom-scrollbar">
-                        {Object.entries(logs).map(([logId, logEntry]) => (
-                            <li key={logId} className="border-b border-gray-600 pb-1 last:border-b-0">
-                                <strong>{logId}:</strong> {JSON.stringify(logEntry)}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 p-4 border-t border-gray-700 bg-gray-900">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors duration-200"
-            >
-              Close
-            </button>
-            <button
-              onClick={() => onDownloadSingle(node.id)}
-              className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors duration-200"
-            >
-              Download Single
-            </button>
-            <button
-              onClick={() => onDownloadAll(node.id)}
-              className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white font-medium transition-colors duration-200"
-            >
-              Download All
-            </button>
-            <button
-              onClick={() => deactivate(node.id)}
-              className="px-4 py-2 rounded-md bg-yellow-600 hover:bg-yellow-700 text-white font-medium transition-colors duration-200"
-            >
-              Deactivate
-            </button>
-          </div>
-        </div>
-    );
-};
-
-
-/**
- * @param {string} statusState
- * @returns {string}
- */
-const getNodeColor = (statusState) => {
-  switch (statusState) {
-    case 'active': return 'green';
-    case 'inactive': return 'gray';
-    case 'error': return 'red';
-    case 'training': return 'yellow';
-    default: return 'blue';
-  }
-};
-
-/**
- * @param {NodeLogs} logs
- * @param {string} filename
- */
-const downloadLogsCSV = (logs, filename) => {
-  console.log(`Downloading ${filename} with logs:`, logs);
-};
-
-// --- Hauptkomponente QDash ---
 
 const QDash = () => {
   const [nodes, setNodes] = useState([]);
@@ -590,6 +250,7 @@ const QDash = () => {
    * @param {string} logId
    * @param {NodeLogEntry} logEntry
    */
+
   const updateNodeLogs = useCallback((nodeId, logId, logEntry) => {
     setNodeLogs(prevLogs => ({
       ...prevLogs,
@@ -604,12 +265,13 @@ const QDash = () => {
   const {
     messages, sendMessage,
     isConnected, error,
+    data,
   } = _useWebSocket(
-    "WS_URL_PLACEHOLDER", nodes,
-    edges, updateNodes,
+    updateNodes,
     updateEdges, updateCreds,
     updateCfg, updateDataset
   );
+
 
   const statusClass = isConnected ? 'text-green-400' : 'text-red-400';
 
@@ -617,7 +279,6 @@ const QDash = () => {
   const firebaseDb = useRef(null);
   /** @type {React.MutableRefObject<Array<{ refObj: import("firebase/database").Query; callback: Function }>>} */
   const listenerRefs = useRef([]);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!fbIsConnected && fbCreds) {
@@ -769,17 +430,6 @@ const QDash = () => {
     }
   }, [isConnected, sendMessage]);
 
-  /**
-   * @param {string} nodeId
-   */
-  const handleDownloadLogs = useCallback((nodeId) => {
-    const logsToDownload = { [nodeId]: nodeLogs[nodeId] };
-    downloadLogsCSV(logsToDownload, `node_${nodeId}_logs.csv`);
-  }, [nodeLogs]);
-
-  const handleDownloadAllLogs = useCallback(() => {
-    downloadLogsCSV(nodeLogs, 'all_nodes_logs.csv');
-  }, [nodeLogs]);
 
   const handleToggleDataSidebar = useCallback(() => {
       const willBeOpen = !isDataSidebarOpen;
@@ -817,8 +467,8 @@ const QDash = () => {
         <NodeInfoPanel
           node={selectedNode}
           onClose={() => setSelectedNode(null)}
-          onDownloadSingle={handleDownloadLogs}
-          onDownloadAll={handleDownloadAllLogs}
+          //onDownloadSingle={handleDownloadLogs}
+          //onDownloadAll={handleDownloadAllLogs}
           firebaseDb={firebaseDb}
           fbIsConnected={fbIsConnected}
           deactivate={(nodeId) => console.log(`Deactivating node: ${nodeId}`)}
@@ -828,7 +478,7 @@ const QDash = () => {
     return(
       <NodeDrawer />
     );
-  },[selectedNode, firebaseDb, fbIsConnected, handleDownloadLogs, handleDownloadAllLogs]);
+  },[selectedNode, firebaseDb, fbIsConnected]);
 
 
   return (
@@ -842,21 +492,19 @@ const QDash = () => {
         ) : (
           renderScene()
         )}
-
-      <TerminalConsole
-        error={error}
-        statusClass={statusClass}
-        handleSubmit={handleSubmit}
-        isConnected={isConnected}
-        inputValue={inputValue}
-        updateInputValue={updateInputValue}
-        options={["config creation", "QA"]}
-      />
-
+          <TerminalConsole
+            error={error}
+            statusClass={statusClass}
+            handleSubmit={handleSubmit}
+            isConnected={isConnected}
+            inputValue={inputValue}
+            updateInputValue={updateInputValue}
+            options={["config creation", "QA"]}
+            messages={messages}
+          />
       </div>
-
       {nodeSection()}
-      <CfgCreator cfg_content={cfg_content} />
+      <CfgCreator cfg_content={cfg_content} sendMessage={sendMessage} />
     </div>
   );
 };

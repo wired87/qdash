@@ -84,5 +84,5 @@ export function useFirebaseListeners(fbCreds, deactivate, updateNodes, updateEdg
     };
   }, [fbIsConnected, deactivate, fbCreds, handleDataChange]);
 
-  return { fbIsConnected, firebaseDb, logs,  };
+  return { fbIsConnected, firebaseDb };
 }

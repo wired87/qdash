@@ -1,8 +1,8 @@
 import React, {useState, useCallback, useEffect} from 'react';
-
+import "../../index.css"
 
 export const CfgCreator= (
-  { cfg_content }
+  { cfg_content, sendMessage }
 ) => {
     // Initialer Mock-Konfigurationszustand. Der Typ ist nun CfgContent.
     const [cfg, setCfg] = useState({
@@ -135,7 +135,10 @@ export const CfgCreator= (
                 {/* Bestätigungsbutton */}
                 <div className="mt-8 pt-6 border-t border-gray-200">
                     <button
-                        onClick={onConfirm}
+                        onClick={
+                        sendMessage(
+                          { type: "cfg_file", cfg: cfg , timestamp: new Date().toISOString() }
+                        )}
                         className="w-full inline-flex items-center justify-center px-6 py-3 border border-transparent text-lg font-bold rounded-xl shadow-lg text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-3 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-300 transform hover:scale-105">
                         Konfiguration bestätigen
                     </button>

@@ -5,7 +5,7 @@ import {NodeStatusSection} from "./node_info";
 import {NodeLogsSection} from "./node_logs";
 
 export const NodeInfoPanel = (
-  {node, onClose, onDownloadSingle, onDownloadAll, firebaseDb, fbCreds, fbIsConnected, deactivate}
+  {node, onClose, firebaseDb, fbCreds, fbIsConnected, deactivate}
 ) => {
   // ALLE Hooks müssen am Anfang stehen, VOR JEDEM bedingten Return.
   const [logs, setLogs] = useState({});

@@ -45,13 +45,10 @@ export const SingleMessage = ({ item }) => {
                 ${backgroundColorClass}
                 ${item.class === 'user' ? 'self-end' : 'self-start'} // Ausrichtung basierend auf dem Typ
             `}
-            // Dynamische Schattenfarbe könnte hier bei Bedarf hinzugefügt werden,
-            // aber Tailwind's shadow-md ist ein guter Standard.
+
             style={{
                 marginTop: '12px',
-                // Da `bottom: 0` im React Native Kontext oft für `alignSelf: 'flex-end'` in einer Column ist,
-                // hier eher über `self-end` oder `self-start` in Flexbox gesteuert.
-            }}
+                            }}
         >
             {item.file && (
                 <img

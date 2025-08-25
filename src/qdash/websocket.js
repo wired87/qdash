@@ -14,14 +14,18 @@ const handleDownload = (data) => {
   URL.revokeObjectURL(url); // Speicher freigeben
 };
 
+
+
+
+
+
 const _useWebSocket = (
-  url, nodes, edges, updateNodes, updateEdges, updateCreds, updateCfg, updateDataset
+  updateNodes, updateEdges, updateCreds, updateCfg, updateDataset
 ) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
   const [deactivate, setDeactivate] = useState(false);
-  const [data, setData] = useState([]);
 
 
   // useRef, um die WebSocket-Instanz zu speichern, ohne Re-Renders auszulösen
@@ -30,7 +34,9 @@ const _useWebSocket = (
   // useCallback, um die send-Funktion zu memoizen
   const sendMessage = useCallback((message) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(message)); // Nachrichten als JSON senden
+      ws.current.send(
+        JSON.stringify(message)
+      ); // Nachrichten als JSON senden
     } else {
       console.warn("WebSocket ist nicht verbunden oder bereit.");
     }
@@ -84,9 +90,13 @@ const _useWebSocket = (
   useEffect(() => {
     // Schließe bestehende Verbindung, falls vorhanden
     // Neue WebSocket-Verbindung aufbauen
-    ws.current = new WebSocket(url);
+    ws.current = new WebSocket(WS_URL_LOCAL);
 
-    // Event-Handler
+    // Event-Handler@import "tailwindcss/base";
+    //
+    // @import "tailwindcss/components";
+    //
+    // @import "tailwindcss/utilities";
     ws.current.onopen = () => {
       console.log('WebSocket verbunden');
       setIsConnected(true);
@@ -123,7 +133,7 @@ const _useWebSocket = (
         ws.current.close();
       }
     };
-  }, [url]); // Abhängigkeit: Verbindet sich neu, wenn sich die URL ändert
+  }, []); // Abhängigkeit: Verbindet sich neu, wenn sich die URL ändert
 
   return { messages, sendMessage, isConnected, error };
 };
