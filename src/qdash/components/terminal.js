@@ -1,42 +1,7 @@
 import React, { useState, useCallback } from "react";
+import { Button, Input, Card, CardBody, Chip } from "@heroui/react";
 import "../../index.css";
 
-// Single Message Component
-const SingleMessage = ({ item }) => {
-  const getMessageIcon = (type) => {
-    switch (type) {
-      case "COMMAND":
-        return "💻";
-      case "CHAT_MESSAGE":
-        return "💬";
-      case "LOGS":
-        return "📋";
-      case "ERROR":
-        return "⚠️";
-      default:
-        return "ℹ️";
-    }
-  };
-
-  return (
-    <div className="message-container">
-      <span className="message-icon">{getMessageIcon(item.type)}</span>
-      <div className="message-content">
-        <div className="message-header">
-          <span className="message-type">{item.type}</span>
-          <span className="message-time">
-            {new Date(item.timestamp).toLocaleTimeString()}
-          </span>
-        </div>
-        <p className="message-text">{item.text}</p>
-      </div>
-    </div>
-  );
-};
-
-/**
- * Terminal Console Component with Custom CSS
- */
 export const TerminalConsole = ({
   error,
   statusClass,
@@ -64,198 +29,195 @@ export const TerminalConsole = ({
     [onSubmit]
   );
 
-  return (
-    <div className="terminal-console">
-      {/* Expandable Messages Area */}
-      {isExpanded && (
-        <div className="terminal-messages">
-          <div className="messages-container">
-            <div className="messages-header">
-              <h3 className="messages-title">
-                <div className="status-dot pulsing"></div>
-                <span>Terminal Output</span>
-              </h3>
-              <span className="messages-count">{messages.length} messages</span>
-            </div>
+  const getMessageIcon = (type) => {
+    switch (type) {
+      case "COMMAND":
+        return "💻";
+      case "CHAT_MESSAGE":
+        return "💬";
+      case "LOGS":
+        return "📋";
+      case "ERROR":
+        return "⚠️";
+      case "SYSTEM":
+        return "🔧";
+      case "cfg_file":
+        return "⚙️";
+      default:
+        return "ℹ️";
+    }
+  };
 
-            {messages.length > 0 ? (
-              <div className="messages-list">
-                {messages.slice(-10).map((message, index) => (
-                  <SingleMessage key={index} item={message} />
-                ))}
+  const getStatusColor = (type) => {
+    switch (type) {
+      case "ERROR":
+        return "danger";
+      case "COMMAND":
+        return "primary";
+      case "LOGS":
+        return "warning";
+      case "SYSTEM":
+        return "success";
+      case "cfg_file":
+        return "secondary";
+      default:
+        return "default";
+    }
+  };
+
+  return (
+    <div className="terminal-container">
+      {isExpanded && (
+        <div className="terminal-history">
+          <div className="terminal-history-header">
+            <h3 className="terminal-history-title">Terminal History</h3>
+            <div className="terminal-history-info">
+              <Chip size="sm" color="primary">
+                {messages.length} messages
+              </Chip>
+              <div className="terminal-status-indicator">
+                <div
+                  className={`terminal-status-dot ${
+                    isConnected ? "online" : "offline"
+                  }`}
+                />
+                <span className="terminal-status-text">
+                  {isConnected ? "Online" : "Offline"}
+                </span>
               </div>
-            ) : (
-              <div className="no-messages">
-                <div className="no-messages-icon">
-                  <span className="terminal-emoji">📟</span>
-                </div>
-                <p className="no-messages-text">No messages yet</p>
-                <p className="no-messages-subtext">
-                  Start typing a command below
-                </p>
-              </div>
-            )}
+            </div>
           </div>
+
+          {messages.length > 0 ? (
+            <div className="terminal-messages">
+              {messages.slice(-15).map((message, index) => (
+                <Card
+                  key={`${message.timestamp}-${index}`}
+                  className="terminal-message-card"
+                >
+                  <CardBody className="terminal-message-body">
+                    <div className="terminal-message-content">
+                      <span className="terminal-message-icon">
+                        {getMessageIcon(message.type)}
+                      </span>
+                      <div className="terminal-message-details">
+                        <div className="terminal-message-meta">
+                          <Chip size="sm" color={getStatusColor(message.type)}>
+                            {message.type}
+                          </Chip>
+                          <span className="terminal-message-time">
+                            {new Date(message.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="terminal-message-text">
+                          {message.text || message.message}
+                        </p>
+                        {message.cfg && (
+                          <div className="terminal-config-info">
+                            <span className="terminal-config-label">
+                              Config keys:{" "}
+                            </span>
+                            {Object.keys(message.cfg).join(", ")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="terminal-empty">
+              <div className="terminal-empty-icon">📟</div>
+              <p className="terminal-empty-text">No messages yet</p>
+              <p className="terminal-empty-subtext">
+                Start typing a command below
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Main Terminal Bar */}
-      <div className="terminal-main">
-        {/* Options Row */}
+      <div className="terminal-input-container">
         {options.length > 0 && (
           <div className="terminal-options">
             {options.map((option, index) => (
-              <button key={index} className="option-chip">
-                <span className="option-dot"></span>
-                <span>{option}</span>
-              </button>
+              <Chip
+                key={index}
+                size="sm"
+                variant="flat"
+                className="terminal-option-chip"
+                onPress={() => updateInputValue(option)}
+              >
+                {option}
+              </Chip>
             ))}
           </div>
         )}
 
-        {/* Terminal Input Row */}
         <div className="terminal-input-row">
-          {/* Status Indicator */}
           <div className="terminal-status">
-            <div className={`status-info ${statusClass}`}>
-              <div
-                className={`connection-dot ${
-                  isConnected ? "connected" : "disconnected"
-                }`}
-              ></div>
-              <span className="connection-text">
-                {isConnected ? "Online" : "Offline"}
-              </span>
-            </div>
-            <div className="status-divider"></div>
-            <span className="message-counter">{messages.length} msg</span>
+            <div
+              className={`terminal-status-dot ${
+                isConnected ? "online" : "offline"
+              }`}
+            />
+            <span className="terminal-status-label">
+              {isConnected ? "Ready" : "Offline"}
+            </span>
           </div>
 
-          {/* Terminal Input */}
-          <div className="terminal-input-container">
-            <div className="terminal-prompt">
-              <span className="prompt-symbol">$</span>
-              <div className="prompt-divider"></div>
-            </div>
-            <input
-              type="text"
-              className="terminal-input"
-              value={inputValue}
-              onChange={(e) => updateInputValue(e.target.value)}
-              onKeyPress={handleKeyPress}
+          <div className="terminal-input-section">
+            <span className="terminal-prompt">$</span>
+            <Input
               placeholder={
                 isConnected
                   ? "Enter command..."
                   : "Disconnected - waiting for connection..."
               }
+              value={inputValue}
+              onValueChange={updateInputValue}
+              onKeyPress={handleKeyPress}
               disabled={!isConnected}
+              variant="bordered"
+              size="sm"
+              className="terminal-input"
             />
-            <button
-              onClick={onSubmit}
-              disabled={!isConnected || !inputValue.trim()}
-              className="terminal-send-btn"
-            >
-              <span className="send-text-desktop">Send</span>
-              <span className="send-text-mobile">→</span>
-            </button>
           </div>
 
-          {/* Expand/Collapse Button */}
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="terminal-expand-btn"
+          <Button
+            color="primary"
+            size="sm"
+            onPress={onSubmit}
+            disabled={!isConnected || !inputValue.trim()}
+          >
+            Send
+          </Button>
+
+          <Button
+            isIconOnly
+            variant="light"
+            size="sm"
+            onPress={() => setIsExpanded(!isExpanded)}
             title={isExpanded ? "Collapse terminal" : "Expand terminal"}
           >
-            <svg
-              className={`expand-icon ${isExpanded ? "rotated" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 15l7-7 7 7"
-              />
-            </svg>
-          </button>
+            {isExpanded ? "▼" : "▲"}
+          </Button>
         </div>
 
-        {/* Error Display */}
         {error && (
           <div className="terminal-error">
-            <div className="error-content">
-              <span className="error-icon">⚠️</span>
-              <p className="error-text">{error.message || "Unknown Error"}</p>
-            </div>
+            <Card>
+              <CardBody className="terminal-error-body">
+                <span className="terminal-error-icon">⚠️</span>
+                <p className="terminal-error-text">
+                  {error.message || "Unknown Error"}
+                </p>
+              </CardBody>
+            </Card>
           </div>
         )}
       </div>
     </div>
   );
 };
-
-// Demo Component
-const TerminalDemo = () => {
-  const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState([
-    {
-      type: "COMMAND",
-      text: "System initialized successfully",
-      timestamp: new Date().toISOString(),
-    },
-    {
-      type: "CHAT_MESSAGE",
-      text: "Welcome to the terminal console!",
-      timestamp: new Date().toISOString(),
-    },
-  ]);
-  const [isConnected] = useState(true);
-
-  const handleSubmit = useCallback(() => {
-    if (inputValue.trim()) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          type: "COMMAND",
-          text: inputValue,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-      setInputValue("");
-    }
-  }, [inputValue]);
-
-  const updateInputValue = useCallback((value) => {
-    setInputValue(value);
-  }, []);
-
-  return (
-    <div className="terminal-demo">
-      <div className="demo-content">
-        <div className="demo-text">
-          <h1 className="demo-title">Terminal Console Demo</h1>
-          <p className="demo-subtitle">Check out the terminal at the bottom!</p>
-          <div className="demo-stats">
-            <span className="connected-status">✅ Connected</span>
-            <span className="message-count">{messages.length} messages</span>
-          </div>
-        </div>
-      </div>
-
-      <TerminalConsole
-        error={null}
-        statusClass={isConnected ? "text-green-400" : "text-red-400"}
-        handleSubmit={handleSubmit}
-        isConnected={isConnected}
-        inputValue={inputValue}
-        updateInputValue={updateInputValue}
-        options={["config creation", "QA", "system status", "help", "logs"]}
-        messages={messages}
-      />
-    </div>
-  );
-};
-
-export default TerminalDemo;

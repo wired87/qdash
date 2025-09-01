@@ -11,7 +11,7 @@ export default function NodeDrawer({}) {
     console.log('Befehl gesendet:', inputValue);
     alert(`Befehl gesendet: ${inputValue}`);
     setInputValue('');
-    setError(null); // Fehler zurücksetzen
+    setError(null); 
   };
 
   const updateInputValue = (value) => {
