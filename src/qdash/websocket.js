@@ -1,5 +1,9 @@
-// src/hooks/useWebSocket.js
 import { useState, useEffect, useRef, useCallback } from "react";
+
+const quey_str = "?user_id=rajtigesomnlhfyqzbvx&mode=demo";
+const WS_URL = `wss://www.bestbrain.tech/sim/run/${quey_str}`;
+const WS_URL_LOCAL = `ws://127.0.0.1:8000/sim/run/${quey_str}`;
+
 
 const handleDownload = (data) => {
   const jsonString = JSON.stringify(data, null, 2);
@@ -15,11 +19,9 @@ const handleDownload = (data) => {
 };
 
 const _useWebSocket = (
-  updateNodes,
-  updateEdges,
   updateCreds,
-  updateCfg,
-  updateDataset
+  updateDataset,
+  updateEnvs,
 ) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -32,47 +34,25 @@ const _useWebSocket = (
   // useCallback, um die send-Funktion zu memoizen
   const sendMessage = useCallback((message) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(message)); // Nachrichten als JSON senden
+      ws.current.send(JSON.stringify(message));
+      console.log("Send message:", message);
     } else {
       console.warn("WebSocket ist nicht verbunden oder bereit.");
     }
   }, []);
 
   const handleWebSocketMessage = (message) => {
-    if (message.type === "init_graph_edges") {
-      //  iun demo receive entire G at once
-      if (message.data) updateEdges(message.data);
-    } else if (message.type === "init_graph_nodes") {
-      //  iun demo receive entire G at once
-      const data = message.data;
-      if (data) {
-        updateNodes(data); // `data` ist hier wahrscheinlich das Array von Nodes
-        // Iteriere über jedes einzelne "node"-Objekt im "data"-Array
-        data.forEach((node) => {
-          // forEach ist hier passender, da nichts zurückgegeben wird
-          if (node.meta) {
-            const state = node.meta.status?.state; // Optional Chaining für "status"
-
-            /*
-                if (state === "ALIVE") {
-                  console.log("Add", node.id, "to activeNodes");
-                  updateActiveNodes(node.id);
-                }
-              */
-          }
-        });
-      }
+    if (message.type === "world_content") {
+      // receive all world objects to render in dashboard
+      updateEnvs(message.data)
     } else if (message.type === "creds") {
       //  iun demo receive entire G at once
-      if (message.data) updateCreds(message.data);
+      if (message.data) {
+        updateCreds(message.data);
+      }
     } else if (message.type === "dataset") {
       //  iun demo receive entire G at once
       if (message.data) updateDataset(message.data);
-    } else if (message.type === "cfg_schema") {
-      //  iun demo receive entire G at once
-      if (message.data) updateCfg(message.data);
-    } else if (message.type === "conversation") {
-      setMessages((prevMessages) => [...prevMessages, message]);
     } else if (message.type === "data_response") {
       handleDownload(message.data);
     } else if (message.type === "finished") {
@@ -86,7 +66,7 @@ const _useWebSocket = (
   useEffect(() => {
     // Schließe bestehende Verbindung, falls vorhanden
     // Neue WebSocket-Verbindung aufbauen
-    ws.current = new WebSocket("http://localhost:3002/");
+    ws.current = new WebSocket(WS_URL_LOCAL);
 
     // Event-Handler@import "tailwindcss/base";
     //
@@ -126,7 +106,6 @@ const _useWebSocket = (
     // oder wenn sich die URL ändert (um alte Verbindungen zu schließen)
     return () => {
       if (ws.current) {
-        ws.current.close();
       }
     };
   }, []); // Abhängigkeit: Verbindet sich neu, wenn sich die URL ändert

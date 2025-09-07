@@ -44,7 +44,11 @@ export const NodeInfoPanel = (
 
     // @ts-ignore
     const dbRef = ref(firebaseDb.current, logs_path);
-    const logsQuery = query(dbRef, limitToLast(30));
+    const logsQuery = query(
+      dbRef,
+      limitToLast(30)
+    );
+
     console.log("Fetching initial log data...");
 
     get(logsQuery).then((snapshot) => {

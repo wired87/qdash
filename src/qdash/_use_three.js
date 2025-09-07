@@ -134,7 +134,14 @@ export const ThreeScene = ({ nodes, edges, onNodeClick }) => {
     visibleNodesRef.current.clear();
 
     const nodePositions = new Map(
-      nodes.map(node => [node.id, new THREE.Vector3(...node.pos)])
+      nodes.map(node => {
+        if (Array.isArray(node.pos) && node.pos.length === 3) {
+          return [node.id, new THREE.Vector3(...node.pos)];
+        } else {
+          console.warn(`Node ${node.id} has invalid pos:`, node.pos);
+          return [node.id, new THREE.Vector3(0, 0, 0)]; // fallback
+        }
+      })
     );
 
     nodes.forEach((item) => {

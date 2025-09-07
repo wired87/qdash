@@ -149,7 +149,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
               >
                 <TableHeader>
                   {columns.map((column) => (
-                    <TableColumn key={column.key}>{column.label}</TableColumn>
+                    <TableColumn key={column.id}>{column.id}</TableColumn>
                   ))}
                 </TableHeader>
                 <TableBody>

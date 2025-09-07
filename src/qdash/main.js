@@ -1,68 +1,50 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { Button } from "@heroui/react";
 import { CfgCreator } from "./components/cfg_cereator";
 import { DataSlider } from "./components/DataSlider";
 
 import { TerminalConsole } from "./components/terminal";
 import "../index.css";
-import { DataTable } from "./table";
+import WorldCfgCreator from "./components/world_cfg";
+import _useWebSocket from "./websocket";
+import Dashboard from "./components/sim_view";
+import {useFirebaseListeners} from "./firebase";
 
 export const MainApp = () => {
-  const [nodes, setNodes] = useState([
-    {
-      id: "node_1",
-      name: "Primary Server",
-      type: "Server",
-      ip: "192.168.1.100",
-      meta: {
-        status: { state: "ALIVE", info: "Running normally" },
-        class_name: "ProductionServer",
-        messages_sent: 45,
-        messages_received: 38,
-      },
-    },
-    {
-      id: "node_2",
-      name: "Database",
-      type: "Database",
-      ip: "192.168.1.101",
-      meta: {
-        status: { state: "ALIVE", info: "Connected" },
-        class_name: "DatabaseServer",
-        messages_sent: 23,
-        messages_received: 41,
-      },
-    },
-    {
-      id: "node_3",
-      name: "Load Balancer",
-      type: "Network",
-      ip: "192.168.1.102",
-      meta: {
-        status: { state: "DEAD", info: "Connection lost" },
-        class_name: "NetworkDevice",
-        messages_sent: 0,
-        messages_received: 0,
-      },
-    },
-  ]);
+  const [nodeLogs, setNodeLogs] = useState({});
+  const [tableData, setTableData] = useState([]);
+  const [isTraining, setIsTraining] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [historyNodes, setHistoryNodes] = useState([]);
+  const [historyEdges, setHistoryEdges] = useState([]);
 
-  const [edges, setEdges] = useState([
+
+  const [nodes, setNodes] = useState([]);
+
+  const [edges, setEdges] = useState([]);
+  const [fbCreds, setFbCreds] = useState(null);
+  const [inputValue, setInputValue] = useState("");
+  const [chatInputValue, setChatInputValue] = useState("");
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [nodeInfoOpen, setNodeInfoOpen] = useState(null);
+
+  const [isDataSidebarOpen, setIsDataSidebarOpen] = useState(false);
+  const [isDataSliderOpen, setIsDataSliderOpen] = useState(false);
+  const [isCfgSliderOpen, setIsCfgSliderOpen] = useState(false);
+  const [worldCfgCreated, setWorldCfgCreated] = useState(false);
+  const [envs, setEnvs] = useState({});
+
+
+  const [dataset, setDataset] = useState(
     {
-      id: "edge_1",
-      source: "node_1",
-      target: "node_2",
-      protocol: "TCP",
-      status: "Active",
-    },
-    {
-      id: "edge_2",
-      source: "node_1",
-      target: "node_3",
-      protocol: "HTTP",
-      status: "Inactive",
-    },
-  ]);
+      keys: [],
+      rows: []
+    }
+  );
+
+  const updateNodeInfoOpen = () => {
+    setNodeInfoOpen(!nodeInfoOpen)
+  }
 
   const [logs, setLogs] = useState({
     node_1: {
@@ -99,190 +81,65 @@ export const MainApp = () => {
     },
   });
 
-  const [cfg_content, setCfg_content] = useState({
-    pixel_id_alpha: {
-      fermion_sub_A: {
-        max_value: 100.5,
-        phase: [{ id: "p1", iterations: 5, max_val_multiplier: 1.2 }],
-      },
-      fermion_sub_B: {
-        max_value: 250,
-        phase: [{ id: "p2", iterations: 10, max_val_multiplier: 1.5 }],
-      },
-    },
-    pixel_id_beta: {
-      fermion_sub_X: {
-        max_value: 75,
-        phase: [],
-      },
-      fermion_sub_Y: {
-        max_value: "custom_string",
-        phase: [],
-      },
-    },
-    pixel_id_gamma: {
-      fermion_sub_Z: {
-        max_value: 300,
-        phase: [
-          { id: "p3", iterations: 8, max_val_multiplier: 2.0 },
-          { id: "p4", iterations: 12, max_val_multiplier: 1.8 },
-        ],
-      },
-    },
-  });
+  const updateEnvs = (data) => {
+    console.log("Set ENV Data", data)
+    setEnvs(data)
+  }
 
-  const [messages, setMessages] = useState([
-    {
-      type: "SYSTEM",
-      text: "Dashboard initialized successfully",
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-    },
-    {
-      type: "COMMAND",
-      text: "status check completed",
-      timestamp: new Date(Date.now() - 240000).toISOString(),
-    },
-    {
-      type: "LOGS",
-      text: "Retrieved logs for 3 nodes",
-      timestamp: new Date(Date.now() - 180000).toISOString(),
-    },
-  ]);
+  const updateEnv = (listener_type, env_id, data) => {
+    console.log("Update Env Data");
 
-  const [inputValue, setInputValue] = useState("");
-  const [isConnected, setIsConnected] = useState(true);
-  const [isDataSliderOpen, setIsDataSliderOpen] = useState(false);
-  const [isCfgSliderOpen, setIsCfgSliderOpen] = useState(false);
+    setEnvs((prev) => {
+      // Kopie des vorherigen States
+      const updated = { ...prev };
 
-  // Simulate connection status changes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() < 0.1) {
-        setIsConnected((prev) => !prev);
-        const statusMessage = {
-          type: "SYSTEM",
-          text: isConnected ? "Connection lost" : "Connection restored",
-          timestamp: new Date().toISOString(),
+      if (
+        updated[env_id] &&
+        updated[env_id][listener_type] &&
+        updated[env_id][listener_type][data.id]
+      ) {
+        // .update(data) vorausgesetzt → neues Objekt zurück
+        updated[env_id][listener_type][data.id] = {
+          ...updated[env_id][listener_type][data.id],
+          ...data,
         };
-        setMessages((prev) => [...prev, statusMessage]);
       }
-    }, 30000);
+      return updated;
+    });
+  };
 
-    return () => clearInterval(interval);
-  }, [isConnected]);
 
-  const sendMessage = useCallback(
-    (message) => {
-      console.log("Sending message:", message);
+  /**
+   * @param {FbCreds | null} data
+   */
+  const updateCreds = useCallback((data) => {
+    if (data) {
+        setFbCreds({
+            creds: data.creds,
+            db_path: data.db_path,
+            listener_paths: data.listener_paths,
+        });
+    } else {
+        setFbCreds(null);
+    }
+  },[]);
 
-      const newMessage = {
-        ...message,
-        timestamp: new Date().toISOString(),
-      };
+  const updateDataset = (data) => {
+    setDataset(data);
+  };
 
-      setMessages((prev) => [...prev, newMessage]);
-
-      setTimeout(() => {
-        let responseMessage;
-
-        if (message.type === "cfg_file") {
-          responseMessage = {
-            type: "SYSTEM",
-            text: `Configuration updated with message: ${message.message}`,
-            timestamp: new Date().toISOString(),
-          };
-          setCfg_content(message.cfg);
-        } else if (message.text) {
-          const command = message.text.toLowerCase();
-
-          if (command.includes("status")) {
-            const aliveNodes = nodes.filter(
-              (n) => n.meta?.status?.state === "ALIVE"
-            ).length;
-            responseMessage = {
-              type: "SYSTEM",
-              text: `Status: ${aliveNodes}/${nodes.length} nodes alive, ${edges.length} edges configured`,
-              timestamp: new Date().toISOString(),
-            };
-          } else if (command.includes("logs")) {
-            const totalLogs = Object.values(logs).reduce(
-              (acc, log) =>
-                acc + (log.err?.length || 0) + (log.out?.length || 0),
-              0
-            );
-            responseMessage = {
-              type: "LOGS",
-              text: `Retrieved ${totalLogs} log entries from ${
-                Object.keys(logs).length
-              } nodes`,
-              timestamp: new Date().toISOString(),
-            };
-          } else if (command.includes("config")) {
-            responseMessage = {
-              type: "SYSTEM",
-              text: `Configuration has ${
-                Object.keys(cfg_content).length
-              } pixel IDs configured`,
-              timestamp: new Date().toISOString(),
-            };
-          } else if (command.includes("help")) {
-            responseMessage = {
-              type: "SYSTEM",
-              text: "Available commands: status, logs, config, refresh, help",
-              timestamp: new Date().toISOString(),
-            };
-          } else if (command.includes("refresh")) {
-            setNodes((currentNodes) =>
-              currentNodes.map((node) => ({
-                ...node,
-                meta: {
-                  ...node.meta,
-                  status: {
-                    ...node.meta.status,
-                    info: `Refreshed at ${new Date().toLocaleTimeString()}`,
-                  },
-                },
-              }))
-            );
-            responseMessage = {
-              type: "SYSTEM",
-              text: "Node statuses refreshed successfully",
-              timestamp: new Date().toISOString(),
-            };
-          } else if (command.includes("restart")) {
-            setLogs((currentLogs) => {
-              const clearedLogs = {};
-              Object.keys(currentLogs).forEach((nodeId) => {
-                clearedLogs[nodeId] = {
-                  err: [],
-                  out: [
-                    `Node ${nodeId} restarted at ${new Date().toLocaleTimeString()}`,
-                  ],
-                };
-              });
-              return clearedLogs;
-            });
-            responseMessage = {
-              type: "SYSTEM",
-              text: "System restarted - logs cleared",
-              timestamp: new Date().toISOString(),
-            };
-          } else {
-            responseMessage = {
-              type: "SYSTEM",
-              text: `Processed command: ${message.text}`,
-              timestamp: new Date().toISOString(),
-            };
-          }
-        }
-
-        if (responseMessage) {
-          setMessages((prev) => [...prev, responseMessage]);
-        }
-      }, 500 + Math.random() * 1000);
-    },
-    [cfg_content, nodes, edges, logs]
+  // HOOKS
+  const {
+      messages, sendMessage,
+      isConnected
+  } = _useWebSocket(
+      updateCreds, updateDataset, updateEnvs
   );
+
+  const { fbIsConnected, firebaseDb } = useFirebaseListeners(
+      fbCreds,
+      updateEnv
+  )
 
   const handleSubmit = useCallback(() => {
     if (inputValue.trim() && isConnected) {
@@ -307,8 +164,42 @@ export const MainApp = () => {
     setIsCfgSliderOpen(!isCfgSliderOpen);
   }, [isCfgSliderOpen]);
 
+
+
+  const cfg_struct = useCallback(() => {
+    if (isCfgSliderOpen && worldCfgCreated) {
+      console.log("CfgCreator ")
+
+      return (
+        <CfgCreator
+          sendMessage={sendMessage}
+          isOpen={isCfgSliderOpen}
+          onToggle={toggleCfgSlider}
+        />
+      )
+    } else if (!worldCfgCreated) {
+      console.log("WorldCfgCreator")
+      return(
+        <></>
+      )
+    }
+  }, [isCfgSliderOpen, worldCfgCreated])
+
+  const get_dashboard = useCallback(() => {
+    if (envs) {
+      return(
+        <Dashboard envs={envs} updateNodeInfoOpen={updateNodeInfoOpen}  />
+      );
+    }
+    return(
+      <p>Please create a simulation config file using the window on the right side</p>
+    )
+  }, [envs])
+
+
   return (
-    <div className="dashboard-container">
+    <div className={"flex absolut flex-row w-full h-screen"}>
+      <div className="dashboard-container">
       {/* Top Navigation */}
       <nav className="nav-container">
         <div className="nav-content">
@@ -355,38 +246,6 @@ export const MainApp = () => {
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <div className="main-content">
-        <div className="content-container">
-          <div className="grid-container">
-            {/* 3D Scene Placeholder */}
-            <div className="card-container">
-              <h2 className="card-title">3D Network Visualization</h2>
-              <div className="viz-placeholder">
-                <div className="viz-content">
-                  <div className="spinner" />
-                  <p className="viz-text">
-                    Rendering: {nodes.length} nodes | {edges.length} edges
-                  </p>
-                  <p className="viz-subtext">
-                    Interactive 3D visualization loading...
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Data Overview */}
-            <div className="card-container">
-              <DataTable
-                cfg_content={cfg_content}
-                nodes={nodes}
-                edges={edges}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Sliders */}
       <DataSlider
         nodes={nodes}
@@ -396,12 +255,9 @@ export const MainApp = () => {
         onToggle={toggleDataSlider}
       />
 
-      <CfgCreator
-        cfg_content={cfg_content}
-        sendMessage={sendMessage}
-        isOpen={isCfgSliderOpen}
-        onToggle={toggleCfgSlider}
-      />
+      {get_dashboard()}
+
+
 
       {/* Terminal Footer */}
       <TerminalConsole
@@ -414,8 +270,52 @@ export const MainApp = () => {
         options={["status", "config", "logs", "help", "refresh", "restart"]}
         messages={messages}
       />
+
     </div>
+      <div className={"flex "}>
+          <WorldCfgCreator
+            sendMessage={sendMessage}
+            isOpen={isCfgSliderOpen}
+            onToggle={toggleCfgSlider}
+          />
+      </div>
+
+  </div>
   );
 };
 
 export default MainApp;
+/*
+
+
+
+
+  const updateEdges = useCallback((data) => {
+    setEdges(prev => {
+        const items = Array.isArray(data) ? data : [data];
+        let newEdges = [...prev];
+        items.forEach(item => {
+            const index = newEdges.findIndex(e => e.id === item.id);
+            if (index > -1) newEdges[index] = { ...newEdges[index], ...item };
+            else newEdges.push(item);
+        });
+        return newEdges;
+    });
+  },[]);
+
+
+  const updateNodes = useCallback((data) => {
+    setNodes(prev => {
+        const items = Array.isArray(data) ? data : [data];
+        let newNodes = [...prev];
+        items.forEach(item => {
+            const index = newNodes.findIndex(n => n.id === item.id);
+            if (index > -1) newNodes[index] = { ...newNodes[index], ...item };
+            else newNodes.push(item);
+        });
+        return newNodes;
+    });
+  },[]);
+
+
+ */

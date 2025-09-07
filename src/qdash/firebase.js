@@ -3,7 +3,10 @@ import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onChildChanged, off } from "firebase/database";
 import { getNodeColor } from "./get_color";
 
-export function useFirebaseListeners(fbCreds, deactivate, updateNodes, updateEdges, listener_type, listener_paths, updateLogs) {
+export function useFirebaseListeners(
+    fbCreds,
+    updateEnv
+) {
   const [fbIsConnected, setFbIsConnected] = useState(false);
   const firebaseApp = useRef(null);
   const firebaseDb = useRef(null);
@@ -26,63 +29,64 @@ export function useFirebaseListeners(fbCreds, deactivate, updateNodes, updateEdg
     }
   }, [fbCreds, fbIsConnected]);
 
+
   // --- Handle Data Changes ---
   const handleDataChange = useCallback(
-
-    (snapshot) => {
-
+    (
+        snapshot,
+        env_id,
+        listener_type,
+    ) => {
       const changedData = snapshot.val();
       const nodeId = snapshot.key;
+
       if (!changedData) return;
-      if (listener_type === "logs") {
-        updateLogs({ id: nodeId, ...changedData })
-        return
-      }
-      if ("src" in changedData && "trgt" in changedData) {
-        updateEdges({ id: nodeId, ...changedData });
-        return;
-      } else if ("pos" in changedData && "type" in changedData) {
-        updateNodes({ id: nodeId, ...changedData });
-        return;
-      } else if ("err" in changedData && "out" in changedData) {
-        const logNode = nodeId.split("__")[0];
-        const logId = nodeId.split("__").pop();
-        updateLogs({ id: logNode, log_id: logId, ...changedData });
-        return;
-      } else if ("status" in changedData) {
-        updateNodes({
-          id: nodeId,
-          meta: changedData.meta,
-          color: getNodeColor(changedData.meta.status.state),
-        });
-        return;
-      }
+        updateEnv(
+            listener_type,
+            env_id,
+            { id: nodeId, ...changedData }
+        )
     },
-    [updateNodes, updateEdges, updateLogs]
+    []
   );
 
 
   useEffect(() => {
-    if (!deactivate && fbIsConnected && fbCreds && firebaseDb.current) {
-      // Alte Listener weg
+    if (fbIsConnected && fbCreds && firebaseDb.current) {
+      // Alte Listener entfernen
       listenerRefs.current.forEach(({ refObj, callback }) =>
         off(refObj, "child_changed", callback)
       );
       listenerRefs.current = [];
 
-      listener_paths.forEach((path) => {
-        const dbRef = ref(firebaseDb.current, path);
-        onChildChanged(dbRef, handleDataChange);
-        listenerRefs.current.push({ refObj: dbRef, callback: handleDataChange });
+      Object.entries(fbCreds.listener_paths).forEach(([env_id, struct]) => {
+        Object.entries(struct).forEach(([listener_type, all_paths]) => {
+          all_paths.forEach((path) => {
+            const dbRef = ref(firebaseDb.current, path);
+
+            const _callback = (snapshot) =>
+              handleDataChange(snapshot, env_id, listener_type);
+
+            onChildChanged(dbRef, _callback);
+            listenerRefs.current.push({ refObj: dbRef, callback: _callback });
+          });
+        });
       });
     }
-
     return () => {
       listenerRefs.current.forEach(({ refObj, callback }) =>
         off(refObj, "child_changed", callback)
       );
     };
-  }, [fbIsConnected, deactivate, fbCreds, handleDataChange]);
+  }, [fbIsConnected, fbCreds, firebaseDb]);
 
   return { fbIsConnected, firebaseDb };
 }
+/*
+
+updateNodes({
+          id: nodeId,
+          meta: changedData.meta,
+          color: getNodeColor(changedData.meta.status.state),
+        });
+ */

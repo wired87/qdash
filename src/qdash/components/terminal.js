@@ -1,7 +1,10 @@
 import React, { useState, useCallback } from "react";
 import { Button, Input, Card, CardBody, Chip } from "@heroui/react";
 import "../../index.css";
+/*
+Websocket
 
+ */
 export const TerminalConsole = ({
   error,
   statusClass,
@@ -166,7 +169,9 @@ export const TerminalConsole = ({
               {isConnected ? "Ready" : "Offline"}
             </span>
           </div>
-
+          {Object.entries(messages).map((item) => (
+            <p>{item}</p>
+          ))}
           <div className="terminal-input-section">
             <span className="terminal-prompt">$</span>
             <Input

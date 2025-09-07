@@ -1,11 +1,11 @@
 import React from 'react';
 import './App.css';
 import './index.css';
-import QDash from "./qdash/main";
+import MainApp from "./qdash/main";
 
 function App() {
   return (
-    <QDash />
+    <MainApp />
   );
 }
 
