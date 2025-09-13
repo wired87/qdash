@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, {useState, useCallback, useEffect} from "react";
 import { Button } from "@heroui/react";
 import { CfgCreator } from "./components/cfg_cereator";
 import { DataSlider } from "./components/DataSlider";
@@ -9,31 +9,38 @@ import WorldCfgCreator from "./components/world_cfg";
 import _useWebSocket from "./websocket";
 import Dashboard from "./components/sim_view";
 import {useFirebaseListeners} from "./firebase";
+import {getNodeColor} from "./get_color";
+import {NodeInfoPanel} from "./components/node_info_panel";
+
+
+
+// TEST
+const TEST_ENV_ID = "env_rajtigesomnlhfyqzbvx_zddioeaduhvnyphluwvu"
+
+
+
+
+
 
 export const MainApp = () => {
-  const [nodeLogs, setNodeLogs] = useState({});
-  const [tableData, setTableData] = useState([]);
-  const [isTraining, setIsTraining] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [historyNodes, setHistoryNodes] = useState([]);
-  const [historyEdges, setHistoryEdges] = useState([]);
-
-
   const [nodes, setNodes] = useState([]);
-
   const [edges, setEdges] = useState([]);
   const [fbCreds, setFbCreds] = useState(null);
   const [inputValue, setInputValue] = useState("");
-  const [chatInputValue, setChatInputValue] = useState("");
-  const [selectedNode, setSelectedNode] = useState(null);
-  const [nodeInfoOpen, setNodeInfoOpen] = useState(null);
 
   const [isDataSidebarOpen, setIsDataSidebarOpen] = useState(false);
   const [isDataSliderOpen, setIsDataSliderOpen] = useState(false);
   const [isCfgSliderOpen, setIsCfgSliderOpen] = useState(false);
   const [worldCfgCreated, setWorldCfgCreated] = useState(false);
   const [envs, setEnvs] = useState({});
+  const [clickedNode, setClickedNode] = useState(null);
+  const [nodeSliderOpen, setNodeOpen] = useState(null);
 
+
+
+  const updateNodesliderOpen = () => {
+    setNodeOpen(!nodeSliderOpen)
+  }
 
   const [dataset, setDataset] = useState(
     {
@@ -42,8 +49,15 @@ export const MainApp = () => {
     }
   );
 
-  const updateNodeInfoOpen = () => {
-    setNodeInfoOpen(!nodeInfoOpen)
+  const updateNodeInfo = (nodeId, env_id) => {
+    console.log(`${nodeId} click detected`)
+    setClickedNode(
+        {
+          env: env_id,
+          node: envs[env_id]["nodes"][nodeId],
+        }
+    )
+    updateNodesliderOpen()
   }
 
   const [logs, setLogs] = useState({
@@ -81,30 +95,87 @@ export const MainApp = () => {
     },
   });
 
-  const updateEnvs = (data) => {
-    console.log("Set ENV Data", data)
-    setEnvs(data)
+  const addEnvs = (data) => {
+    console.log("Add ENV Data", data)
+    setEnvs((prev) => {
+      return {
+        ...prev,
+        ...data,
+      }
+    })
   }
+
+  useEffect(() => {
+    console.log("envs", envs)
+  }, [envs])
+
 
   const updateEnv = (listener_type, env_id, data) => {
     console.log("Update Env Data");
 
+    if (listener_type === "meta") {
+      // Apply color change to the node
+      const state = data.status.state
+      let new_color = getNodeColor(state)
+      updatenodeColor(listener_type, env_id, data, new_color)
+      console.log("Updated node color:", new_color)
+    }
+
     setEnvs((prev) => {
       // Kopie des vorherigen States
       const updated = { ...prev };
-
       if (
         updated[env_id] &&
         updated[env_id][listener_type] &&
         updated[env_id][listener_type][data.id]
       ) {
-        // .update(data) vorausgesetzt → neues Objekt zurück
-        updated[env_id][listener_type][data.id] = {
-          ...updated[env_id][listener_type][data.id],
-          ...data,
-        };
+
+        if (listener_type === "node" || listener_type === "edge") {
+          console.log("update node:", updated[env_id][listener_type][data.id])
+          // .update(data) vorausgesetzt → neues Objekt zurück
+          updated[env_id][listener_type][data.id] = {
+            ...updated[env_id][listener_type][data.id],
+            ...data,
+          };
+        } else if (listener_type === "meta") {
+          //Apply changes direclt inside te node
+          console.log("update node:", updated[env_id][listener_type][data.id])
+          // .update(data) vorausgesetzt → neues Objekt zurück
+          updated[env_id][listener_type][data.id] = {
+            ...updated[env_id][listener_type][data.id]["meta"],
+            ...data,
+          };
+        }
+      } else {
+        console.log(`node ${data.id} not found in ${env_id}`)
       }
       return updated;
+    });
+  };
+
+  const updatenodeColor = (listener_type, env_id, data, new_color) => {
+    // Wenn der Listener-Typ "meta" ist, hole die neue Farbe, ansonsten ist sie null.
+
+    // Wenn keine neue Farbe vorhanden ist, tu nichts und beende die Funktion.
+    if (new_color === null) {
+      return;
+    }
+
+    setEnvs((prev) => {
+      // Erstelle eine tiefe Kopie des Pfades, den du ändern musst.
+      return {
+        ...prev,
+        [env_id]: {
+          ...prev[env_id],
+          [listener_type]: {
+            ...prev[env_id][listener_type],
+            [data.id]: {
+              ...prev[env_id][listener_type][data.id],
+              color: new_color,
+            },
+          },
+        },
+      };
     });
   };
 
@@ -133,7 +204,7 @@ export const MainApp = () => {
       messages, sendMessage,
       isConnected
   } = _useWebSocket(
-      updateCreds, updateDataset, updateEnvs
+      updateCreds, updateDataset, addEnvs
   );
 
   const { fbIsConnected, firebaseDb } = useFirebaseListeners(
@@ -171,11 +242,7 @@ export const MainApp = () => {
       console.log("CfgCreator ")
 
       return (
-        <CfgCreator
-          sendMessage={sendMessage}
-          isOpen={isCfgSliderOpen}
-          onToggle={toggleCfgSlider}
-        />
+        <></>
       )
     } else if (!worldCfgCreated) {
       console.log("WorldCfgCreator")
@@ -188,13 +255,38 @@ export const MainApp = () => {
   const get_dashboard = useCallback(() => {
     if (envs) {
       return(
-        <Dashboard envs={envs} updateNodeInfoOpen={updateNodeInfoOpen}  />
+        <Dashboard envs={envs} updateNodeInfo={updateNodeInfo}  />
       );
     }
     return(
       <p>Please create a simulation config file using the window on the right side</p>
     )
   }, [envs])
+
+  const get_node_panel = useCallback(() => {
+    if (clickedNode !== null){
+      return <NodeInfoPanel
+        node={clickedNode} // Format env:env_id, node:node_objä
+        sliderOpen={nodeSliderOpen}
+        onClose={() => {
+          updateNodesliderOpen();
+          setClickedNode(null);
+        }}
+        firebaseDb={firebaseDb}
+        fbIsConnected={fbIsConnected}
+        user_id
+      />
+    }
+    else return(
+        <WorldCfgCreator
+            sendMessage={sendMessage}
+            isOpen={isCfgSliderOpen}
+            onToggle={toggleCfgSlider}
+          />
+    )
+  },[clickedNode])
+
+
 
 
   return (
@@ -273,49 +365,19 @@ export const MainApp = () => {
 
     </div>
       <div className={"flex "}>
-          <WorldCfgCreator
-            sendMessage={sendMessage}
-            isOpen={isCfgSliderOpen}
-            onToggle={toggleCfgSlider}
-          />
+          {
+            get_node_panel()
+          }
       </div>
-
   </div>
   );
 };
 
 export default MainApp;
 /*
-
-
-
-
-  const updateEdges = useCallback((data) => {
-    setEdges(prev => {
-        const items = Array.isArray(data) ? data : [data];
-        let newEdges = [...prev];
-        items.forEach(item => {
-            const index = newEdges.findIndex(e => e.id === item.id);
-            if (index > -1) newEdges[index] = { ...newEdges[index], ...item };
-            else newEdges.push(item);
-        });
-        return newEdges;
-    });
-  },[]);
-
-
-  const updateNodes = useCallback((data) => {
-    setNodes(prev => {
-        const items = Array.isArray(data) ? data : [data];
-        let newNodes = [...prev];
-        items.forEach(item => {
-            const index = newNodes.findIndex(n => n.id === item.id);
-            if (index > -1) newNodes[index] = { ...newNodes[index], ...item };
-            else newNodes.push(item);
-        });
-        return newNodes;
-    });
-  },[]);
-
-
+<CfgCreator
+          sendMessage={sendMessage}
+          isOpen={isCfgSliderOpen}
+          onToggle={toggleCfgSlider}
+        />
  */

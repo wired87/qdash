@@ -35,15 +35,9 @@ const CustomChip = ({ children, color, className = "" }) => {
 
 // The main Dashboard component.
 export const Dashboard = (
-  { envs, updateNodeInfoOpen }
+  { envs, updateNodeInfo }
 ) => {
   const [selectedEnv, setSelectedEnv] = useState(null);
-  Object.entries(envs).map(([env_id, item]) => {
-    console.log("nodes:", item.data.nodes)
-    console.log("edges:", item.data.nodes)
-  })
-
-
 
   const handleSelectEnv = (envId) => {
     setSelectedEnv(envId);
@@ -52,9 +46,12 @@ export const Dashboard = (
   const handleBack = () => {
     setSelectedEnv(null);
   };
+
+
   if (Object.keys(envs).length === 0) {
     return <></>
   }
+
   // Render the full-screen view for the selected environment
   if (selectedEnv) {
     const env = envs[selectedEnv];
@@ -103,12 +100,17 @@ export const Dashboard = (
           </p>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {Object.entries(envs).map(([env_id, item]) => (
+          {Object.entries(envs).map(([env_id, struct]) => (
             <CustomCard
               key={env_id}
               onClick={() => handleSelectEnv(env_id)}>
               <CustomCardBody>
-                <ThreeScene nodes={item.data.nodes} edges={item.data.edges} onNodeClick={updateNodeInfoOpen}/>
+                <ThreeScene
+                    nodes={struct.nodes}
+                    edges={struct.edges}
+                    onNodeClick={updateNodeInfo}
+                    env_id={env_id}
+                />
               </CustomCardBody>
             </CustomCard>
           ))}

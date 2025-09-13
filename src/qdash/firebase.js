@@ -65,7 +65,11 @@ export function useFirebaseListeners(
             const dbRef = ref(firebaseDb.current, path);
 
             const _callback = (snapshot) =>
-              handleDataChange(snapshot, env_id, listener_type);
+              handleDataChange(
+                snapshot,
+                env_id,
+                listener_type // meta, edge || node
+              );
 
             onChildChanged(dbRef, _callback);
             listenerRefs.current.push({ refObj: dbRef, callback: _callback });

@@ -4,13 +4,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import {getEdgeColor} from "./get_color";
 
-export const ThreeScene = ({ nodes, edges, onNodeClick }) => {
-  const canvasRef = useRef(null);
+export const ThreeScene = ({ nodes, edges, onNodeClick, env_id, }) => {
+  console.log("nodes, edges", nodes, edges)
   const sceneRef = useRef();
   const cameraRef = useRef();
   const rendererRef = useRef();
   const controlsRef = useRef();
   const animationIdRef = useRef();
+  const canvasRef = useRef(null);
 
   const nodeHitboxesRef = useRef(new Map());
   const visibleNodesRef = useRef(new Map());
@@ -57,7 +58,7 @@ export const ThreeScene = ({ nodes, edges, onNodeClick }) => {
         const intersects = raycaster.intersectObjects(Array.from(nodeHitboxesRef.current.values()));
         if (intersects.length > 0) {
             const nodeId = intersects[0].object.userData.id;
-            onNodeClick(nodeId);
+            onNodeClick(nodeId, env_id);
         }
     };
 
@@ -111,86 +112,84 @@ export const ThreeScene = ({ nodes, edges, onNodeClick }) => {
   }, [onNodeClick]);
 
   // 2. Effect: Update objects (runs on data change) - ALLE ÄNDERUNGEN SIND HIER
-  useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene || !nodes || !edges) return;
+    // Corrected useEffect: Update objects (runs on data change)
+    useEffect(() => {
+        const scene = sceneRef.current;
+        if (!scene || !nodes || !edges) return;
 
-    // Clear previous objects
-    while(scene.children.length > 0){
-        const obj = scene.children[0];
-        // Dispose logic for groups
-        if (obj.isGroup) {
-            obj.children.forEach(child => {
-                if (child.geometry) child.geometry.dispose();
-                if (child.material) child.material.dispose();
-            });
-        } else { // For lines
-            if (obj.geometry) obj.geometry.dispose();
-            if (obj.material) obj.material.dispose();
+        // Clear previous objects
+        while (scene.children.length > 0) {
+            const obj = scene.children[0];
+            if (obj.isGroup) {
+                obj.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            } else {
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) obj.material.dispose();
+            }
+            scene.remove(obj);
         }
-        scene.remove(obj);
-    }
-    nodeHitboxesRef.current.clear();
-    visibleNodesRef.current.clear();
+        nodeHitboxesRef.current.clear();
+        visibleNodesRef.current.clear();
 
-    const nodePositions = new Map(
-      nodes.map(node => {
-        if (Array.isArray(node.pos) && node.pos.length === 3) {
-          return [node.id, new THREE.Vector3(...node.pos)];
-        } else {
-          console.warn(`Node ${node.id} has invalid pos:`, node.pos);
-          return [node.id, new THREE.Vector3(0, 0, 0)]; // fallback
-        }
-      })
-    );
-
-    nodes.forEach((item) => {
-      const pos = nodePositions.get(item.id);
-      if (!pos) return;
-
-      // 1. Erstelle einen Container (Group) für jedes Node-Objekt
-      const group = new THREE.Group();
-
-      // 2. Erstelle den sichtbaren Würfel und füge ihn zur Gruppe hinzu
-      const cube = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshBasicMaterial({ color: item.color })
-      );
-      // Die Position wird auf der Gruppe gesetzt, nicht hier!
-      group.add(cube);
-
-      // 3. Erstelle die unsichtbare Hitbox und füge sie zur Gruppe hinzu
-      const hitbox = new THREE.Mesh(
-        new THREE.BoxGeometry(4, 4, 4),
-        new THREE.MeshBasicMaterial({ visible: false, depthWrite: false })
-      );
-      hitbox.userData = { id: item.id }; // Wichtige Daten an der Hitbox speichern
-      group.add(hitbox);
-
-      // 4. Positioniere die gesamte Gruppe
-      group.position.copy(pos);
-
-      // 5. Füge die Gruppe (enthält Würfel und Hitbox) zur Szene hinzu
-      scene.add(group);
-
-      // Speichere Referenzen auf die einzelnen Teile für Interaktionen
-      visibleNodesRef.current.set(item.id, cube); // Zum Skalieren
-      nodeHitboxesRef.current.set(item.id, hitbox); // Für den Raycaster
-    });
-
-    edges.forEach(({ src, trgt }) => {
-      const start = nodePositions.get(src);
-      const end = nodePositions.get(trgt);
-      if (start && end) {
-        const line = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([start, end]),
-          new THREE.LineBasicMaterial({ color: getEdgeColor() })
+        // Correctly create the Map of node positions using .map()
+        const nodePositions = new Map(
+            Object.entries(nodes).map(([nodeId, node]) => {
+                if (Array.isArray(node.pos) && node.pos.length === 3) {
+                    return [nodeId, new THREE.Vector3(...node.pos)];
+                } else {
+                    console.warn(`Node ${node.id} has invalid pos:`, node.pos);
+                    return [nodeId, new THREE.Vector3(0, 0, 0)]; // fallback
+                }
+            })
         );
-        scene.add(line);
-      }
-    });
 
-  }, [nodes, edges]);
+        // Filter nodes with invalid positions to avoid errors
+        const validNodes = Object.entries(nodes).filter(([nodeId, node]) =>
+            nodePositions.has(nodeId) && nodePositions.get(nodeId)
+        );
+
+        // Add nodes and their hitboxes to the scene
+        validNodes.forEach(([nodeId, node]) => {
+            const pos = nodePositions.get(nodeId);
+
+            const group = new THREE.Group();
+            const cube = new THREE.Mesh(
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.MeshBasicMaterial({ color: new THREE.Color(node.color) })
+            );
+            group.add(cube);
+
+            const hitbox = new THREE.Mesh(
+                new THREE.BoxGeometry(4, 4, 4),
+                new THREE.MeshBasicMaterial({ visible: false, depthWrite: false })
+            );
+            hitbox.userData = { id: nodeId };
+            group.add(hitbox);
+
+            group.position.copy(pos);
+            scene.add(group);
+
+            visibleNodesRef.current.set(nodeId, cube);
+            nodeHitboxesRef.current.set(nodeId, hitbox);
+        });
+
+        // Add edges to the scene
+        Object.entries(edges).forEach(([edge_id, struct]) => {
+            const start = nodePositions.get(struct.src);
+            const end = nodePositions.get(struct.trgt);
+
+            if (start && end) {
+                const line = new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints([start, end]),
+                    new THREE.LineBasicMaterial({ color: getEdgeColor() })
+                );
+                scene.add(line);
+            }
+        });
+    }, [nodes, edges]);
 
   return (
     <canvas ref={canvasRef} style={{ width: '100%', height: "90vh", display: 'block' }} />

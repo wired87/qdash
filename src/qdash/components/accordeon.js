@@ -4,32 +4,41 @@ import {useCallback, useState} from "react";
 import XYZInput from "./dim_component";
 
 const filteredCfg = {
-
   sim_time_s: {
-    max_value: 300,
+    value: 300,
     description:
-      "no matter how long, everything gets split into sub blocks for easier handling",
+      "Time in s the simulation should run",
   },
   cluster_dim: {
-    max_value: [2, 2, 2],
-    description: "The spatial dimension of the simulation cluster.",
+    value: [1, 1, 1],
+    description: "The 3D dimensions of the simulation cluster.",
   },
+
   device: {
-    max_value: "cpu",
+    value: "cpu",
     description: "The device to use for the simulation (CPU or GPU).",
   },
-  num_cores: {
-    max_value: 2,
-    description: "CPU-Kerne",
+
+  cpu: {
+    value: 2,
+    description: "The amount of CPUs use for the simulation.",
   },
-  num_gpus: {
-    max_value: 0,
-    description: "GPU-Anzahl (falls device=gpu)",
+  cpu_limit: {
+    value: 4,
+    description: "For case the sim requires more resources then specified. - Set your max allowed resiurces",
   },
-  memory_limit_gb: {
-    max_value: 8,
-    description: "max. RAM für die Simulation in Gigabytes",
+
+  mem: {
+    value: 8,
+    description: "RAM per simulation in Gigabytes (GB)",
   },
+  mem_limit: {
+    value: 16,
+    description: "max. RAM for the sim in Gigabytes (GB)",
+  },
+
+
+
 
 };
 
@@ -45,7 +54,7 @@ const ConfigAccordion = ({ sendMessage }) => {
           ...updatedCfg,
           [sid]: {
             ...updatedCfg[sid],
-            max_value: isNaN(parseFloat(newValue))
+            value: isNaN(parseFloat(newValue))
               ? newValue
               : parseFloat(newValue),
           },
@@ -56,7 +65,7 @@ const ConfigAccordion = ({ sendMessage }) => {
   };
   const filter_cfg = () => {
     const maxValues = Object.fromEntries(
-      Object.entries(cfg).map(([key, val]) => [key, val.max_value])
+      Object.entries(cfg).map(([key, val]) => [key, val.value])
     );
     return maxValues
   }
@@ -73,7 +82,8 @@ const ConfigAccordion = ({ sendMessage }) => {
           </label>
 
           <Input
-            value={attrs.max_value}
+            disabled
+            value={attrs.value}
             onValueChange={(val) => handleValueChange(sid, val)}
             size="sm"
           />
@@ -83,16 +93,16 @@ const ConfigAccordion = ({ sendMessage }) => {
         <XYZInput
           key={sid}
           value={{
-            x: attrs.max_value[0],
-            y: attrs.max_value[1],
-            z: attrs.max_value[2],
+            x: attrs.value[0],
+            y: attrs.value[1],
+            z: attrs.value[2],
           }}
           onChange={(newCoords) =>
             setCfg((prev) => ({
               ...prev,
               cluster_dim: {
                 ...prev.cluster_dim,
-                max_value: [newCoords.x, newCoords.y, newCoords.z],
+                value: [newCoords.x, newCoords.y, newCoords.z],
               },
             }))
           }
@@ -100,7 +110,6 @@ const ConfigAccordion = ({ sendMessage }) => {
       )
     );
   };
-
 
   return (
     <Accordion selectionMode="multiple">

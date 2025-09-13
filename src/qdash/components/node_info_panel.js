@@ -3,13 +3,21 @@ import {get, off, onChildChanged, query, ref, limitToLast} from "firebase/databa
 import {Button, Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader} from "@heroui/react";
 import {NodeStatusSection} from "./node_info";
 import {NodeLogsSection} from "./node_logs";
+import {NodeConfigForm} from "./node_cfg/node_cfg";
 
 export const NodeInfoPanel = (
-  {node, onClose, firebaseDb, fbCreds, fbIsConnected, deactivate}
+  {node, onClose, firebaseDb, fbIsConnected, user_id, sliderOpen}
 ) => {
+  /*
+  Build here an extra listener so logs doesnt need to get spammed
+  all the time -> results in RAM overhead
+   */
+  console.log("node, onClose, firebaseDb, fbIsConnected, user_id", node, onClose, firebaseDb, fbIsConnected, user_id)
+
   // ALLE Hooks müssen am Anfang stehen, VOR JEDEM bedingten Return.
   const [logs, setLogs] = useState({});
   const listenerRefs = useRef([]);
+
   console.log("node, firebaseDb,fbIsConnected", node, firebaseDb, fbIsConnected)
 
   const updateLogs = useCallback((newLogs) => {
@@ -34,7 +42,6 @@ export const NodeInfoPanel = (
         return;
     }
 
-    const logs_path = null
 
     // Cleanup vorheriger Listener
     listenerRefs.current.forEach(({ refObj, callback }) =>
@@ -43,6 +50,8 @@ export const NodeInfoPanel = (
     listenerRefs.current = [];
 
     // @ts-ignore
+    const logs_path = `users/${user_id}/env/${node.env}/logs/${node.id}`;
+    console.log("start second logs listener")
     const dbRef = ref(firebaseDb.current, logs_path);
     const logsQuery = query(
       dbRef,
@@ -88,15 +97,21 @@ export const NodeInfoPanel = (
 
   // Der bedingte Render kommt erst nach den Hooks.
   if (!node) return null;
+
+  // Overwrite
+  let new_node = node.node;
+
+
   return (
-    <Drawer isOpen={true} onOpenChange={onClose}>
+    <Drawer isOpen={sliderOpen} onOpenChange={onClose}>
       <DrawerContent>
         {(onClose) => (
           <>
-            <DrawerHeader className="flex flex-col gap-1">Info {node?.id}</DrawerHeader>
+            <DrawerHeader className="flex flex-col gap-1">Info {new_node?.id}</DrawerHeader>
             <DrawerBody>
-              <NodeStatusSection node={node} />
+              <NodeStatusSection node={new_node} />
               <NodeLogsSection logs={logs} />
+              <NodeConfigForm />
             </DrawerBody>
             <DrawerFooter>
               <Button color="danger" variant="light" onPress={onClose}>

@@ -21,7 +21,7 @@ const handleDownload = (data) => {
 const _useWebSocket = (
   updateCreds,
   updateDataset,
-  updateEnvs,
+  addEnvs,
 ) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -44,7 +44,7 @@ const _useWebSocket = (
   const handleWebSocketMessage = (message) => {
     if (message.type === "world_content") {
       // receive all world objects to render in dashboard
-      updateEnvs(message.data)
+      addEnvs(message.data)
     } else if (message.type === "creds") {
       //  iun demo receive entire G at once
       if (message.data) {
@@ -62,7 +62,7 @@ const _useWebSocket = (
       console.log("Unbekannte WebSocket-Nachricht:", message);
     }
   };
-
+  // Tom
   useEffect(() => {
     // Schließe bestehende Verbindung, falls vorhanden
     // Neue WebSocket-Verbindung aufbauen
