@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ConfigAccordion from "./accordeon";
+import {Button} from "@heroui/react";
 
 // Buttons
 const CustomButton = ({ children, onPress, isIconOnly, color, variant = "solid", size, disabled, ...props }) => {
@@ -78,7 +79,7 @@ const CustomInput = ({ value, onValueChange, placeholder, type = "text", startCo
 };
 
 // Main component
-export const WorldCfgCreator = ({ sendMessage, isOpen = true, onToggle }) => {
+export const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
   //const [openPixelId, setOpenPixelId] = useState("world");
   const [searchQuery, setSearchQuery] = useState("");
   const [isDirty, setIsDirty] = useState(false);
@@ -91,7 +92,7 @@ export const WorldCfgCreator = ({ sendMessage, isOpen = true, onToggle }) => {
     }
   };
 
-  if (isOpen) return null;
+  if (!isOpen) return null;
 
   return (
     <div style={{
@@ -113,6 +114,10 @@ export const WorldCfgCreator = ({ sendMessage, isOpen = true, onToggle }) => {
             Configuration
           </h2>
         </div>
+        <Button isIconOnly variant="light" onPress={onToggle}>
+        ✕
+        </Button>
+
         <CustomInput
           placeholder="Search configurations..."
           value={searchQuery}

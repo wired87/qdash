@@ -18,6 +18,8 @@
     "lucide-react": "^0.541.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-masonry-css": "^1.0.16",
+    "react-masonry-list": "^1.0.6",
     "react-scripts": "5.0.1",
     "tailwind-scrollbar": "^4.0.2",
     "three": "^0.179.1",

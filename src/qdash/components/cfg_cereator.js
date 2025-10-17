@@ -79,6 +79,9 @@ export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle }) => {
     <>
       <div className="slider-overlay" onClick={onToggle} />
       <div className="cfg-slider-container">
+          <Button isIconOnly variant="dark" onPress={onToggle}>
+              ✕
+            </Button>
         <div className="cfg-slider-header">
           <div className="cfg-header-top">
             <div className="cfg-title-section">
@@ -87,9 +90,7 @@ export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle }) => {
                 {Object.keys(filteredCfg).length} items
               </p>
             </div>
-            <Button isIconOnly variant="light" onPress={onToggle}>
-              ✕
-            </Button>
+
           </div>
 
           <Input

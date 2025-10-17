@@ -67,7 +67,28 @@ const ConfigAccordion = ({ sendMessage }) => {
     const maxValues = Object.fromEntries(
       Object.entries(cfg).map(([key, val]) => [key, val.value])
     );
-    return maxValues
+    // generate env_id
+    maxValues.id = crypto.randomUUID().replace(/-/g, '');
+
+    return [{
+        world_cfg: maxValues,
+        node_cfg: [
+            {
+            id: "ELECTRON_px_0",
+            "blocks": [
+              {
+                "block_break_duration_iters": 5,
+                "id": "somthing1",
+                "break_duration_iter": 8,
+                "multiplier": 10,
+                "stim_duration_iter": 2,
+                "total_stim_strength": 10,
+                "sets_iter": 100
+              }
+            ]
+          }
+        ],
+    }]
   }
 
   const get_input = () => {
@@ -127,7 +148,17 @@ const ConfigAccordion = ({ sendMessage }) => {
           <Button
             color="primary"
             onPress={() => sendMessage({
-                world_cfg: JSON.stringify(filter_cfg()),
+                data: filter_cfg(),
+                type: "world_cfg",
+                timestamp: new Date().toISOString(),
+              })}
+            style={{ marginTop: "8px" }}>
+            Confirm
+          </Button>
+            <Button
+            color="primary"
+            onPress={() => sendMessage({
+                data: filter_cfg(),
                 type: "world_cfg",
                 timestamp: new Date().toISOString(),
               })}
@@ -136,7 +167,9 @@ const ConfigAccordion = ({ sendMessage }) => {
           </Button>
         </div>
       </AccordionItem>
+
     </Accordion>
+
   );
 };
 

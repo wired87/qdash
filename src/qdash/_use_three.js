@@ -191,7 +191,22 @@ export const ThreeScene = ({ nodes, edges, onNodeClick, env_id, }) => {
         });
     }, [nodes, edges]);
 
-  return (
-    <canvas ref={canvasRef} style={{ width: '100%', height: "90vh", display: 'block' }} />
-  );
+  return <canvas
+      ref={canvasRef}
+      style={{
+            height: "100%",
+            width: '100%',
+            backgroundColor: '#b5e3ff',
+            borderRadius: 4,
+            textAlign: 'center',
+            lineHeight: '30px',
+            margin: '4px 0',
+            overflow: 'hidden',
+        }}
+  />
 };
+
+/*
+
+style={{ width: '100%', height: "90vh", display: 'block' }}
+ */
