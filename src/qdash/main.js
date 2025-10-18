@@ -1,7 +1,9 @@
 import React, {useState, useCallback, useEffect} from "react";
 import { Button } from "@heroui/react";
+import { CfgCreator } from "./components/cfg_cereator";
 import { DataSlider } from "./components/DataSlider";
 
+import { TerminalConsole } from "./components/terminal";
 import "../index.css";
 import WorldCfgCreator from "./components/world_cfg";
 import _useWebSocket from "./websocket";
@@ -11,19 +13,28 @@ import {getNodeColor} from "./get_color";
 import {NodeInfoPanel} from "./components/node_info_panel";
 
 
+
+// TEST
+const TEST_ENV_ID = "env_rajtigesomnlhfyqzbvx_zddioeaduhvnyphluwvu"
+
+
+
+
+
+
 export const MainApp = () => {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [fbCreds, setFbCreds] = useState(null);
   const [inputValue, setInputValue] = useState("");
 
+  const [isDataSidebarOpen, setIsDataSidebarOpen] = useState(false);
   const [isDataSliderOpen, setIsDataSliderOpen] = useState(false);
   const [isCfgSliderOpen, setIsCfgSliderOpen] = useState(false);
   const [worldCfgCreated, setWorldCfgCreated] = useState(false);
   const [envs, setEnvs] = useState({});
   const [clickedNode, setClickedNode] = useState(null);
   const [nodeSliderOpen, setNodeOpen] = useState(null);
-  const [graph, setGraph] = useState(null);
 
 
 
@@ -37,20 +48,6 @@ export const MainApp = () => {
       rows: []
     }
   );
-
-  const startSim = (env_id) => {
-      sendMessage({
-        data: {
-            env_ids:[
-                env_id
-            ]
-        },
-        type: "start_sim",
-        timestamp: new Date().toISOString(),
-      })
-  }
-
-
 
   const updateNodeInfo = (nodeId, env_id) => {
     console.log(`${nodeId} click detected`)
@@ -106,15 +103,6 @@ export const MainApp = () => {
         ...data,
       }
     })
-  }
-
-  const updateGraph = (graph_data) => {
-      if (graph === null) {
-          setGraph(graph_data);
-          console.log("Graph set");
-      } else {
-          console.log("Graph already exists");
-      }
   }
 
   useEffect(() => {
@@ -192,6 +180,9 @@ export const MainApp = () => {
   };
 
 
+  /**
+   * @param {FbCreds | null} data
+   */
   const updateCreds = useCallback((data) => {
     if (data) {
         setFbCreds({
@@ -213,16 +204,28 @@ export const MainApp = () => {
       messages, sendMessage,
       isConnected
   } = _useWebSocket(
-      updateCreds,
-      updateDataset,
-      addEnvs,
-      updateGraph
+      updateCreds, updateDataset, addEnvs
   );
 
   const { fbIsConnected, firebaseDb } = useFirebaseListeners(
       fbCreds,
       updateEnv
   )
+
+  const handleSubmit = useCallback(() => {
+    if (inputValue.trim() && isConnected) {
+      sendMessage({
+        text: inputValue,
+        type: "COMMAND",
+        timestamp: new Date().toISOString(),
+      });
+      setInputValue("");
+    }
+  }, [inputValue, isConnected, sendMessage]);
+
+  const updateInputValue = useCallback((value) => {
+    setInputValue(value);
+  }, []);
 
   const toggleDataSlider = useCallback(() => {
     setIsDataSliderOpen(!isDataSliderOpen);
@@ -232,21 +235,38 @@ export const MainApp = () => {
     setIsCfgSliderOpen(!isCfgSliderOpen);
   }, [isCfgSliderOpen]);
 
+
+
+  const cfg_struct = useCallback(() => {
+    if (isCfgSliderOpen && worldCfgCreated) {
+      console.log("CfgCreator ")
+
+      return (
+        <></>
+      )
+    } else if (!worldCfgCreated) {
+      console.log("WorldCfgCreator")
+      return(
+        <></>
+      )
+    }
+  }, [isCfgSliderOpen, worldCfgCreated])
+
   const get_dashboard = useCallback(() => {
     if (envs) {
       return(
-        <Dashboard envs={envs} updateNodeInfo={updateNodeInfo} graph={graph} startSim={startSim}/>
+        <Dashboard envs={envs} updateNodeInfo={updateNodeInfo}  />
       );
     }
     return(
       <p>Please create a simulation config file using the window on the right side</p>
     )
-  }, [envs, graph])
+  }, [envs])
 
   const get_node_panel = useCallback(() => {
     if (clickedNode !== null){
       return <NodeInfoPanel
-        node={clickedNode}
+        node={clickedNode} // Format env:env_id, node:node_objä
         sliderOpen={nodeSliderOpen}
         onClose={() => {
           updateNodesliderOpen();
@@ -255,7 +275,6 @@ export const MainApp = () => {
         firebaseDb={firebaseDb}
         fbIsConnected={fbIsConnected}
         user_id
-        sendMessage={sendMessage}
       />
     }
     else return(
@@ -265,7 +284,10 @@ export const MainApp = () => {
             onToggle={toggleCfgSlider}
           />
     )
-  },[clickedNode, isCfgSliderOpen])
+  },[clickedNode])
+
+
+
 
   return (
     <div className={"flex absolut flex-row w-full h-screen"}>
@@ -279,6 +301,7 @@ export const MainApp = () => {
             </div>
             <div>
               <h1 className="nav-title">QDash</h1>
+              <p className="nav-subtitle">Quantum Dashboard v2.0</p>
             </div>
           </div>
 
@@ -296,7 +319,8 @@ export const MainApp = () => {
               color={isCfgSliderOpen ? "secondary" : "default"}
               variant={isCfgSliderOpen ? "solid" : "bordered"}
               onPress={toggleCfgSlider}
-              startContent="⚙️">
+              startContent="⚙️"
+            >
               Configuration
             </Button>
 
@@ -324,6 +348,21 @@ export const MainApp = () => {
       />
 
       {get_dashboard()}
+
+
+
+      {/* Terminal Footer */}
+      <TerminalConsole
+        error={null}
+        statusClass={isConnected ? "text-green-500" : "text-red-500"}
+        handleSubmit={handleSubmit}
+        isConnected={isConnected}
+        inputValue={inputValue}
+        updateInputValue={updateInputValue}
+        options={["status", "config", "logs", "help", "refresh", "restart"]}
+        messages={messages}
+      />
+
     </div>
       <div className={"flex "}>
           {
@@ -335,3 +374,10 @@ export const MainApp = () => {
 };
 
 export default MainApp;
+/*
+<CfgCreator
+          sendMessage={sendMessage}
+          isOpen={isCfgSliderOpen}
+          onToggle={toggleCfgSlider}
+        />
+ */
