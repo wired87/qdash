@@ -1,5 +1,5 @@
 import React, {useState, useCallback, useEffect} from "react";
-import { Button } from "@heroui/react";
+import {Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader} from "@heroui/react";
 import { DataSlider } from "./components/DataSlider";
 
 import "../index.css";
@@ -9,6 +9,7 @@ import Dashboard from "./components/sim_view";
 import {useFirebaseListeners} from "./firebase";
 import {getNodeColor} from "./get_color";
 import {NodeInfoPanel} from "./components/node_info_panel";
+import {ThreeScene} from "./_use_three";
 
 
 
@@ -29,7 +30,10 @@ export const MainApp = () => {
   const [envs, setEnvs] = useState({});
   const [clickedNode, setClickedNode] = useState(null);
   const [nodeSliderOpen, setNodeOpen] = useState(null);
-  const [graph, setGraph] = useState(null);
+  const [graph, setGraph] = useState({
+      nodes: [],
+      edges: [],
+  });
 
   const updateNodesliderOpen = () => {
     setNodeOpen(!nodeSliderOpen)
@@ -97,7 +101,46 @@ export const MainApp = () => {
       }
     })
   }
+    const [selectedEnv, setSelectedEnv] = useState("");
+    const [isOpen, setIsOpen] = useState(false);
 
+
+    const toggleModal = useCallback((env_id) => {
+
+        if (env_id) {
+            setSelectedEnv(env_id);
+        }
+        setIsOpen(!isOpen);
+    }, [isOpen, selectedEnv])
+
+    const modal = useCallback(() => {
+        console.log("isOpen, selectedEnv, graph",isOpen, selectedEnv, graph)
+        return (
+            <Modal isOpen={isOpen} onClose={() => toggleModal("")} size="5xl" style={{position:"fixed", width:500, height:500, zIndex: 99999}}>
+                <ModalContent>
+                        <>
+                            <ModalHeader className="flex flex-col gap-1">Graph View</ModalHeader>
+                            <ModalBody>
+                                <div style={{width: "100%", height: "60vh", position: "relative"}}>
+                                    <ThreeScene
+                                        nodes={graph.nodes}
+                                        edges={graph.edges}
+                                        onNodeClick={updateNodeInfo}
+                                        env_id={selectedEnv}
+                                    />
+                                </div>
+                            </ModalBody>
+                            <ModalFooter>
+                                <Button color="danger" variant="light" onPress={toggleModal}>
+                                    Close
+                                </Button>
+                            </ModalFooter>
+                        </>
+
+                </ModalContent>
+            </Modal>
+        )
+    }, [isOpen, selectedEnv, graph])
 
 
   const updateEnv = (listener_type, env_id, data) => {
@@ -228,27 +271,21 @@ export const MainApp = () => {
     setIsCfgSliderOpen(!isCfgSliderOpen);
   }, [isCfgSliderOpen]);
 
-
-
-  const cfg_struct = useCallback(() => {
-    if (isCfgSliderOpen && worldCfgCreated) {
-      console.log("CfgCreator ")
-
-      return (
-        <></>
-      )
-    } else if (!worldCfgCreated) {
-      console.log("WorldCfgCreator")
-      return(
-        <></>
-      )
+    const startSim = (env_id) => {
+        sendMessage({
+            data: {
+                env_ids: [env_id]
+            },
+            type: "start_sim",
+            timestamp: new Date().toISOString(),
+        })
     }
-  }, [isCfgSliderOpen, worldCfgCreated])
+
 
   const get_dashboard = useCallback(() => {
     if (envs) {
       return(
-        <Dashboard envs={envs} updateNodeInfo={updateNodeInfo} graph={graph} />
+        <Dashboard envs={envs} startSim={startSim} toggleModal={toggleModal} />
       );
     }
     return(
@@ -278,8 +315,6 @@ export const MainApp = () => {
           />
     )
   },[clickedNode, isCfgSliderOpen])
-
-
 
 
   return (
@@ -342,38 +377,15 @@ export const MainApp = () => {
 
       {get_dashboard()}
 
-
-
-      {/* Terminal Footer */}
-
     </div>
       <div className={"flex "}>
           {
             get_node_panel()
           }
       </div>
+    {modal()}
   </div>
   );
 };
 
 export default MainApp;
-/*
-<CfgCreator
-          sendMessage={sendMessage}
-          isOpen={isCfgSliderOpen}
-          onToggle={toggleCfgSlider}
-        />
-
-
-<TerminalConsole
-        error={null}
-        statusClass={isConnected ? "text-green-500" : "text-red-500"}
-        handleSubmit={handleSubmit}
-        isConnected={isConnected}
-        inputValue={inputValue}
-        updateInputValue={updateInputValue}
-        options={["status", "config", "logs", "help", "refresh", "restart"]}
-        messages={messages}
-      />
-
- */

@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import {getEdgeColor} from "./get_color";
 
 export const ThreeScene = ({ nodes, edges, onNodeClick, env_id, }) => {
-  console.log("nodes, edges", nodes, edges)
+  console.log("show three scene")
   const sceneRef = useRef();
   const cameraRef = useRef();
   const rendererRef = useRef();

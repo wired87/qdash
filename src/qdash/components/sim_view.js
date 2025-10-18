@@ -100,62 +100,16 @@ const styles = {
 export const Dashboard = (
     {
         envs,
-        updateNodeInfo,
-        graph,
+        toggleModal,
         startSim,
     }
 ) => {
-    const [selectedEnv, setSelectedEnv] = useState(null);
-    const [isOpen, setIsOpen] = useState(false);
 
-    const handleSelectEnv = (envId) => {
-        setSelectedEnv(envId);
-    };
 
-    const toggleModal = (env_id = null) => {
-        if (env_id) {
-            handleSelectEnv(env_id);
-        }
-
-        setIsOpen(!isOpen);
-    };
-
-    const handleBack = () => {
-        setSelectedEnv(null);
-    };
 
     const addEnvLen = useCallback((env_id) => {
         return Object.keys(envs).length
     }, [envs])
-
-    const modal = useCallback(() => {
-        return (
-            <Modal isOpen={isOpen} onClose={toggleModal} size="5xl" scrollBehavior="inside">
-                <ModalContent>
-                    {(onClose) => (
-                        <>
-                            <ModalHeader className="flex flex-col gap-1">Graph View</ModalHeader>
-                            <ModalBody>
-                                <div style={{width: "100%", height: "60vh", position: "relative"}}>
-                                    <ThreeScene
-                                        nodes={graph.nodes}
-                                        edges={graph.edges}
-                                        onNodeClick={updateNodeInfo}
-                                        env_id={selectedEnv}
-                                    />
-                                </div>
-                            </ModalBody>
-                            <ModalFooter>
-                                <Button color="danger" variant="light" onPress={onClose}>
-                                    Close
-                                </Button>
-                            </ModalFooter>
-                        </>
-                    )}
-                </ModalContent>
-            </Modal>
-        )
-    }, [isOpen, selectedEnv, graph])
 
 
     return (
@@ -244,7 +198,7 @@ export const Dashboard = (
                 </div>
             </div>
         </div>
-        {modal()}
+
     </>
     );
 };
