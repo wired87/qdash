@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import {USER_ID_KEY} from "./auth";
 
-const quey_str = "?user_id=rajtigesomnlhfyqzbvx&mode=demo";
-const WS_URL = `wss://www.bestbrain.tech/run/${quey_str}`;
-const WS_URL_LOCAL = `ws://127.0.0.1:8000/run/${quey_str}`;
+
 
 
 const handleDownload = (data) => {
@@ -31,6 +30,18 @@ const _useWebSocket = (
 
   // useRef, um die WebSocket-Instanz zu speichern, ohne Re-Renders auszulösen
   const ws = useRef(null);
+
+
+    const get_ws_endpoint = () => {
+        const userId = localStorage.getItem(USER_ID_KEY)
+        const quey_str = `?user_id=${userId}&mode=demo`;
+
+        const WS_URL = `wss://www.bestbrain.tech/run/${quey_str}`;
+        const WS_URL_LOCAL = `ws://127.0.0.1:8000/run/${quey_str}`;
+
+        return WS_URL_LOCAL
+  }
+
 
   // useCallback, um die send-Funktion zu memoizen
   const sendMessage = useCallback((message) => {
@@ -68,7 +79,7 @@ const _useWebSocket = (
   useEffect(() => {
     // Schließe bestehende Verbindung, falls vorhanden
     // Neue WebSocket-Verbindung aufbauen
-    ws.current = new WebSocket(WS_URL_LOCAL);
+    ws.current = new WebSocket(get_ws_endpoint());
 
     // Event-Handler@import "tailwindcss/base";
     //

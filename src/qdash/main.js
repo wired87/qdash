@@ -2,7 +2,6 @@ import React, {useState, useCallback, useEffect} from "react";
 import { Button } from "@heroui/react";
 import { DataSlider } from "./components/DataSlider";
 
-import { TerminalConsole } from "./components/terminal";
 import "../index.css";
 import WorldCfgCreator from "./components/world_cfg";
 import _useWebSocket from "./websocket";
@@ -99,9 +98,6 @@ export const MainApp = () => {
     })
   }
 
-  useEffect(() => {
-    console.log("envs", envs)
-  }, [envs])
 
 
   const updateEnv = (listener_type, env_id, data) => {
@@ -174,9 +170,6 @@ export const MainApp = () => {
   };
 
 
-  /**
-   * @param {FbCreds | null} data
-   */
   const updateCreds = useCallback((data) => {
     if (data) {
         setFbCreds({
