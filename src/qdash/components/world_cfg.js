@@ -130,9 +130,6 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
           label="Configuration Message"
           labelPlacement="outside"
         />
-        <Button color="primary" onPress={onConfirm} disabled={!inputMessage.trim()}>
-          Send Configuration
-        </Button>
       </div>
 
       {/* Content */}

@@ -1,6 +1,5 @@
 import React, {useState, useCallback, useEffect} from "react";
 import { Button } from "@heroui/react";
-import { CfgCreator } from "./components/cfg_cereator";
 import { DataSlider } from "./components/DataSlider";
 
 import { TerminalConsole } from "./components/terminal";
@@ -12,10 +11,6 @@ import {useFirebaseListeners} from "./firebase";
 import {getNodeColor} from "./get_color";
 import {NodeInfoPanel} from "./components/node_info_panel";
 
-
-
-// TEST
-const TEST_ENV_ID = "env_rajtigesomnlhfyqzbvx_zddioeaduhvnyphluwvu"
 
 
 
@@ -35,8 +30,7 @@ export const MainApp = () => {
   const [envs, setEnvs] = useState({});
   const [clickedNode, setClickedNode] = useState(null);
   const [nodeSliderOpen, setNodeOpen] = useState(null);
-
-
+  const [graph, setGraph] = useState(null);
 
   const updateNodesliderOpen = () => {
     setNodeOpen(!nodeSliderOpen)
@@ -199,12 +193,18 @@ export const MainApp = () => {
     setDataset(data);
   };
 
+
+
+  const updateGraph = (graph) => {
+      setGraph(graph)
+  }
+
   // HOOKS
   const {
       messages, sendMessage,
       isConnected
   } = _useWebSocket(
-      updateCreds, updateDataset, addEnvs
+      updateCreds, updateDataset, addEnvs, updateGraph
   );
 
   const { fbIsConnected, firebaseDb } = useFirebaseListeners(
@@ -255,7 +255,7 @@ export const MainApp = () => {
   const get_dashboard = useCallback(() => {
     if (envs) {
       return(
-        <Dashboard envs={envs} updateNodeInfo={updateNodeInfo}  />
+        <Dashboard envs={envs} updateNodeInfo={updateNodeInfo} graph={graph} />
       );
     }
     return(
@@ -284,7 +284,7 @@ export const MainApp = () => {
             onToggle={toggleCfgSlider}
           />
     )
-  },[clickedNode])
+  },[clickedNode, isCfgSliderOpen])
 
 
 
@@ -352,16 +352,6 @@ export const MainApp = () => {
 
 
       {/* Terminal Footer */}
-      <TerminalConsole
-        error={null}
-        statusClass={isConnected ? "text-green-500" : "text-red-500"}
-        handleSubmit={handleSubmit}
-        isConnected={isConnected}
-        inputValue={inputValue}
-        updateInputValue={updateInputValue}
-        options={["status", "config", "logs", "help", "refresh", "restart"]}
-        messages={messages}
-      />
 
     </div>
       <div className={"flex "}>
@@ -380,4 +370,17 @@ export default MainApp;
           isOpen={isCfgSliderOpen}
           onToggle={toggleCfgSlider}
         />
+
+
+<TerminalConsole
+        error={null}
+        statusClass={isConnected ? "text-green-500" : "text-red-500"}
+        handleSubmit={handleSubmit}
+        isConnected={isConnected}
+        inputValue={inputValue}
+        updateInputValue={updateInputValue}
+        options={["status", "config", "logs", "help", "refresh", "restart"]}
+        messages={messages}
+      />
+
  */

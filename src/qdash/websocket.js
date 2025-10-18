@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const quey_str = "?user_id=rajtigesomnlhfyqzbvx&mode=demo";
-const WS_URL = `wss://www.bestbrain.tech/sim/run/${quey_str}`;
-const WS_URL_LOCAL = `ws://127.0.0.1:8000/sim/run/${quey_str}`;
+const WS_URL = `wss://www.bestbrain.tech/run/${quey_str}`;
+const WS_URL_LOCAL = `ws://127.0.0.1:8000/run/${quey_str}`;
 
 
 const handleDownload = (data) => {
@@ -22,6 +22,7 @@ const _useWebSocket = (
   updateCreds,
   updateDataset,
   addEnvs,
+  updateGraph,
 ) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -44,7 +45,8 @@ const _useWebSocket = (
   const handleWebSocketMessage = (message) => {
     if (message.type === "world_content") {
       // receive all world objects to render in dashboard
-      addEnvs(message.data)
+      addEnvs(message.data.envs)
+      updateGraph(message.data.graph)
     } else if (message.type === "creds") {
       //  iun demo receive entire G at once
       if (message.data) {
