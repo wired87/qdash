@@ -14,15 +14,23 @@ import {
 } from "@heroui/react";
 import "../../index.css";
 
-export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
-  const [activeTab, setActiveTab] = useState("data");
+export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, envData, sendMessage, setEnvData }) => {
+  const [activeTab, setActiveTab] = useState("environments");
+
+  // Handler for get_data button click
+  const handleGetEnvData = (envId) => {
+    sendMessage({
+      type: "get_env_data",
+      env_id: envId,
+      timestamp: new Date().toISOString(),
+    });
+  };
 
   const formatDataForTable = (nodes, edges) => {
     const data = [];
 
     // Add nodes data
-    nodes.forEach((node) => {
-      data.push({
+    nodes.forEach((node) => {      data.push({
         id: node.id,
         name: node.name || "",
         type: node.type,
@@ -54,7 +62,6 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
 
     return data;
   };
-
   const renderLogEntries = (logData, nodeId) => {
     const allLogs = [];
 
@@ -84,7 +91,6 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
   };
 
   const tableData = formatDataForTable(nodes, edges);
-
   const columns = [
     { key: "id", label: "ID" },
     { key: "name", label: "NAME" },
@@ -114,10 +120,17 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
             </div>
             <Button isIconOnly variant="light" onPress={onToggle}>
               ✕
-            </Button>
-          </div>
+            </Button>          </div>
 
           <div className="data-tab-container">
+            <Button
+              size="sm"
+              color={activeTab === "environments" ? "primary" : "default"}
+              variant={activeTab === "environments" ? "solid" : "bordered"}
+              onPress={() => setActiveTab("environments")}
+            >
+              Environments
+            </Button>
             <Button
               size="sm"
               color={activeTab === "data" ? "primary" : "default"}
@@ -136,8 +149,74 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
             </Button>
           </div>
         </div>
-
         <div className="data-slider-content">
+          {activeTab === "environments" && (
+            <div className="environments-section">
+              <h3 className="data-section-title">Available Environments</h3>
+              {envsList && envsList.length > 0 ? (
+                <>
+                  <Table
+                    aria-label="Environments table"
+                    isStriped
+                    isCompact
+                    className="data-table-full"
+                  >
+                    <TableHeader>
+                      <TableColumn>Environment ID</TableColumn>
+                      <TableColumn>Action</TableColumn>
+                    </TableHeader>
+                    <TableBody>
+                      {envsList.map((envId, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{envId}</TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              color="primary"
+                              onPress={() => handleGetEnvData(envId)}
+                            >
+                              Get Data
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>                  </Table>
+                  
+                  {/* Show environment data if available */}
+                  {envData && envData.length > 0 && (
+                    <div className="env-data-section" style={{ marginTop: "20px" }}>
+                      <h4 className="data-section-title">Environment Data</h4>
+                      <Table
+                        aria-label="Environment data table"
+                        isStriped
+                        isCompact
+                        className="data-table-full"
+                      >
+                        <TableHeader>
+                          {envData[0] && Object.keys(envData[0]).map((key) => (
+                            <TableColumn key={key}>{key.toUpperCase()}</TableColumn>
+                          ))}
+                        </TableHeader>
+                        <TableBody>
+                          {envData.map((item, index) => (
+                            <TableRow key={index}>
+                              {Object.values(item).map((value, idx) => (
+                                <TableCell key={idx}>
+                                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}                </>
+              ) : (
+                <p>No environments available. Loading...</p>
+              )}
+            </div>
+          )}
+
           {activeTab === "data" && (
             <div className="data-table-section">
               <h3 className="data-section-title">Network Data</h3>
@@ -149,7 +228,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
               >
                 <TableHeader>
                   {columns.map((column) => (
-                    <TableColumn key={column.id}>{column.id}</TableColumn>
+                    <TableColumn key={column.key}>{column.label}</TableColumn>
                   ))}
                 </TableHeader>
                 <TableBody>
@@ -160,8 +239,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
                           {column.key === "status" && item[column.key] ? (
                             <Chip
                               size="sm"
-                              color={
-                                item[column.key] === "ALIVE" ||
+                              color={                                item[column.key] === "ALIVE" ||
                                 item[column.key] === "Active"
                                   ? "success"
                                   : "default"
@@ -190,7 +268,6 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle }) => {
                   const logEntries = nodeLogs
                     ? renderLogEntries(nodeLogs, node.id)
                     : [];
-
                   return (
                     <Card key={node.id} className="log-node-card">
                       <CardBody>

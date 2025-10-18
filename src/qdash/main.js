@@ -35,6 +35,8 @@ export const MainApp = () => {
   const [envs, setEnvs] = useState({});
   const [clickedNode, setClickedNode] = useState(null);
   const [nodeSliderOpen, setNodeOpen] = useState(null);
+  const [envsList, setEnvsList] = useState([]); // List of environment IDs
+  const [envData, setEnvData] = useState([]); // Environment data from get_env_data
 
 
 
@@ -204,7 +206,7 @@ export const MainApp = () => {
       messages, sendMessage,
       isConnected
   } = _useWebSocket(
-      updateCreds, updateDataset, addEnvs
+      updateCreds, updateDataset, addEnvs, setEnvsList, setEnvData
   );
 
   const { fbIsConnected, firebaseDb } = useFirebaseListeners(
@@ -229,7 +231,15 @@ export const MainApp = () => {
 
   const toggleDataSlider = useCallback(() => {
     setIsDataSliderOpen(!isDataSliderOpen);
-  }, [isDataSliderOpen]);
+    
+    // When opening the data slider, fetch environments
+    if (!isDataSliderOpen) {
+      sendMessage({
+        type: "fetch_envs",
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [isDataSliderOpen, sendMessage]);
 
   const toggleCfgSlider = useCallback(() => {
     setIsCfgSliderOpen(!isCfgSliderOpen);
@@ -345,6 +355,10 @@ export const MainApp = () => {
         logs={logs}
         isOpen={isDataSliderOpen}
         onToggle={toggleDataSlider}
+        envsList={envsList}
+        envData={envData}
+        sendMessage={sendMessage}
+        setEnvData={setEnvData}
       />
 
       {get_dashboard()}

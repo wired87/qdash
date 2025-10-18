@@ -260,6 +260,23 @@ body {
   width: 100%;
 }
 
+/* Environments Section Styles */
+.environments-section {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.env-data-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.data-table-full {
+  width: 100%;
+}
+
 /* Logs Section */
 .logs-section {
   height: 100%;

@@ -22,6 +22,8 @@ const _useWebSocket = (
   updateCreds,
   updateDataset,
   addEnvs,
+  setEnvsList,
+  setEnvData,
 ) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -57,6 +59,12 @@ const _useWebSocket = (
       handleDownload(message.data);
     } else if (message.type === "finished") {
       setDeactivate(true);
+    } else if (message.type === "envs_list" && setEnvsList) {
+      // Handle environment list response
+      setEnvsList(message.data);
+    } else if (message.type === "env_data" && setEnvData) {
+      // Handle environment data response
+      setEnvData(message.data);
     } else {
       // Für alle anderen unbekannten Nachrichtentypen
       console.log("Unbekannte WebSocket-Nachricht:", message);
