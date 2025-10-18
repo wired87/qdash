@@ -232,7 +232,6 @@ export const MainApp = () => {
     setIsCfgSliderOpen(!isCfgSliderOpen);
   }, [isCfgSliderOpen]);
 
-
   const get_dashboard = useCallback(() => {
     if (envs) {
       return(
@@ -256,6 +255,7 @@ export const MainApp = () => {
         firebaseDb={firebaseDb}
         fbIsConnected={fbIsConnected}
         user_id
+        sendMessage={sendMessage}
       />
     }
     else return(

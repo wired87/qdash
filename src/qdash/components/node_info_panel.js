@@ -5,18 +5,26 @@ import {NodeStatusSection} from "./node_info";
 import {NodeLogsSection} from "./node_logs";
 import {NodeConfigForm} from "./node_cfg/node_cfg";
 
+import {CustomButton} from "../components";
+import useNcfg from "../../hooks/useNcfg";
+
 export const NodeInfoPanel = (
-  {node, onClose, firebaseDb, fbIsConnected, user_id, sliderOpen}
+  {
+      node,
+      onClose,
+      firebaseDb,
+      fbIsConnected,
+      user_id,
+      sliderOpen,
+      sendMessage,
+  }
 ) => {
-  /*
-  Build here an extra listener so logs doesnt need to get spammed
-  all the time -> results in RAM overhead
-   */
   console.log("node, onClose, firebaseDb, fbIsConnected, user_id", node, onClose, firebaseDb, fbIsConnected, user_id)
 
   // ALLE Hooks müssen am Anfang stehen, VOR JEDEM bedingten Return.
   const [logs, setLogs] = useState({});
   const listenerRefs = useRef([]);
+
 
   console.log("node, firebaseDb,fbIsConnected", node, firebaseDb, fbIsConnected)
 
@@ -32,6 +40,15 @@ export const NodeInfoPanel = (
     });
   }, []);
 
+    const {
+        ncfg,
+        get_ncfg_section
+    } = useNcfg();
+
+    const get_ncfg = useCallback(() => {
+        return ncfg;
+    }, [ncfg])
+
   useEffect(() => {
     // Hier kannst du Bedingungen sicher prüfen.
     if (!node || !fbIsConnected || !firebaseDb.current) {
@@ -42,14 +59,13 @@ export const NodeInfoPanel = (
         return;
     }
 
-
     // Cleanup vorheriger Listener
     listenerRefs.current.forEach(({ refObj, callback }) =>
       off(refObj, "child_changed", callback)
     );
     listenerRefs.current = [];
 
-    // @ts-ignore
+
     const logs_path = `users/${user_id}/env/${node.env}/logs/${node.id}`;
     console.log("start second logs listener")
     const dbRef = ref(firebaseDb.current, logs_path);
@@ -109,6 +125,22 @@ export const NodeInfoPanel = (
           <>
             <DrawerHeader className="flex flex-col gap-1">Info {new_node?.id}</DrawerHeader>
             <DrawerBody>
+                {get_ncfg_section()}
+                <CustomButton
+                  color="primary"
+                  onPress={() => {
+                    sendMessage({
+                      type: "cfg_file",
+                      data: {
+                        ncfg: get_ncfg(),
+                        env_id: node.env,
+                      },
+                      timestamp: new Date().toISOString(),
+                    });
+                  }}
+                >
+                  Send Configuration
+                </CustomButton>
               <NodeStatusSection node={new_node} />
               <NodeLogsSection logs={logs} />
               <NodeConfigForm />

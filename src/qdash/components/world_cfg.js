@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import ConfigAccordion from "./accordeon";
-import {Button} from "@heroui/react";
+import {Button, Input} from "@heroui/react";
 
 // Buttons
 const CustomButton = ({ children, onPress, isIconOnly, color, variant = "solid", size, disabled, ...props }) => {
@@ -79,7 +79,7 @@ const CustomInput = ({ value, onValueChange, placeholder, type = "text", startCo
 };
 
 // Main component
-export const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
+const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
   //const [openPixelId, setOpenPixelId] = useState("world");
   const [searchQuery, setSearchQuery] = useState("");
   const [isDirty, setIsDirty] = useState(false);
@@ -118,22 +118,21 @@ export const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
         ✕
         </Button>
 
-        <CustomInput
+        <Input
           placeholder="Search configurations..."
           value={searchQuery}
           onValueChange={setSearchQuery}
-          startContent={<span>🔍</span>}
         />
-        <CustomInput
+        <Input
           placeholder="Enter message..."
           value={inputMessage}
           onValueChange={setInputMessage}
           label="Configuration Message"
           labelPlacement="outside"
         />
-        <CustomButton color="primary" onPress={onConfirm} disabled={!inputMessage.trim()}>
+        <Button color="primary" onPress={onConfirm} disabled={!inputMessage.trim()}>
           Send Configuration
-        </CustomButton>
+        </Button>
       </div>
 
       {/* Content */}
@@ -143,5 +142,5 @@ export const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
     </div>
   );
 };
-
 export default WorldCfgCreator;
+

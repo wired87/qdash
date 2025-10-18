@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {ThreeScene} from "../_use_three";
+import SceneWrapper from "./node_cfg/szenewrapper";
 
 // --- STYLES DEFINITION (Inline CSS Equivalent) ---
 const styles = {
@@ -99,7 +100,6 @@ const Button = ({ children, onPress, startContent }) => (
 
 
 // --- Main App Component ---
-// Component now expects envs, updateNodeInfo, graph, and startSim as props.
 const ScrollableDataTable = ({ envs, updateNodeInfo, graph, startSim }) => {
     let environments = envs;
     const totalEnvironments = Object.keys(environments).length;
@@ -136,12 +136,13 @@ const ScrollableDataTable = ({ envs, updateNodeInfo, graph, startSim }) => {
 
                                     {/* Column 2: Graph/Scene */}
                                     <td style={styles.cell}>
-                                        <ThreeScene
+                                        <SceneWrapper
                                             nodes={graph.nodes}
                                             edges={graph.edges}
                                             onNodeClick={updateNodeInfo}
                                             env_id={env_id}
                                         />
+
                                     </td>
 
                                     {/* Column 3: Start Sim Button */}
