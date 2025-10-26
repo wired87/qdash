@@ -377,6 +377,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-  Made with ❤️ by the Quantum Dashboard Team
+  Made with ❤️ by the QDash Team
 </p>
 
