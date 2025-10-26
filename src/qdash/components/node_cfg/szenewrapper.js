@@ -1,6 +1,5 @@
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/react";
+import { Button } from "@heroui/react";
 import { useCallback, useState } from "react";
-import { ThreeScene } from "../../_use_three";
 
 const SceneWrapper = ({ nodes, edges, onNodeClick, env_id }) => {
   const [isOpen, setIsOpen] = useState(false);

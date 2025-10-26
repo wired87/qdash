@@ -1,6 +1,5 @@
-import React, {useCallback, useState} from "react";
-import {Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader} from "@heroui/react";
-import {ThreeScene} from "../_use_three";
+import React, {useCallback} from "react";
+import {Button} from "@heroui/react";
 
 
 const CustomChip = ({children, color, className = ""}) => {
@@ -96,7 +95,6 @@ const styles = {
 };
 
 
-// The main Dashboard component.
 export const Dashboard = (
     {
         envs,
@@ -104,14 +102,11 @@ export const Dashboard = (
         startSim,
     }
 ) => {
-
-
-
     const addEnvLen = useCallback((env_id) => {
         return Object.keys(envs).length
     }, [envs])
 
-
+    if (addEnvLen() === 0) return <></>
     return (
     <>
         <div
@@ -198,7 +193,6 @@ export const Dashboard = (
                 </div>
             </div>
         </div>
-
     </>
     );
 };

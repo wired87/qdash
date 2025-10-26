@@ -10,6 +10,7 @@ import {useFirebaseListeners} from "./firebase";
 import {getNodeColor} from "./get_color";
 import {NodeInfoPanel} from "./components/node_info_panel";
 import {ThreeScene} from "./_use_three";
+import TerminalConsole from "./components/terminal";
 
 
 
@@ -22,6 +23,7 @@ export const MainApp = () => {
   const [edges, setEdges] = useState([]);
   const [fbCreds, setFbCreds] = useState(null);
   const [inputValue, setInputValue] = useState("");
+  const [error, setError] = useState("");
 
   const [isDataSidebarOpen, setIsDataSidebarOpen] = useState(false);
   const [isDataSliderOpen, setIsDataSliderOpen] = useState(false);
@@ -321,7 +323,45 @@ export const MainApp = () => {
     <div className={"flex absolut flex-row w-full h-screen"}>
       <div className="dashboard-container">
       {/* Top Navigation */}
-      <nav className="nav-container">
+
+
+      <DataSlider
+        nodes={nodes}
+        edges={edges}
+        logs={logs}
+        isOpen={isDataSliderOpen}
+        onToggle={toggleDataSlider}
+      />
+
+      {
+          get_dashboard()
+      }
+        <TerminalConsole
+            error={error}
+              handleSubmit={handleSubmit}
+              isConnected={isConnected}
+              inputValue={inputValue}
+              updateInputValue={updateInputValue}
+              messages={messages}
+            toggleCfgSlider={toggleCfgSlider}
+            toggleDataSlider={toggleDataSlider}
+        />
+    </div>
+      <div className={"flex "}>
+          {
+            get_node_panel()
+          }
+      </div>
+    {modal()}
+  </div>
+  );
+};
+
+export default MainApp;
+
+/*
+
+<nav className="nav-container">
         <div className="nav-content">
           <div className="logo-container">
             <div className="logo-icon">
@@ -366,26 +406,4 @@ export const MainApp = () => {
         </div>
       </nav>
 
-      {/* Sliders */}
-      <DataSlider
-        nodes={nodes}
-        edges={edges}
-        logs={logs}
-        isOpen={isDataSliderOpen}
-        onToggle={toggleDataSlider}
-      />
-
-      {get_dashboard()}
-
-    </div>
-      <div className={"flex "}>
-          {
-            get_node_panel()
-          }
-      </div>
-    {modal()}
-  </div>
-  );
-};
-
-export default MainApp;
+ */
