@@ -11,6 +11,7 @@ import {getNodeColor} from "./get_color";
 import {NodeInfoPanel} from "./components/node_info_panel";
 import {ThreeScene} from "./_use_three";
 import TerminalConsole from "./components/terminal";
+import ToDoCard from "./components/todo_card";
 
 
 export const MainApp = () => {
@@ -101,6 +102,13 @@ export const MainApp = () => {
     const [selectedEnv, setSelectedEnv] = useState("");
     const [isOpen, setIsOpen] = useState(false);
     const [isDashOpen, setIsDashOpen] = useState(false);
+
+
+    const get_info_card = useCallback((_case) => {
+        if (!isDashOpen && !isOpen && !isCfgSliderOpen) {
+            return <ToDoCard />
+        }
+    },[isOpen, isDashOpen, isCfgSliderOpen]);
 
 
     const toggleModal = useCallback((env_id) => {
@@ -334,7 +342,6 @@ export const MainApp = () => {
         onToggle={toggleDataSlider}
       />
           {get_dashboard()}
-
         <TerminalConsole
             error={error}
               handleSubmit={handleSubmit}

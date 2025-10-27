@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import ToDoCard from "./todo_card";
 
 // --- START: CUSTOM INLINE CSS COMPONENTS ---
 
@@ -121,10 +122,16 @@ export const TerminalConsole = ({
     sendMessage,
     envs,
   options = [],
-  messages = [],
 }) => {
   // Set initial state to true so the history window shows up immediately
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [messages, setMessages] = useState([
+      {
+          type: "dave", // Use "COMMAND" type for user input
+          text: "Hi, Im dave, I support you within the entire simulation process. Your todos: \n1. Create wcfg\n2. create ncfg\n3.run and monitor sim\n4. viauslize and export data\n5. apply ml if needed",
+          timestamp: new Date().toISOString(),
+      }
+  ]);
 
   // Define 5 action cases
   const actionButtons = [
@@ -163,6 +170,11 @@ export const TerminalConsole = ({
             type: "cmd",
             timestamp: new Date().toISOString(),
         });
+      setMessages(prevMessages => [...prevMessages, {
+          type: "cmd", // Use "COMMAND" type for user input
+          text: valueToSubmit,
+          timestamp: new Date().toISOString(),
+      }]);
     }
   }, [inputValue, isConnected, handleSubmit]);
 
@@ -251,12 +263,17 @@ export const TerminalConsole = ({
     alignItems: 'flex-start',
     gap: '0.75rem'
   };
+
+
     const get_env_len = useCallback((_case) => {
         if (_case === "show_envs") {
             return `(${Object.keys(envs).length})`
         }
         return null
     }, [envs]);
+
+
+
 
   return (
     <div style={containerStyle}>
