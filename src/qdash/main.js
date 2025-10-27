@@ -13,11 +13,6 @@ import {ThreeScene} from "./_use_three";
 import TerminalConsole from "./components/terminal";
 
 
-
-
-
-
-
 export const MainApp = () => {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
@@ -105,6 +100,7 @@ export const MainApp = () => {
   }
     const [selectedEnv, setSelectedEnv] = useState("");
     const [isOpen, setIsOpen] = useState(false);
+    const [isDashOpen, setIsDashOpen] = useState(false);
 
 
     const toggleModal = useCallback((env_id) => {
@@ -269,7 +265,13 @@ export const MainApp = () => {
     setIsDataSliderOpen(!isDataSliderOpen);
   }, [isDataSliderOpen]);
 
+  const toggleDahboard = useCallback(() => {
+      console.log("toggleDahboard:", !isDashOpen)
+    setIsDashOpen(!isDashOpen);
+  }, [isDashOpen]);
+
   const toggleCfgSlider = useCallback(() => {
+      console.log("toggleDahboard:", !isDashOpen)
     setIsCfgSliderOpen(!isCfgSliderOpen);
   }, [isCfgSliderOpen]);
 
@@ -285,15 +287,14 @@ export const MainApp = () => {
 
 
   const get_dashboard = useCallback(() => {
-    if (envs) {
+    if (isDashOpen) {
       return(
         <Dashboard envs={envs} startSim={startSim} toggleModal={toggleModal} />
       );
     }
-    return(
-      <p>Please create a simulation config file using the window on the right side</p>
-    )
-  }, [envs])
+    return <></>
+  }, [envs, isDashOpen]);
+
 
   const get_node_panel = useCallback(() => {
     if (clickedNode !== null){
@@ -332,10 +333,8 @@ export const MainApp = () => {
         isOpen={isDataSliderOpen}
         onToggle={toggleDataSlider}
       />
+          {get_dashboard()}
 
-      {
-          get_dashboard()
-      }
         <TerminalConsole
             error={error}
               handleSubmit={handleSubmit}
@@ -345,6 +344,10 @@ export const MainApp = () => {
               messages={messages}
             toggleCfgSlider={toggleCfgSlider}
             toggleDataSlider={toggleDataSlider}
+            sendMessage={sendMessage}
+            toggleDashboard={toggleDahboard}
+            envs={envs}
+
         />
     </div>
       <div className={"flex "}>

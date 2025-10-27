@@ -117,16 +117,19 @@ export const TerminalConsole = ({
   updateInputValue,
     toggleCfgSlider,
     toggleDataSlider,
+    toggleDashboard,
+    sendMessage,
+    envs,
   options = [],
   messages = [],
 }) => {
   // Set initial state to true so the history window shows up immediately
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Define 5 action cases
   const actionButtons = [
     { name: "Status Check", case: "status_check" },
-    { name: "Start Debug", case: "start_debug" },
+    { name: "Show ENVs", case: "show_envs" },
     { name: "Set Config", case: "set_config" },
     { name: "Data Space", case: "watch_data" },
     { name: "System Log", case: "system_log" },
@@ -138,12 +141,16 @@ export const TerminalConsole = ({
         toggleCfgSlider()
     }else if (actionCase === "watch_data") {
         toggleDataSlider()
+    }else if (actionCase === "show_envs") {
+        toggleDashboard()
+    }else {
+        updateInputValue(`${actionCase}`);
     }
-    updateInputValue(`run ${actionCase}`);
-  }, [updateInputValue]);
+  }, [updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider]);
 
   // Form submission handler (Handles Enter key press and Send button click)
   const onSubmit = useCallback((e) => {
+    console.log("Form submitted with value:", inputValue);
     e.preventDefault(); // Prevent default form submission on Enter
 
     // Ensure inputValue is treated as a string to prevent 'trim' errors
@@ -151,7 +158,11 @@ export const TerminalConsole = ({
 
     // Functional check: Only submit if connected and input is not empty
     if (valueToSubmit.trim() && isConnected) {
-      handleSubmit();
+      sendMessage({
+            data: valueToSubmit,
+            type: "cmd",
+            timestamp: new Date().toISOString(),
+        });
     }
   }, [inputValue, isConnected, handleSubmit]);
 
@@ -240,7 +251,12 @@ export const TerminalConsole = ({
     alignItems: 'flex-start',
     gap: '0.75rem'
   };
-
+    const get_env_len = useCallback((_case) => {
+        if (_case === "show_envs") {
+            return `(${Object.keys(envs).length})`
+        }
+        return null
+    }, [envs]);
 
   return (
     <div style={containerStyle}>
@@ -307,7 +323,9 @@ export const TerminalConsole = ({
             {actionButtons.map((btn) => (
                 <CustomButton
                     key={btn.case}
-                    onPress={() => handleAction(btn.case)}
+                    onPress={
+                        () => handleAction(btn.case)
+                    }
                     style={{
                       flexShrink: 0,
                       backgroundColor: '#1f2937',
@@ -315,9 +333,8 @@ export const TerminalConsole = ({
                       border: '1px solid #374151',
                       flex: '1 1 auto',
                       minWidth: '0'
-                    }}
-                >
-                    {btn.name}
+                    }}>
+                    {btn.name} {get_env_len(btn.case)}
                 </CustomButton>
             ))}
           </div>
@@ -372,8 +389,7 @@ export const TerminalConsole = ({
           <CustomButton
             type="submit"
             style={{ flexShrink: 0 }}
-            onclick={onSubmit}
-          >
+            onclick={onSubmit}>
             Send
           </CustomButton>
 

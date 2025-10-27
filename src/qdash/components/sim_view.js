@@ -102,11 +102,78 @@ export const Dashboard = (
         startSim,
     }
 ) => {
-    const addEnvLen = useCallback((env_id) => {
-        return Object.keys(envs).length
+    const addEnvLen = useCallback(() => {
+        const len_envs = Object.keys(envs).length
+        console.log("envs len", len_envs)
     }, [envs])
 
-    if (addEnvLen() === 0) return <></>
+
+    const get_content = useCallback(() => {
+        if (addEnvLen() > 0 ) {
+            return(
+                <table style={styles.dataTable}>
+                    <thead>
+                    <tr>
+                        <th style={{...styles.headerCell, width: '33%'}}>Environment ID</th>
+                        <th style={{...styles.headerCell, width: '33%'}}>Graph Visualization
+                        </th>
+                        <th style={{...styles.headerCell, width: '34%'}}>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {Object.entries(envs).map(([env_id, amount_nodes], index) => (
+                        <tr
+                            key={env_id}
+                            // Using custom logic for row coloring
+                            style={index % 2 !== 0 ? styles.rowEven : {}}
+                        >
+
+                            {/* Column 1: Environment ID and Node Count */}
+                            <td style={styles.cell}>
+                                <p style={{fontWeight: 600}}>{env_id}</p>
+                                <p style={{
+                                    fontSize: 12,
+                                    color: '#6b7280'
+                                }}>{amount_nodes} nodes</p>
+                            </td>
+
+                            {/* Column 2: Graph/Scene */}
+                            <td style={styles.cell}>
+                                <Button
+                                    onPress={() => toggleModal(env_id)}
+                                    color="primary"
+                                    style={{
+                                        width: "10vh",
+                                        height: 100,
+                                        zIndex: 9999,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    Show Graph
+                                </Button>
+                            </td>
+
+                            {/* Column 3: Start Sim Button */}
+                            <td style={styles.cell}>
+                                <Button
+                                    onPress={() => startSim(env_id)}
+                                    startContent="📊">
+                                    Start Sim
+                                </Button>
+                            </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+            )
+        }else {
+            return <p> No environments created now... </p>
+        }
+    }, [envs, addEnvLen])
+
+
+
     return (
     <>
         <div
@@ -124,64 +191,8 @@ export const Dashboard = (
                             <div style={styles.appContainer}>
                                 <div style={styles.canvasContainer}>
                                     <h2 style={styles.h2}>Environment and Simulation Management</h2>
-
                                     <div style={styles.tableWrapper}>
-                                        <table style={styles.dataTable}>
-                                            <thead>
-                                            <tr>
-                                                <th style={{...styles.headerCell, width: '33%'}}>Environment ID</th>
-                                                <th style={{...styles.headerCell, width: '33%'}}>Graph Visualization
-                                                </th>
-                                                <th style={{...styles.headerCell, width: '34%'}}>Actions</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                            {Object.entries(envs).map(([env_id, amount_nodes], index) => (
-                                                <tr
-                                                    key={env_id}
-                                                    // Using custom logic for row coloring
-                                                    style={index % 2 !== 0 ? styles.rowEven : {}}
-                                                >
-
-                                                    {/* Column 1: Environment ID and Node Count */}
-                                                    <td style={styles.cell}>
-                                                        <p style={{fontWeight: 600}}>{env_id}</p>
-                                                        <p style={{
-                                                            fontSize: 12,
-                                                            color: '#6b7280'
-                                                        }}>{amount_nodes} nodes</p>
-                                                    </td>
-
-                                                    {/* Column 2: Graph/Scene */}
-                                                    <td style={styles.cell}>
-                                                        <Button
-                                                            onPress={() => toggleModal(env_id)}
-                                                            color="primary"
-                                                            style={{
-                                                                width: "10vh",
-                                                                height: 100,
-                                                                zIndex: 9999,
-                                                                justifyContent: "center",
-                                                                alignItems: "center",
-                                                            }}
-                                                        >
-                                                            Show Graph
-                                                        </Button>
-                                                    </td>
-
-                                                    {/* Column 3: Start Sim Button */}
-                                                    <td style={styles.cell}>
-                                                        <Button
-                                                            onPress={() => startSim(env_id)}
-                                                            startContent="📊">
-                                                            Start Sim
-                                                        </Button>
-                                                    </td>
-
-                                                </tr>
-                                            ))}
-                                            </tbody>
-                                        </table>
+                                        {get_content()}
                                     </div>
                                     <p style={styles.footerText}>
                                         Total environments loaded: {addEnvLen()}.
