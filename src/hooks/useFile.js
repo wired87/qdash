@@ -6,7 +6,7 @@ export const useFile = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
-  const MAX_FILES = 2; // Maximum files allowed
+  const MAX_FILES = 20; // Maximum files allowed
 
   // Function to add new files, keeping only the max allowed
   const handleFiles = useCallback((newFiles) => {
@@ -14,7 +14,13 @@ export const useFile = () => {
     const combinedFiles = [...files, ...newFiles].slice(0, MAX_FILES);
     setFiles(combinedFiles);
   }, [files]);
-
+  const handleRemoveFile = (indexToRemove) => {
+    setFiles((prevFiles) => prevFiles.filter((_, index) => index !== indexToRemove));
+    // Reset file input value so same file can be selected again
+    if (fileInputRef.current) {
+        fileInputRef.current.value = null;
+    }
+  };
   // Drag-and-drop handler for file drop
   const handleDrop = useCallback((event) => {
     event.preventDefault();
@@ -69,6 +75,7 @@ export const useFile = () => {
     handleFileSelect,
     handleUpload,
     handleDragOver: (event) => event.preventDefault(), // Simple drag over handler
+      handleRemoveFile,
   };
 };
 

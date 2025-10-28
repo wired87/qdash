@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from "react";
+import {useFile} from "../../hooks/useFile";
+import {BucketStruct} from "./bucket_view";
 
 const CustomChip = ({ children, color, size, style: customStyle = {}, onPress }) => {
     const baseStyle = {
@@ -130,9 +132,21 @@ export const TerminalConsole = ({
       }
   ]);
 
+
+    const {
+    files,
+    loading,
+    fileInputRef,
+    handleDrop,
+    handleFileSelect,
+    handleUpload,
+    handleDragOver,
+    handleRemoveFile,
+  } = useFile();
+
+
   // Define 5 action cases
   const actionButtons = [
-    { name: "Status Check", case: "status_check" },
     { name: "Show ENVs", case: "show_envs" },
     { name: "Set Config", case: "set_config" },
     { name: "Data Space", case: "watch_data" },
@@ -165,7 +179,10 @@ export const TerminalConsole = ({
     // Functional check: Only submit if connected and input is not empty
     if (valueToSubmit.trim() && isConnected) {
       sendMessage({
-            data: valueToSubmit,
+            data: {
+                message:valueToSubmit,
+                files: files,
+            },
             type: "cmd",
             timestamp: new Date().toISOString(),
         });
@@ -175,7 +192,7 @@ export const TerminalConsole = ({
           timestamp: new Date().toISOString(),
       }]);
     }
-  }, [inputValue, isConnected, handleSubmit]);
+  }, [inputValue, isConnected, handleSubmit, files]);
 
 
   const getMessageIcon = (type) => {
@@ -272,7 +289,17 @@ export const TerminalConsole = ({
     }, [envs]);
 
 
-
+    const bucketProps = {
+    sendMessage,
+    files,
+    handleUpload,
+    loading,
+    fileInputRef,
+    handleFileSelect,
+    handleDragOver,
+    handleDrop,
+    handleRemoveFile
+  };
 
   return (
     <div style={containerStyle}>
@@ -315,6 +342,7 @@ export const TerminalConsole = ({
                       </div>
                   </div>
                 ))}
+                <BucketStruct  {...bucketProps} />
               </div>
             ) : (
               // Empty State
@@ -372,7 +400,6 @@ export const TerminalConsole = ({
           </div>
         )}
 
-
         <form onSubmit={onSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
             <div
@@ -418,6 +445,7 @@ export const TerminalConsole = ({
           >
             <span style={{ fontSize: '1.125rem' }}>{isExpanded ? "⬇️" : "⬆️"}</span>
           </CustomButton>
+
         </form>
 
         {error && (

@@ -12,7 +12,7 @@ import {NodeInfoPanel} from "./components/node_info_panel";
 import {ThreeScene} from "./_use_three";
 import TerminalConsole from "./components/terminal";
 import ToDoCard from "./components/todo_card";
-import BucketComponent from "./components/bucket_view";
+
 
 
 export const MainApp = () => {
@@ -309,13 +309,7 @@ export const MainApp = () => {
     return <></>
   }, [envs, isDashOpen]);
 
-    const get_bucket = useCallback(() => {
-    if (isBucketOpen) {
-      return(
-        <BucketComponent sendMessage={sendMessage} />
-      );
-    }
-  }, [isBucketOpen, toggleBucket]);
+
 
 
   const get_node_panel = useCallback(() => {
@@ -356,7 +350,6 @@ export const MainApp = () => {
         onToggle={toggleDataSlider}
       />
           {get_dashboard()}
-          {get_bucket()}
         <TerminalConsole
             error={error}
               handleSubmit={handleSubmit}
