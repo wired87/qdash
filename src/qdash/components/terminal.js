@@ -1,9 +1,5 @@
 import React, { useState, useCallback } from "react";
-import ToDoCard from "./todo_card";
 
-// --- START: CUSTOM INLINE CSS COMPONENTS ---
-
-// Custom Chip Component (replaces external Chip)
 const CustomChip = ({ children, color, size, style: customStyle = {}, onPress }) => {
     const baseStyle = {
         display: 'inline-flex',
@@ -14,6 +10,7 @@ const CustomChip = ({ children, color, size, style: customStyle = {}, onPress })
         transition: 'all 0.15s',
         cursor: onPress ? 'pointer' : 'default',
     };
+
     const sizeStyle = size === 'sm' ? { paddingLeft: '0.5rem', paddingRight: '0.5rem', paddingTop: '0.125rem', paddingBottom: '0.125rem', fontSize: '0.75rem' } : { paddingLeft: '0.75rem', paddingRight: '0.75rem', paddingTop: '0.25rem', paddingBottom: '0.25rem', fontSize: '0.875rem' };
 
     let colorStyle = { backgroundColor: '#4b5563', color: '#d1d5db' };
@@ -107,7 +104,6 @@ const CustomInput = ({ placeholder, value, onValueChange, style: customStyle = {
     );
 };
 
-// --- END: CUSTOM INLINE CSS COMPONENTS ---
 
 
 export const TerminalConsole = ({
@@ -121,6 +117,7 @@ export const TerminalConsole = ({
     toggleDashboard,
     sendMessage,
     envs,
+    toggleBucket,
   options = [],
 }) => {
   // Set initial state to true so the history window shows up immediately
@@ -139,7 +136,7 @@ export const TerminalConsole = ({
     { name: "Show ENVs", case: "show_envs" },
     { name: "Set Config", case: "set_config" },
     { name: "Data Space", case: "watch_data" },
-    { name: "System Log", case: "system_log" },
+    { name: "Upload Module", case: "upload_files" },
   ];
 
   // Handler for the 5 action buttons
@@ -150,10 +147,12 @@ export const TerminalConsole = ({
         toggleDataSlider()
     }else if (actionCase === "show_envs") {
         toggleDashboard()
+    }else if (actionCase === "upload_files") {
+        toggleBucket()
     }else {
         updateInputValue(`${actionCase}`);
     }
-  }, [updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider]);
+  }, [updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider, toggleBucket]);
 
   // Form submission handler (Handles Enter key press and Send button click)
   const onSubmit = useCallback((e) => {
@@ -373,7 +372,7 @@ export const TerminalConsole = ({
           </div>
         )}
 
-        {/* Form Submission (Input Row) */}
+
         <form onSubmit={onSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
             <div

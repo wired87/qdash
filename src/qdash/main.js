@@ -1,4 +1,4 @@
-import React, {useState, useCallback, useEffect} from "react";
+import React, {useState, useCallback} from "react";
 import {Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader} from "@heroui/react";
 import { DataSlider } from "./components/DataSlider";
 
@@ -12,6 +12,7 @@ import {NodeInfoPanel} from "./components/node_info_panel";
 import {ThreeScene} from "./_use_three";
 import TerminalConsole from "./components/terminal";
 import ToDoCard from "./components/todo_card";
+import BucketComponent from "./components/bucket_view";
 
 
 export const MainApp = () => {
@@ -99,10 +100,11 @@ export const MainApp = () => {
       }
     })
   }
+
     const [selectedEnv, setSelectedEnv] = useState("");
     const [isOpen, setIsOpen] = useState(false);
     const [isDashOpen, setIsDashOpen] = useState(false);
-
+    const [isBucketOpen, setIsBucketOpen] = useState(false);
 
     const get_info_card = useCallback((_case) => {
         if (!isDashOpen && !isOpen && !isCfgSliderOpen) {
@@ -117,7 +119,11 @@ export const MainApp = () => {
             setSelectedEnv(env_id);
         }
         setIsOpen(!isOpen);
-    }, [isOpen, selectedEnv])
+    }, [isOpen, selectedEnv]);
+
+    const toggleBucket = useCallback(() => {
+        setIsBucketOpen(!isBucketOpen);
+    }, [isBucketOpen]);
 
     const modal = useCallback(() => {
         console.log("isOpen, selectedEnv, graph",isOpen, selectedEnv, graph)
@@ -279,7 +285,7 @@ export const MainApp = () => {
   }, [isDashOpen]);
 
   const toggleCfgSlider = useCallback(() => {
-      console.log("toggleDahboard:", !isDashOpen)
+     console.log("toggleDahboard:", !isDashOpen)
     setIsCfgSliderOpen(!isCfgSliderOpen);
   }, [isCfgSliderOpen]);
 
@@ -302,6 +308,14 @@ export const MainApp = () => {
     }
     return <></>
   }, [envs, isDashOpen]);
+
+    const get_bucket = useCallback(() => {
+    if (isBucketOpen) {
+      return(
+        <BucketComponent sendMessage={sendMessage} />
+      );
+    }
+  }, [isBucketOpen, toggleBucket]);
 
 
   const get_node_panel = useCallback(() => {
@@ -342,6 +356,7 @@ export const MainApp = () => {
         onToggle={toggleDataSlider}
       />
           {get_dashboard()}
+          {get_bucket()}
         <TerminalConsole
             error={error}
               handleSubmit={handleSubmit}
@@ -354,7 +369,7 @@ export const MainApp = () => {
             sendMessage={sendMessage}
             toggleDashboard={toggleDahboard}
             envs={envs}
-
+            toggleBucket={toggleBucket}
         />
     </div>
       <div className={"flex "}>
