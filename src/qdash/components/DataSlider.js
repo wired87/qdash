@@ -104,11 +104,9 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
     { key: "messages_received", label: "MSG RECEIVED" },
   ];
 
-  if (!isOpen) return null;
-
   return (
     <>
-      <div className="slider-overlay" onClick={onToggle} />
+      <div className="" onClick={onToggle} />
       <div className="data-slider-wide">
         <div className="data-slider-header">
           <div className="data-header-top">
@@ -120,7 +118,8 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
             </div>
             <Button isIconOnly variant="light" onPress={onToggle}>
               ✕
-            </Button>          </div>
+            </Button>
+          </div>
 
           <div className="data-tab-container">
             <Button

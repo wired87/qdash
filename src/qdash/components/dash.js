@@ -64,7 +64,6 @@ const styles = {
         fontWeight: 700,
         padding: '12px 15px',
         textAlign: 'left',
-        zIndex: 10,
     },
     // Base Cell Style
     cell: {
@@ -104,9 +103,9 @@ export const Dashboard = (
 ) => {
     const addEnvLen = useCallback(() => {
         const len_envs = Object.keys(envs).length
-        console.log("envs len", len_envs)
+        console.log("envs len", len_envs);
+        return len_envs
     }, [envs])
-
 
     const get_content = useCallback(() => {
         if (addEnvLen() > 0 ) {
@@ -116,6 +115,8 @@ export const Dashboard = (
                     <tr>
                         <th style={{...styles.headerCell, width: '33%'}}>Environment ID</th>
                         <th style={{...styles.headerCell, width: '33%'}}>Graph Visualization
+                        </th>
+                        <th style={{...styles.headerCell, width: '33%'}}>Node Configs
                         </th>
                         <th style={{...styles.headerCell, width: '34%'}}>Actions</th>
                     </tr>
@@ -134,7 +135,7 @@ export const Dashboard = (
                                 <p style={{
                                     fontSize: 12,
                                     color: '#6b7280'
-                                }}>{amount_nodes} nodes</p>
+                                }}>Cluster size: {amount_nodes} (x3D) nodes</p>
                             </td>
 
                             {/* Column 2: Graph/Scene */}
@@ -151,6 +152,23 @@ export const Dashboard = (
                                     }}
                                 >
                                     Show Graph
+                                </Button>
+                            </td>
+
+                            {/* NCFG */}
+                            <td style={styles.cell}>
+                                <Button
+                                    onPress={() => toggleModal(env_id)}
+                                    color="primary"
+                                    style={{
+                                        width: "10vh",
+                                        height: 100,
+                                        zIndex: 9999,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    Set NCFG
                                 </Button>
                             </td>
 

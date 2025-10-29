@@ -353,7 +353,7 @@ body {
   bottom: 0;
   left: 0;
   background-color: rgba(0, 0, 0, 0.5);
-  z-index: 40;
+  z-index: 4000;
 }
 
 .data-slider-wide {

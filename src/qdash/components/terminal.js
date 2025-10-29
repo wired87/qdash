@@ -150,7 +150,7 @@ export const TerminalConsole = ({
     { name: "Show ENVs", case: "show_envs" },
     { name: "Set Config", case: "set_config" },
     { name: "Data Space", case: "watch_data" },
-    { name: "Upload Module", case: "upload_files" },
+    { name: "Upload Node Config", case: "upload_ncfg" },
   ];
 
   // Handler for the 5 action buttons

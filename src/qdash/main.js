@@ -5,14 +5,13 @@ import { DataSlider } from "./components/DataSlider";
 import "../index.css";
 import WorldCfgCreator from "./components/world_cfg";
 import _useWebSocket from "./websocket";
-import Dashboard from "./components/sim_view";
+import Dashboard from "./components/dash";
 import {useFirebaseListeners} from "./firebase";
 import {getNodeColor} from "./get_color";
 import {NodeInfoPanel} from "./components/node_info_panel";
 import {ThreeScene} from "./_use_three";
 import TerminalConsole from "./components/terminal";
 import ToDoCard from "./components/todo_card";
-
 
 
 export const MainApp = () => {
@@ -26,7 +25,9 @@ export const MainApp = () => {
   const [isDataSliderOpen, setIsDataSliderOpen] = useState(false);
   const [isCfgSliderOpen, setIsCfgSliderOpen] = useState(false);
   const [worldCfgCreated, setWorldCfgCreated] = useState(false);
-  const [envs, setEnvs] = useState({});
+  const [envs, setEnvs] = useState({
+      "env_edae32cbbbaf47a985f006a7f756d11fc16822f03355430e9702bd09af1aadc14": 64,
+  });
   const [clickedNode, setClickedNode] = useState(null);
   const [nodeSliderOpen, setNodeOpen] = useState(null);
   const [graph, setGraph] = useState({
@@ -335,20 +336,25 @@ export const MainApp = () => {
     )
   },[clickedNode, isCfgSliderOpen])
 
-
-  return (
-    <div className={"flex absolut flex-row w-full h-screen"}>
-      <div className="dashboard-container">
-      {/* Top Navigation */}
-
-
-      <DataSlider
+  const get_data_slider = useCallback(() => {
+    if (isDataSliderOpen) {
+      return(
+        <DataSlider
         nodes={nodes}
         edges={edges}
         logs={logs}
         isOpen={isDataSliderOpen}
         onToggle={toggleDataSlider}
-      />
+      />      );
+    }
+    return <></>
+  }, [isDataSliderOpen, toggleDataSlider, nodes, edges]);
+  return (
+    <div className={"flex absolut flex-row w-full h-screen"}>
+      <div className="dashboard-container">
+      {/* Top Navigation */}
+
+          {get_data_slider()}
           {get_dashboard()}
         <TerminalConsole
             error={error}

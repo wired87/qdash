@@ -117,19 +117,6 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
         <Button isIconOnly variant="light" onPress={onToggle}>
         ✕
         </Button>
-
-        <Input
-          placeholder="Search configurations..."
-          value={searchQuery}
-          onValueChange={setSearchQuery}
-        />
-        <Input
-          placeholder="Enter message..."
-          value={inputMessage}
-          onValueChange={setInputMessage}
-          label="Configuration Message"
-          labelPlacement="outside"
-        />
       </div>
 
       {/* Content */}

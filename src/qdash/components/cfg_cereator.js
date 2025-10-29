@@ -85,7 +85,7 @@ export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle }) => {
         <div className="cfg-slider-header">
           <div className="cfg-header-top">
             <div className="cfg-title-section">
-              <h2 className="cfg-title">Configuration</h2>
+              <h2 className="cfg-title">Set World Config</h2>
               <p className="cfg-subtitle">
                 {Object.keys(filteredCfg).length} items
               </p>
