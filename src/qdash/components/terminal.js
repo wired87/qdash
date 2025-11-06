@@ -120,6 +120,7 @@ export const TerminalConsole = ({
     sendMessage,
     envs,
     toggleBucket,
+    toggleNcfgSlider,
   options = [],
 }) => {
   // Set initial state to true so the history window shows up immediately
@@ -163,10 +164,13 @@ export const TerminalConsole = ({
         toggleDashboard()
     }else if (actionCase === "upload_files") {
         toggleBucket()
+    }else if (actionCase === "upload_ncfg") {
+        toggleNcfgSlider()
     }else {
         updateInputValue(`${actionCase}`);
     }
-  }, [updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider, toggleBucket]);
+  }, [
+      updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider, toggleBucket, toggleNcfgSlider]);
 
   // Form submission handler (Handles Enter key press and Send button click)
   const onSubmit = useCallback((e) => {

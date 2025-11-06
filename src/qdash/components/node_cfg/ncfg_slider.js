@@ -1,7 +1,7 @@
+
 import React, { useState } from "react";
-import ConfigAccordion from "./accordeon";
-import {Button, Input} from "@heroui/react";
-import {NodeConfigForm} from "./node_cfg/node_cfg";
+import {Button} from "@heroui/react";
+import {NodeConfigForm} from "./node_cfg";
 
 // Buttons
 const CustomButton = ({ children, onPress, isIconOnly, color, variant = "solid", size, disabled, ...props }) => {
@@ -80,7 +80,7 @@ const CustomInput = ({ value, onValueChange, placeholder, type = "text", startCo
 };
 
 // Main component
-const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
+const NCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
   //const [openPixelId, setOpenPixelId] = useState("world");
   const [searchQuery, setSearchQuery] = useState("");
   const [isDirty, setIsDirty] = useState(false);
@@ -122,10 +122,10 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        <ConfigAccordion sendMessage={sendMessage} />
+        <NodeConfigForm />
       </div>
     </div>
   );
 };
-export default WorldCfgCreator;
+export default NCfgCreator;
 

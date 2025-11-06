@@ -116,8 +116,6 @@ export const Dashboard = (
                         <th style={{...styles.headerCell, width: '33%'}}>Environment ID</th>
                         <th style={{...styles.headerCell, width: '33%'}}>Graph Visualization
                         </th>
-                        <th style={{...styles.headerCell, width: '33%'}}>Node Configs
-                        </th>
                         <th style={{...styles.headerCell, width: '34%'}}>Actions</th>
                     </tr>
                     </thead>
@@ -152,23 +150,6 @@ export const Dashboard = (
                                     }}
                                 >
                                     Show Graph
-                                </Button>
-                            </td>
-
-                            {/* NCFG */}
-                            <td style={styles.cell}>
-                                <Button
-                                    onPress={() => toggleModal(env_id)}
-                                    color="primary"
-                                    style={{
-                                        width: "10vh",
-                                        height: 100,
-                                        zIndex: 9999,
-                                        justifyContent: "center",
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    Set NCFG
                                 </Button>
                             </td>
 

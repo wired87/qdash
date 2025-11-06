@@ -39,7 +39,7 @@ const _useWebSocket = (
         const WS_URL = `wss://www.bestbrain.tech/run/${quey_str}`;
         const WS_URL_LOCAL = `ws://127.0.0.1:8000/run/${quey_str}`;
 
-        return WS_URL_LOCAL
+        return WS_URL
   }
 
 
