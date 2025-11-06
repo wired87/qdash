@@ -11,11 +11,27 @@ import {
   TableRow,
   TableCell,
   Code,
+  Checkbox,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  Slider,
+  Input,
 } from "@heroui/react";
 import "../../index.css";
 
 export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, envData, sendMessage, setEnvData }) => {
   const [activeTab, setActiveTab] = useState("environments");
+  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [showNcfgModal, setShowNcfgModal] = useState(false);
+  const [ncfgValue, setNcfgValue] = useState(50);
+  const [showCheckboxActions, setShowCheckboxActions] = useState(false);
 
   // Handler for get_data button click
   const handleGetEnvData = (envId) => {
@@ -26,11 +42,64 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
     });
   };
 
+  // Handler for checkbox selection
+  const handleRowSelection = (envId, isSelected) => {
+    const newSelectedRows = new Set(selectedRows);
+    if (isSelected) {
+      newSelectedRows.add(envId);
+    } else {
+      newSelectedRows.delete(envId);
+    }
+    setSelectedRows(newSelectedRows);
+  };
+
+  // Handler for checkbox actions
+  const handleCheckboxAction = (action) => {
+    const selectedList = Array.from(selectedRows);
+    
+    switch(action) {
+      case 'apply_ml':
+        sendMessage({
+          type: "apply_ml",
+          entries: selectedList,
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      case 'delete':
+        sendMessage({
+          type: "delete",
+          entries: selectedList,
+          timestamp: new Date().toISOString(),
+        });
+        break;
+      case 'ask':
+        sendMessage({
+          type: "ask",
+          entries: selectedList,
+          timestamp: new Date().toISOString(),
+        });
+        break;
+    }
+    setShowCheckboxActions(false);
+    setSelectedRows(new Set());
+  };
+
+  // Handler for NCFG slider submit
+  const handleNcfgSubmit = () => {
+    sendMessage({
+      type: "ncfg_update",
+      value: ncfgValue,
+      timestamp: new Date().toISOString(),
+    });
+    setShowNcfgModal(false);
+  };
+
   const formatDataForTable = (nodes, edges) => {
     const data = [];
 
     // Add nodes data
-    nodes.forEach((node) => {      data.push({
+    nodes.forEach((node) => {
+      data.push({
         id: node.id,
         name: node.name || "",
         type: node.type,
@@ -62,6 +131,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
 
     return data;
   };
+
   const renderLogEntries = (logData, nodeId) => {
     const allLogs = [];
 
@@ -92,6 +162,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
 
   const tableData = formatDataForTable(nodes, edges);
   const columns = [
+    { key: "checkbox", label: "" },
     { key: "id", label: "ID" },
     { key: "name", label: "NAME" },
     { key: "type", label: "TYPE" },
@@ -116,9 +187,43 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                 Nodes: {nodes.length} | Edges: {edges.length}
               </p>
             </div>
-            <Button isIconOnly variant="light" onPress={onToggle}>
-              ✕
-            </Button>
+            <div className="data-header-actions">
+              {selectedRows.size > 0 && (
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button 
+                      size="sm" 
+                      color="primary" 
+                      variant="solid"
+                    >
+                      Actions ({selectedRows.size} selected)
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="Checkbox Actions">
+                    <DropdownItem key="apply_ml" onClick={() => handleCheckboxAction('apply_ml')}>
+                      Apply Machine Learning
+                    </DropdownItem>
+                    <DropdownItem key="delete" onClick={() => handleCheckboxAction('delete')} className="text-danger" color="danger">
+                      Delete
+                    </DropdownItem>
+                    <DropdownItem key="ask" onClick={() => handleCheckboxAction('ask')}>
+                      Send Request
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              )}
+              <Button 
+                size="sm" 
+                color="secondary" 
+                variant="bordered"
+                onPress={() => setShowNcfgModal(true)}
+              >
+                NCFG Settings
+              </Button>
+              <Button isIconOnly variant="light" onPress={onToggle}>
+                ✕
+              </Button>
+            </div>
           </div>
 
           <div className="data-tab-container">
@@ -161,25 +266,80 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                     className="data-table-full"
                   >
                     <TableHeader>
-                      <TableColumn>Environment ID</TableColumn>
+                      <TableColumn width="50"></TableColumn>
+                      <TableColumn>Status</TableColumn>
+                      <TableColumn>Name</TableColumn>
                       <TableColumn>Action</TableColumn>
                     </TableHeader>
                     <TableBody>
                       {envsList.map((envId, index) => (
                         <TableRow key={index}>
-                          <TableCell>{envId}</TableCell>
                           <TableCell>
+                            <Checkbox
+                              isSelected={selectedRows.has(envId)}
+                              onValueChange={(isSelected) => handleRowSelection(envId, isSelected)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="sm"
+                              color={index === 0 ? "success" : "default"}
+                              variant="flat"
+                            >
+                              {index === 0 ? "✓" : "○"}
+                            </Chip>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-primary">{envId}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Dropdown>
+                              <DropdownTrigger>
+                                <Button
+                                  size="sm"
+                                  variant="light"
+                                  endContent={
+                                    <span className="text-default-400">⋮</span>
+                                  }
+                                >
+                                  Actions
+                                </Button>
+                              </DropdownTrigger>
+                              <DropdownMenu aria-label="Environment Actions">
+                                <DropdownItem 
+                                  key="start" 
+                                  startContent={<span>▶</span>}
+                                >
+                                  Start/Resume
+                                </DropdownItem>
+                                <DropdownItem key="stop">
+                                  Stop
+                                </DropdownItem>
+                                <DropdownItem key="suspend">
+                                  Suspend
+                                </DropdownItem>
+                                <DropdownItem 
+                                  key="reset" 
+                                  startContent={<span>⟲</span>}
+                                >
+                                  Reset
+                                </DropdownItem>
+                              </DropdownMenu>
+                            </Dropdown>
                             <Button
                               size="sm"
                               color="primary"
+                              variant="flat"
                               onPress={() => handleGetEnvData(envId)}
+                              className="ml-2"
                             >
                               Get Data
                             </Button>
                           </TableCell>
                         </TableRow>
                       ))}
-                    </TableBody>                  </Table>
+                    </TableBody>
+                  </Table>
                   
                   {/* Show environment data if available */}
                   {envData && envData.length > 0 && (
@@ -209,7 +369,8 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                         </TableBody>
                       </Table>
                     </div>
-                  )}                </>
+                  )}
+                </>
               ) : (
                 <p>No environments available. Loading...</p>
               )}
@@ -227,7 +388,9 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
               >
                 <TableHeader>
                   {columns.map((column) => (
-                    <TableColumn key={column.key}>{column.label}</TableColumn>
+                    <TableColumn key={column.key} width={column.key === "checkbox" ? "50" : undefined}>
+                      {column.label}
+                    </TableColumn>
                   ))}
                 </TableHeader>
                 <TableBody>
@@ -235,10 +398,16 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                     <TableRow key={index}>
                       {columns.map((column) => (
                         <TableCell key={column.key}>
-                          {column.key === "status" && item[column.key] ? (
+                          {column.key === "checkbox" ? (
+                            <Checkbox
+                              isSelected={selectedRows.has(item.id)}
+                              onValueChange={(isSelected) => handleRowSelection(item.id, isSelected)}
+                            />
+                          ) : column.key === "status" && item[column.key] ? (
                             <Chip
                               size="sm"
-                              color={                                item[column.key] === "ALIVE" ||
+                              color={
+                                item[column.key] === "ALIVE" ||
                                 item[column.key] === "Active"
                                   ? "success"
                                   : "default"
@@ -308,6 +477,62 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
           )}
         </div>
       </div>
+
+      {/* NCFG Slider Modal */}
+      <Modal 
+        isOpen={showNcfgModal} 
+        onOpenChange={setShowNcfgModal}
+        size="md"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                NCFG Configuration
+              </ModalHeader>
+              <ModalBody>
+                <div className="flex flex-col gap-4">
+                  <p className="text-small text-default-500">
+                    Adjust the NCFG value using the slider below:
+                  </p>
+                  <Slider
+                    label="NCFG Value"
+                    step={1}
+                    maxValue={100}
+                    minValue={0}
+                    value={ncfgValue}
+                    onChange={setNcfgValue}
+                    className="max-w-full"
+                    showSteps={true}
+                    showTooltip={true}
+                    showOutline={true}
+                    disableThumbScale={true}
+                    formatOptions={{style: "percent"}}
+                    tooltipValueFormatOptions={{style: "decimal"}}
+                  />
+                  <Input
+                    type="number"
+                    label="Manual Input"
+                    placeholder="Enter value"
+                    value={ncfgValue.toString()}
+                    onChange={(e) => setNcfgValue(Number(e.target.value))}
+                    min={0}
+                    max={100}
+                  />
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="danger" variant="light" onPress={onClose}>
+                  Cancel
+                </Button>
+                <Button color="primary" onPress={handleNcfgSubmit}>
+                  Apply
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </>
   );
 };
