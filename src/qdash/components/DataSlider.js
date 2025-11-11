@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import {
   Button,
   Card,
+  CardHeader,
   CardBody,
+  CardFooter,
   Chip,
   Table,
   TableHeader,
@@ -27,7 +29,7 @@ import {
 import "../../index.css";
 
 export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, envData, sendMessage, setEnvData }) => {
-  const [activeTab, setActiveTab] = useState("environments");
+  const [activeTab, setActiveTab] = useState("data");
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [showNcfgModal, setShowNcfgModal] = useState(false);
   const [ncfgValue, setNcfgValue] = useState(50);
@@ -129,6 +131,46 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
       });
     });
 
+    // Add hardcoded demo data
+    data.push(
+      {
+        id: 'node-1',
+        name: 'Demo Node 1',
+        type: 'Server',
+        ip: '192.168.1.1',
+        target: '',
+        protocol: '',
+        status: 'ALIVE',
+        class_name: 'WebApp',
+        messages_sent: 120,
+        messages_received: 80,
+      },
+      {
+        id: 'edge-1',
+        name: '',
+        type: 'Edge',
+        ip: '192.168.1.1',
+        target: '192.168.1.2',
+        protocol: 'TCP',
+        status: 'Active',
+        class_name: '',
+        messages_sent: 0,
+        messages_received: 0,
+      },
+      {
+        id: 'node-2',
+        name: 'Demo Node 2',
+        type: 'Database',
+        ip: '192.168.1.2',
+        target: '',
+        protocol: '',
+        status: 'ALIVE',
+        class_name: 'PostgreSQL',
+        messages_sent: 80,
+        messages_received: 120,
+      }
+    );
+
     return data;
   };
 
@@ -178,14 +220,11 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
   return (
     <>
       <div className="" onClick={onToggle} />
-      <div className="data-slider-wide">
-        <div className="data-slider-header">
+      <Card className="data-slider-wide">
+        <CardHeader className="data-slider-header">
           <div className="data-header-top">
             <div className="data-title-section">
               <h2 className="data-title">Data Explorer</h2>
-              <p className="data-subtitle">
-                Nodes: {nodes.length} | Edges: {edges.length}
-              </p>
             </div>
             <div className="data-header-actions">
               {selectedRows.size > 0 && (
@@ -252,8 +291,8 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
               Logs
             </Button>
           </div>
-        </div>
-        <div className="data-slider-content">
+        </CardHeader>
+        <CardBody className="data-slider-content">
           {activeTab === "environments" && (
             <div className="environments-section">
               <h3 className="data-section-title">Available Environments</h3>
@@ -475,8 +514,11 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
               </div>
             </div>
           )}
-        </div>
-      </div>
+        </CardBody>
+        <CardFooter className="data-subtitle">
+            <p>Nodes: {nodes.length} | Edges: {edges.length}</p>
+        </CardFooter>
+      </Card>
 
       {/* NCFG Slider Modal */}
       <Modal 

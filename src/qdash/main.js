@@ -129,10 +129,19 @@ export const MainApp = () => {
     const modal = useCallback(() => {
         console.log("isOpen, selectedEnv, graph",isOpen, selectedEnv, graph)
         return (
-            <Modal isOpen={isOpen} onClose={() => toggleModal("")} size="5xl" style={{position:"fixed", width:500, height:500, zIndex: 99999}}>
+            <Modal 
+                isOpen={isOpen} 
+                onClose={() => toggleModal("")} 
+                size="5xl" 
+                className="graph-modal"
+                style={{position:"fixed", width:500, height:500, zIndex: 99999}}
+            >
                 <ModalContent>
                         <>
-                            <ModalHeader className="flex flex-col gap-1">Graph View</ModalHeader>
+                            <ModalHeader className="flex flex-col gap-1 modal-header-enhanced">
+                                <h3 className="modal-title">Graph Visualization</h3>
+                                <p className="modal-subtitle">Interactive 3D Network View</p>
+                            </ModalHeader>
                             <ModalBody>
                                 <div style={{width: "100%", height: "60vh", position: "relative"}}>
                                     <ThreeScene
@@ -143,8 +152,14 @@ export const MainApp = () => {
                                     />
                                 </div>
                             </ModalBody>
-                            <ModalFooter>
-                                <Button color="danger" variant="light" onPress={toggleModal}>
+                            <ModalFooter className="modal-footer-enhanced">
+                                <Button 
+                                    color="danger" 
+                                    variant="light" 
+                                    onPress={toggleModal}
+                                    className="modal-close-button"
+                                    size="lg"
+                                >
                                     Close
                                 </Button>
                             </ModalFooter>
@@ -353,6 +368,61 @@ export const MainApp = () => {
     <div className={"flex absolut flex-row w-full h-screen"}>
       <div className="dashboard-container">
       {/* Top Navigation */}
+      <nav className="nav-container">
+        <div className="nav-content">
+          <div className="logo-container">
+            <div className="logo-icon">
+              <span className="logo-text">Q</span>
+            </div>
+            <div>
+              <h1 className="nav-title">QDash</h1>
+              <p className="nav-subtitle">Quantum Dashboard v2.0</p>
+            </div>
+          </div>
+
+          <div className="nav-buttons">
+            <Button
+              color={isDataSliderOpen ? "primary" : "default"}
+              variant={isDataSliderOpen ? "solid" : "bordered"}
+              onPress={toggleDataSlider}
+              startContent={<span className="button-icon">📊</span>}
+              size="lg"
+              className="nav-action-button"
+            >
+              Data Explorer
+            </Button>
+
+            <Button
+              color={isCfgSliderOpen ? "secondary" : "default"}
+              variant={isCfgSliderOpen ? "solid" : "bordered"}
+              onPress={toggleCfgSlider}
+              startContent={<span className="button-icon">⚙️</span>}
+              size="lg"
+              className="nav-action-button"
+            >
+              Configuration
+            </Button>
+
+            <div className="status-indicator">
+              <Button
+                color={isConnected ? "success" : "danger"}
+                variant="flat"
+                size="sm"
+                className="status-button"
+                startContent={
+                  <div
+                    className={`status-dot ${
+                      isConnected ? "status-dot-online" : "status-dot-offline"
+                    }`}
+                  />
+                }
+              >
+                {isConnected ? "Online" : "Offline"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </nav>
 
           {get_data_slider()}
           {get_dashboard()}
@@ -382,52 +452,3 @@ export const MainApp = () => {
 };
 
 export default MainApp;
-
-/*
-
-<nav className="nav-container">
-        <div className="nav-content">
-          <div className="logo-container">
-            <div className="logo-icon">
-              <span className="logo-text">Q</span>
-            </div>
-            <div>
-              <h1 className="nav-title">QDash</h1>
-              <p className="nav-subtitle">Quantum Dashboard v2.0</p>
-            </div>
-          </div>
-
-          <div className="nav-buttons">
-            <Button
-              color={isDataSliderOpen ? "primary" : "default"}
-              variant={isDataSliderOpen ? "solid" : "bordered"}
-              onPress={toggleDataSlider}
-              startContent="📊"
-            >
-              Data Explorer
-            </Button>
-
-            <Button
-              color={isCfgSliderOpen ? "secondary" : "default"}
-              variant={isCfgSliderOpen ? "solid" : "bordered"}
-              onPress={toggleCfgSlider}
-              startContent="⚙️"
-            >
-              Configuration
-            </Button>
-
-            <div className="status-indicator">
-              <div
-                className={`status-dot ${
-                  isConnected ? "status-dot-online" : "status-dot-offline"
-                }`}
-              />
-              <span className="status-text">
-                {isConnected ? "Online" : "Offline"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </nav>
-
- */
