@@ -12,6 +12,7 @@ import {NodeInfoPanel} from "./components/node_info_panel";
 import {ThreeScene} from "./_use_three";
 import TerminalConsole from "./components/terminal";
 import ToDoCard from "./components/todo_card";
+import NCfgCreator from "./components/node_cfg/ncfg_slider";
 
 
 export const MainApp = () => {
@@ -106,6 +107,7 @@ export const MainApp = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [isDashOpen, setIsDashOpen] = useState(false);
     const [isBucketOpen, setIsBucketOpen] = useState(false);
+    const [isNSliderOpen, setIsNSliderOpen] = useState(false);
 
     const get_info_card = useCallback((_case) => {
         if (!isDashOpen && !isOpen && !isCfgSliderOpen) {
@@ -295,6 +297,10 @@ export const MainApp = () => {
     setIsDataSliderOpen(!isDataSliderOpen);
   }, [isDataSliderOpen]);
 
+    const toggleNcfgSlider = useCallback(() => {
+        setIsNSliderOpen(!isNSliderOpen);
+      }, [isNSliderOpen]);
+
   const toggleDahboard = useCallback(() => {
       console.log("toggleDahboard:", !isDashOpen)
     setIsDashOpen(!isDashOpen);
@@ -364,6 +370,20 @@ export const MainApp = () => {
     }
     return <></>
   }, [isDataSliderOpen, toggleDataSlider, nodes, edges]);
+
+  const get_ncfgslider = useCallback(() => {
+    if (isNSliderOpen) {
+      return(
+        <NCfgCreator
+            sendMessage={sendMessage}
+            isOpen={isNSliderOpen}
+            onToggle={toggleNcfgSlider}
+        />
+      );
+    }
+    return <></>
+  }, [isNSliderOpen, toggleNcfgSlider]);
+
   return (
     <div className={"flex absolut flex-row w-full h-screen"}>
       <div className="dashboard-container">
@@ -426,6 +446,7 @@ export const MainApp = () => {
 
           {get_data_slider()}
           {get_dashboard()}
+          {get_ncfgslider()}
         <TerminalConsole
             error={error}
               handleSubmit={handleSubmit}
@@ -437,6 +458,7 @@ export const MainApp = () => {
             toggleDataSlider={toggleDataSlider}
             sendMessage={sendMessage}
             toggleDashboard={toggleDahboard}
+            toggleNcfgSlider={toggleNcfgSlider}
             envs={envs}
             toggleBucket={toggleBucket}
         />

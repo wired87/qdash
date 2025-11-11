@@ -143,7 +143,6 @@ export const NodeInfoPanel = (
                 </CustomButton>
               <NodeStatusSection node={new_node} />
               <NodeLogsSection logs={logs} />
-              <NodeConfigForm />
             </DrawerBody>
             <DrawerFooter>
               <Button color="danger" variant="light" onPress={onClose}>

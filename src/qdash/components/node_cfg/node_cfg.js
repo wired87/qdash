@@ -99,7 +99,7 @@ export const NodeConfigForm = () => {
                                     </svg>
                                 </button>
                             </div>
-                            <div className={`accordion-content ${openBlocks[blockIndex] ? 'open' : ''} mt-4`}>
+                            <div className={`accordeon-content ${openBlocks[blockIndex] ? 'open' : ''} mt-4`}>
                                 {/* Input fields for top-level keys */}
                                 {Object.keys(block.block_data).filter(key => key !== 'phase_cfg').map(key => (
                                     <div key={key}>
