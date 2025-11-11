@@ -1,5 +1,5 @@
 // Name of the key used for local persistence
-export const USER_ID_KEY = 'qdash_user_id';
+export const USER_ID_KEY = 'QDASH_USER_ID';
 
 /**
  * Generates a persistent, unique user ID for the current browser instance.

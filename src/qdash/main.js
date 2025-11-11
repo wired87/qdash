@@ -351,7 +351,8 @@ export const MainApp = () => {
         logs={logs}
         isOpen={isDataSliderOpen}
         onToggle={toggleDataSlider}
-      />      );
+      />
+      );
     }
     return <></>
   }, [isDataSliderOpen, toggleDataSlider, nodes, edges]);

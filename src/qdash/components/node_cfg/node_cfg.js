@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import VisualBlock from "./block_visual";
 
-// Mock configuration data
+// Mock configuration data (unchanged)
 const MOCK_CFG_SCHEMA = {
     env_id: "",
     cluster_cfg: {
@@ -19,45 +20,32 @@ const MOCK_CFG_SCHEMA = {
                 param2: "value"
             }
         }
-    ]
+    ],
+    visual_data: { points: [], output: [] }
 };
 
 export const NodeConfigForm = () => {
-    // State to hold all form blocks and their data
     const [formBlocks, setFormBlocks] = useState([]);
-    // State to manage which accordion blocks are open
     const [openBlocks, setOpenBlocks] = useState({});
+    const [selectedBlockIndex, setSelectedBlockIndex] = useState(null);
 
-    // Add an initial block when the component mounts
     useEffect(() => {
         setFormBlocks([{
             block_data: { ...MOCK_CFG_SCHEMA },
-            phases: [{ ...MOCK_CFG_SCHEMA.phase_cfg[0] }]
+            phases: [{ ...MOCK_CFG_SCHEMA.phase_cfg[0] }],
+            visual_data: { points: [], output: [] }
         }]);
     }, []);
 
-    // Handler to add a new configuration block
     const handleAddBlock = () => {
         const newBlock = {
             block_data: { ...MOCK_CFG_SCHEMA },
-            phases: [{ ...MOCK_CFG_SCHEMA.phase_cfg[0] }]
+            phases: [{ ...MOCK_CFG_SCHEMA.phase_cfg[0] }],
+            visual_data: { points: [], output: [] }
         };
         setFormBlocks([...formBlocks, newBlock]);
     };
 
-    // Handler to add a new phase to a specific block
-    const handleAddPhase = (blockIndex) => {
-        if (formBlocks[blockIndex].phases.length < 10) {
-            const newFormBlocks = [...formBlocks];
-            newFormBlocks[blockIndex].phases.push({ ...MOCK_CFG_SCHEMA.phase_cfg[0] });
-            setFormBlocks(newFormBlocks);
-        } else {
-            // Using a simple alert, but for a real app, a modal would be better
-            alert("You can't add more than 10 phases.");
-        }
-    };
-
-    // Handler for changes in the input fields
     const handleInputChange = (e, blockIndex, key, isPhase, phaseIndex) => {
         const { value } = e.target;
         const newFormBlocks = [...formBlocks];
@@ -76,7 +64,6 @@ export const NodeConfigForm = () => {
         setFormBlocks(newFormBlocks);
     };
 
-    // Handler to toggle the accordion state of a block
     const handleAccordionToggle = (blockIndex) => {
         setOpenBlocks(prev => ({
             ...prev,
@@ -84,74 +71,68 @@ export const NodeConfigForm = () => {
         }));
     };
 
-    return (
-        <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-lg">
-            <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">Dynamic Config Form</h1>
-            <form id="main-form">
-                <div id="form-blocks-container" className="space-y-6">
-                    {formBlocks.map((block, blockIndex) => (
-                        <div key={blockIndex} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                            <div className="flex justify-between items-center cursor-pointer" onClick={() => handleAccordionToggle(blockIndex)}>
-                                <h2 className="text-xl font-bold text-gray-700">Block {blockIndex + 1}</h2>
-                                <button type="button" className={`text-gray-500 hover:text-gray-700 transition-transform ${openBlocks[blockIndex] ? 'rotate-180' : 'rotate-0'}`}>
-                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                            <div className={`accordeon-content ${openBlocks[blockIndex] ? 'open' : ''} mt-4`}>
-                                {/* Input fields for top-level keys */}
-                                {Object.keys(block.block_data).filter(key => key !== 'phase_cfg').map(key => (
-                                    <div key={key}>
-                                        <label className="block text-sm font-medium text-gray-700 mt-4">{key}</label>
-                                        <input
-                                            type="text"
-                                            name={key}
-                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
-                                            value={JSON.stringify(block.block_data[key])}
-                                            onChange={(e) => handleInputChange(e, blockIndex, key, false)}
-                                        />
-                                    </div>
-                                ))}
+    const handleVisualDataChange = (data) => {
+        if (selectedBlockIndex !== null) {
+            const newFormBlocks = [...formBlocks];
+            newFormBlocks[selectedBlockIndex].visual_data = data;
+            setFormBlocks(newFormBlocks);
+        }
+    };
 
-                                {/* Phases section */}
-                                <div className="mt-6 border-t border-gray-300 pt-4">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h3 className="text-lg font-bold text-gray-700">Phases</h3>
-                                        <button
-                                            type="button"
-                                            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                                            onClick={() => handleAddPhase(blockIndex)}
-                                        >
-                                            + Add Phase
-                                        </button>
-                                    </div>
-                                    {block.phases.map((phase, phaseIndex) => (
-                                        <div key={phaseIndex} className="phase-item p-4 bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
-                                            <p className="font-semibold text-sm mb-2">Phase {phaseIndex + 1}</p>
-                                            {Object.keys(phase).map(key => (
-                                                <div key={key}>
-                                                    <label className="block text-xs font-medium text-gray-600 mt-2">{key}</label>
-                                                    <input
-                                                        type="text"
-                                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-1"
-                                                        value={JSON.stringify(phase[key])}
-                                                        onChange={(e) => handleInputChange(e, blockIndex, key, true, phaseIndex)}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <button type="button" onClick={handleAddBlock} className="mt-8 w-full py-3 px-6 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 transition-colors shadow-md">
-                    Add New Configuration Block
+    // RENDER: Conditional rendering based on selectedBlockIndex
+    if (selectedBlockIndex !== null) {
+        const currentBlock = formBlocks[selectedBlockIndex];
+        return (
+            <div style={{maxWidth: '1280px', margin: '0 auto', padding: '2rem'}}>
+                <button
+                    onClick={() => setSelectedBlockIndex(null)}
+                    style={{marginBottom: '1rem', padding: '0.5rem 1rem', backgroundColor: '#e5e7eb', color: '#1f2937', borderRadius: '0.375rem', cursor: 'pointer', border: 'none'}}
+                >
+                    &larr; Back to Block List
                 </button>
-            </form>
+                <VisualBlock
+                    initialData={currentBlock.visual_data}
+                    onDataChange={handleVisualDataChange}
+                />
+            </div>
+        );
+    }
+
+    // RENDER: Main Block List View
+    return (
+        <div style={{maxWidth: '56rem', margin: '0 auto', backgroundColor: 'white', padding: '2rem', borderRadius: '0.75rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'}}>
+            <h1 style={{fontSize: '1.875rem', fontWeight: '700', color: '#1f2937', marginBottom: '1.5rem', textAlign: 'center'}}>Dynamic Config Form</h1>
+            <h2 style={{fontSize: '1.25rem', fontWeight: '600', color: '#374151', marginBottom: '1rem'}}>Configuration Blocks List</h2>
+
+            <div id="form-blocks-container" style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                {formBlocks.map((block, blockIndex) => (
+                    <div key={blockIndex} style={{backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '1rem', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'}}>
+                        <h3 style={{fontSize: '1.125rem', fontWeight: '700', color: '#374151'}}>Block {blockIndex + 1}</h3>
+                        <div style={{display: 'flex', gap: '0.5rem'}}>
+                            <button
+                                type="button"
+                                style={{padding: '0.25rem 0.75rem', backgroundColor: '#10b981', color: 'white', borderRadius: '0.375rem', fontSize: '0.875rem', cursor: 'pointer', border: 'none'}}
+                                onClick={() => setSelectedBlockIndex(blockIndex)}
+                            >
+                                Edit / Visualize
+                            </button>
+                            <button
+                                type="button"
+                                style={{color: '#6b7280', border: 'none', background: 'none', cursor: 'pointer', transform: openBlocks[blockIndex] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s'}}
+                                onClick={() => handleAccordionToggle(blockIndex)}
+                            >
+                                <svg style={{width: '1.25rem', height: '1.25rem'}} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <button type="button" onClick={handleAddBlock} style={{marginTop: '2rem', width: '100%', padding: '0.75rem 1.5rem', backgroundColor: '#2563eb', color: 'white', borderRadius: '0.5rem', fontWeight: '600', fontSize: '1.125rem', cursor: 'pointer', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'}}>
+                Add New Configuration Block
+            </button>
         </div>
     );
 };
-

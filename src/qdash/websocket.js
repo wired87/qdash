@@ -36,7 +36,7 @@ const _useWebSocket = (
         const userId = localStorage.getItem(USER_ID_KEY)
         const quey_str = `?user_id=${userId}&mode=demo`;
 
-        const WS_URL = `wss://www.bestbrain.tech/run/${quey_str}`;
+        const WS_URL = `wss://${process.env.BACKEND_ENDPOINT}/run/${quey_str}`;
         const WS_URL_LOCAL = `ws://127.0.0.1:8000/run/${quey_str}`;
 
         return WS_URL

@@ -86,11 +86,3 @@ export function useFirebaseListeners(
 
   return { fbIsConnected, firebaseDb };
 }
-/*
-
-updateNodes({
-          id: nodeId,
-          meta: changedData.meta,
-          color: getNodeColor(changedData.meta.status.state),
-        });
- */
