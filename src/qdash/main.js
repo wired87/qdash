@@ -297,6 +297,7 @@ export const MainApp = () => {
     setIsDataSliderOpen(!isDataSliderOpen);
   }, [isDataSliderOpen]);
 
+
     const toggleNcfgSlider = useCallback(() => {
         setIsNSliderOpen(!isNSliderOpen);
       }, [isNSliderOpen]);
@@ -325,11 +326,11 @@ export const MainApp = () => {
   const get_dashboard = useCallback(() => {
     if (isDashOpen) {
       return(
-        <Dashboard envs={envs} startSim={startSim} toggleModal={toggleModal} />
+        <Dashboard envs={envs} startSim={startSim} toggleModal={toggleModal} toggleNcfg={toggleNcfgSlider} />
       );
     }
     return <></>
-  }, [envs, isDashOpen]);
+  }, [envs, isDashOpen, toggleNcfgSlider]);
 
 
 
@@ -389,7 +390,43 @@ export const MainApp = () => {
     <div className={"flex absolut flex-row w-full h-screen"}>
       <div className="dashboard-container">
       {/* Top Navigation */}
-      <nav className="nav-container">
+
+
+          {get_data_slider()}
+          {get_dashboard()}
+          {get_ncfgslider()}
+        <TerminalConsole
+            error={error}
+              handleSubmit={handleSubmit}
+              isConnected={isConnected}
+              inputValue={inputValue}
+              updateInputValue={updateInputValue}
+              messages={messages}
+            toggleCfgSlider={toggleCfgSlider}
+            toggleDataSlider={toggleDataSlider}
+            sendMessage={sendMessage}
+            toggleDashboard={toggleDahboard}
+            toggleNcfgSlider={toggleNcfgSlider}
+            envs={envs}
+            toggleBucket={toggleBucket}
+        />
+    </div>
+      <div className={"flex "}>
+          {
+            get_node_panel()
+          }
+      </div>
+    {modal()}
+  </div>
+  );
+};
+
+export default MainApp;
+
+
+/*
+
+<nav className="nav-container">
         <div className="nav-content">
           <div className="logo-container">
             <div className="logo-icon">
@@ -444,34 +481,4 @@ export const MainApp = () => {
           </div>
         </div>
       </nav>
-
-          {get_data_slider()}
-          {get_dashboard()}
-          {get_ncfgslider()}
-        <TerminalConsole
-            error={error}
-              handleSubmit={handleSubmit}
-              isConnected={isConnected}
-              inputValue={inputValue}
-              updateInputValue={updateInputValue}
-              messages={messages}
-            toggleCfgSlider={toggleCfgSlider}
-            toggleDataSlider={toggleDataSlider}
-            sendMessage={sendMessage}
-            toggleDashboard={toggleDahboard}
-            toggleNcfgSlider={toggleNcfgSlider}
-            envs={envs}
-            toggleBucket={toggleBucket}
-        />
-    </div>
-      <div className={"flex "}>
-          {
-            get_node_panel()
-          }
-      </div>
-    {modal()}
-  </div>
-  );
-};
-
-export default MainApp;
+ */

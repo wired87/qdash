@@ -99,6 +99,7 @@ export const Dashboard = (
         envs,
         toggleModal,
         startSim,
+        toggleNcfg,
     }
 ) => {
     const addEnvLen = useCallback(() => {
@@ -113,10 +114,10 @@ export const Dashboard = (
                 <table style={styles.dataTable}>
                     <thead>
                     <tr>
-                        <th style={{...styles.headerCell, width: '33%'}}>Environment ID</th>
-                        <th style={{...styles.headerCell, width: '33%'}}>Graph Visualization
-                        </th>
-                        <th style={{...styles.headerCell, width: '34%'}}>Actions</th>
+                        <th style={{...styles.headerCell, width: '25%'}}>Environment ID</th>
+                        <th style={{...styles.headerCell, width: '25%'}}>Graph Visualization</th>
+                        <th style={{...styles.headerCell, width: '25%'}}>Node CFG</th>
+                        <th style={{...styles.headerCell, width: '25%'}}>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -152,6 +153,21 @@ export const Dashboard = (
                                     Show Graph
                                 </Button>
                             </td>
+                            <td style={styles.cell}>
+                                <Button
+                                    onPress={() => toggleNcfg()}
+                                    color="primary"
+                                    style={{
+                                        width: "10vh",
+                                        height: 100,
+                                        zIndex: 9999,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    Show Graph
+                                </Button>
+                            </td>
 
                             {/* Column 3: Start Sim Button */}
                             <td style={styles.cell}>
@@ -169,7 +185,7 @@ export const Dashboard = (
         }else {
             return <p> No environments created now... </p>
         }
-    }, [envs, addEnvLen])
+    }, [envs, addEnvLen,  toggleNcfg])
 
 
 

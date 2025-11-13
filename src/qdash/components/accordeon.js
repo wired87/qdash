@@ -6,13 +6,24 @@ const filteredCfg = {
     sim_time_s: {
         value: 300,
         description:
-            "Time in s the simulation should run",
+            "Time in s(iterations) the simulation should run",
     },
     cluster_dim: {
         value: 64,
         description: "The 3 Dimensions of the simulation cluster.",
     },
-
+    energy: {
+        value: 99,
+        description: "Energy to apply"
+    },
+    phase: {
+        value: 2,
+        description: "iter break & duration of stim"
+    },
+    particle: {
+        value: "electron",
+        description: "particle to apply stim to"
+    },
     device: {
         value: "cpu",
         description: "The device to use for the simulation (CPU or GPU).",
@@ -76,6 +87,14 @@ const ConfigAccordion = ({sendMessage}) => {
         );
         setCompleted(true);
     }
+
+    /*
+    const handle_disabled = (sid) => {
+
+        return disabled_key.includes(sid);
+    };
+     */
+
     const get_input = (sid, attrs) => {
         return (
             <div
@@ -86,7 +105,7 @@ const ConfigAccordion = ({sendMessage}) => {
                     {sid} {attrs.description && <span title={attrs.description}>ℹ️</span>}
                 </label>
                 <Input
-                    disabled
+                    disabled={false} // handle_disabled(sid)
                     value={attrs.value}
                     onValueChange={(val) => handleValueChange(sid, val)}
                     size="sm"

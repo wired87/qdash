@@ -251,14 +251,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                   </DropdownMenu>
                 </Dropdown>
               )}
-              <Button 
-                size="sm" 
-                color="secondary" 
-                variant="bordered"
-                onPress={() => setShowNcfgModal(true)}
-              >
-                NCFG Settings
-              </Button>
+
               <Button isIconOnly variant="light" onPress={onToggle}>
                 ✕
               </Button>
@@ -270,8 +263,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
               size="sm"
               color={activeTab === "environments" ? "primary" : "default"}
               variant={activeTab === "environments" ? "solid" : "bordered"}
-              onPress={() => setActiveTab("environments")}
-            >
+              onPress={() => setActiveTab("environments")}>
               Environments
             </Button>
             <Button
