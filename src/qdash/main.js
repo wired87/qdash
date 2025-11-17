@@ -326,11 +326,19 @@ export const MainApp = () => {
   const get_dashboard = useCallback(() => {
     if (isDashOpen) {
       return(
-        <Dashboard envs={envs} startSim={startSim} toggleModal={toggleModal} toggleNcfg={toggleNcfgSlider} />
+        <Dashboard 
+          envs={envs} 
+          startSim={startSim} 
+          toggleModal={toggleModal} 
+          toggleNcfg={toggleNcfgSlider}
+          toggleDataSlider={toggleDataSlider}
+          sendMessage={sendMessage}
+          isDataSliderOpen={isDataSliderOpen}
+        />
       );
     }
     return <></>
-  }, [envs, isDashOpen, toggleNcfgSlider]);
+  }, [envs, isDashOpen, toggleNcfgSlider, toggleDataSlider, sendMessage, isDataSliderOpen]);
 
 
 

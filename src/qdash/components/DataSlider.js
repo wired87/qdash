@@ -26,6 +26,7 @@ import {
   Slider,
   Input,
 } from "@heroui/react";
+import { MoreVertical } from "lucide-react";
 import "../../index.css";
 
 export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, envData, sendMessage, setEnvData }) => {
@@ -202,6 +203,23 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
     return allLogs;
   };
 
+  // Handler for row actions (visualize, delete)
+  const handleRowAction = (itemId, action) => {
+    if (action === "visualize") {
+      sendMessage({
+        type: "visualize",
+        item_id: itemId,
+        timestamp: new Date().toISOString(),
+      });
+    } else if (action === "delete") {
+      sendMessage({
+        type: "delete_item",
+        item_id: itemId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  };
+
   const tableData = formatDataForTable(nodes, edges);
   const columns = [
     { key: "checkbox", label: "" },
@@ -215,6 +233,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
     { key: "class_name", label: "CLASS" },
     { key: "messages_sent", label: "MSG SENT" },
     { key: "messages_received", label: "MSG RECEIVED" },
+    { key: "actions", label: "" },
   ];
 
   return (
@@ -419,7 +438,11 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
               >
                 <TableHeader>
                   {columns.map((column) => (
-                    <TableColumn key={column.key} width={column.key === "checkbox" ? "50" : undefined}>
+                    <TableColumn 
+                      key={column.key} 
+                      width={column.key === "checkbox" || column.key === "actions" ? "50" : undefined}
+                      align={column.key === "actions" ? "end" : "start"}
+                    >
                       {column.label}
                     </TableColumn>
                   ))}
@@ -434,6 +457,43 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                               isSelected={selectedRows.has(item.id)}
                               onValueChange={(isSelected) => handleRowSelection(item.id, isSelected)}
                             />
+                          ) : column.key === "actions" ? (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <Dropdown>
+                                <DropdownTrigger>
+                                  <Button
+                                    isIconOnly
+                                    size="sm"
+                                    variant="light"
+                                    aria-label="More actions"
+                                    style={{
+                                      minWidth: 'auto',
+                                      width: '32px',
+                                      height: '32px',
+                                    }}
+                                  >
+                                    <MoreVertical size={18} style={{ color: '#6b7280' }} />
+                                  </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu 
+                                  aria-label="Row actions"
+                                  onAction={(key) => handleRowAction(item.id, key)}
+                                >
+                                  <DropdownItem 
+                                    key="visualize"
+                                  >
+                                    Visualize
+                                  </DropdownItem>
+                                  <DropdownItem 
+                                    key="delete"
+                                    className="text-danger" 
+                                    color="danger"
+                                  >
+                                    Delete
+                                  </DropdownItem>
+                                </DropdownMenu>
+                              </Dropdown>
+                            </div>
                           ) : column.key === "status" && item[column.key] ? (
                             <Chip
                               size="sm"

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Trash2, Zap, X } from 'lucide-react';
+import { Trash2, Zap, X, Plus, Minus, ChevronDown, Check } from 'lucide-react';
 
 // Canvas constants for consistent drawing and data mapping
 const CANVAS_WIDTH = 600;
@@ -8,6 +8,43 @@ const POINT_RADIUS = 8;
 const DRAG_THRESHOLD = 15;
 const MAX_ENERGY = 99; // Adjusted to requested 0-99 range
 const MAX_ITERS = 50;
+const DESKTOP_BREAKPOINT = 1024; // Define the breakpoint constant
+
+// Gauge fields (G_FIELDS) - Bosons
+const G_FIELDS = [
+  'photon',      // A_μ - Elektromagnetismus (U(1)_Y → nach Mischung: Photon)
+  'w_plus',      // W⁺ - Schwache Wechselwirkung (SU(2)_L)
+  'w_minus',     // W⁻ - Schwache Wechselwirkung (SU(2)_L)
+  'z_boson',     // Z⁰ - Schwache Wechselwirkung (SU(2)_L)
+  'gluon',       // G 8x4 array - Starke Wechselwirkung (SU(3)_C)
+];
+
+// Fermions
+const FERMIONS = [
+  // Leptonen
+  'electron',           // ψₑ
+  'muon',               // ψ_μ
+  'tau',                // ψ_τ
+  'electron_neutrino',  // νₑ
+  'muon_neutrino',      // ν_μ
+  'tau_neutrino',       // ν_τ
+  // Quarks
+  'up_quark',           // ψᵤ
+  'down_quark',         // ψ_d
+  'charm_quark',        // ψ_c
+  'strange_quark',      // ψ_s
+  'top_quark',          // ψ_t
+  'bottom_quark',       // ψ_b
+];
+
+// Higgs
+const H = ['higgs'];
+
+// Combined tool options
+const TOOL_OPTIONS = [...G_FIELDS, ...FERMIONS, ...H];
+
+
+
 
 // Helper function to map Y coordinate to Energy value
 const mapYToEnergy = (y) => {
@@ -22,41 +59,156 @@ const mapDeltaXToIters = (deltaX) => {
   return Math.max(1, Math.round(normalizedDeltaX * MAX_ITERS));
 };
 
+// Main Component: Merged VisualBlock and Modal wrapper with multi-block support
 const EnergyProfileModal = ({
   initialData = {
+    blocks: [{
+      id: 0,
     points: [
       { id: 0, x: 50, y: 150 },
       { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
     ],
     output: [],
+    selectedTools: [],
+    }],
   },
-  // Mock handler for data change and modal close
+  // Mock handler for modal close
   onClose = () => console.log('Modal closed'),
+  // Mock handler for data send
   onSend = (data) => console.log('Sending data:', data),
 }) => {
-  const canvasRef = useRef(null);
+  const canvasRefs = useRef({});
 
-  // State Initialization
-  const [points, setPoints] = useState(
-    initialData.points && initialData.points.length >= 2
-      ? initialData.points
-      : [
+  // --- Responsive State (FIX for "@media" inline style error) ---
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= DESKTOP_BREAKPOINT);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= DESKTOP_BREAKPOINT);
+    };
+
+    // Set initial state and listen for resize events
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  // --- End Responsive State ---
+
+  // Multi-block state management
+  const [blocks, setBlocks] = useState(() => {
+    if (initialData.blocks && Array.isArray(initialData.blocks)) {
+      return initialData.blocks;
+    } else if (initialData.points) {
+      // Legacy format: single block
+      return [{
+        id: Date.now(),
+        points: initialData.points.length >= 2 ? initialData.points : [
           { id: 0, x: 50, y: 150 },
           { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
-        ]
-  );
-  const [outputData, setOutputData] = useState(initialData.output || []);
+        ],
+        output: initialData.output || [],
+        selectedTools: initialData.selectedTools || [],
+      }];
+    }
+    return [{
+      id: Date.now(),
+      points: [
+        { id: 0, x: 50, y: 150 },
+        { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
+      ],
+      output: [],
+      selectedTools: [],
+    }];
+  });
+  
+  const [selectedBlockId, setSelectedBlockId] = useState(null);
+  const [openDropdowns, setOpenDropdowns] = useState({});
   const [isDragging, setIsDragging] = useState(false);
   const [draggedPointIndex, setDraggedPointIndex] = useState(null);
 
-  // --- Core Logic: Data Calculation ---
-  const calculateOutputData = useCallback((currentPoints) => {
-    const data = [];
-    if (currentPoints.length < 2) {
-      setOutputData([]);
+  // Block management functions
+  const addBlock = () => {
+    const newBlock = {
+      id: Date.now(),
+      points: [
+        { id: 0, x: 50, y: 150 },
+        { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
+      ],
+      output: [],
+      selectedTools: [],
+    };
+    setBlocks(prev => [...prev, newBlock]);
+  };
+
+  const removeBlock = (blockId) => {
+    if (blocks.length <= 1) {
+      console.warn('Cannot remove block: At least one block is required.');
       return;
     }
+    setBlocks(prev => prev.filter(b => b.id !== blockId));
+    if (selectedBlockId === blockId) {
+      setSelectedBlockId(null);
+    }
+  };
 
+  const updateBlock = useCallback((blockId, updates) => {
+    setBlocks(prev => prev.map(block => 
+      block.id === blockId ? { ...block, ...updates } : block
+    ));
+  }, []);
+
+  const getCurrentBlock = () => {
+    if (selectedBlockId === null) return null;
+    return blocks.find(b => b.id === selectedBlockId);
+  };
+
+  const currentBlock = getCurrentBlock();
+  const points = currentBlock ? currentBlock.points : [];
+  const outputData = currentBlock ? currentBlock.output : [];
+  const selectedTools = currentBlock ? currentBlock.selectedTools : [];
+
+  // --- Dropdown Update Method ---
+  const handleItemToggle = (tool, blockId) => {
+    const block = blocks.find(b => b.id === blockId);
+    if (!block) return;
+    
+    const newTools = block.selectedTools.includes(tool)
+      ? block.selectedTools.filter(t => t !== tool)
+      : [...block.selectedTools, tool];
+    
+    updateBlock(blockId, { selectedTools: newTools });
+  };
+
+  const toggleDropdown = (blockId) => {
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [blockId]: !prev[blockId]
+    }));
+  };
+
+  // Close dropdown if clicked outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.tool-dropdown-container')) {
+        setOpenDropdowns({});
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+
+  // --- Core Logic: Data Calculation ---
+  const calculateOutputData = useCallback((blockId, currentPoints) => {
+    if (!blockId || !currentPoints) return [];
+    
+    const data = [];
+    if (currentPoints.length < 2) {
+      updateBlock(blockId, { output: [] });
+      return [];
+    }
+
+    // Sort points by X coordinate for sequential segment calculation
     const sortedPoints = [...currentPoints].sort((a, b) => a.x - b.x);
 
     for (let i = 0; i < sortedPoints.length - 1; i++) {
@@ -74,20 +226,21 @@ const EnergyProfileModal = ({
       });
     }
 
-    setOutputData(data);
-  }, []);
+    updateBlock(blockId, { output: data });
+    return data;
+  }, [updateBlock]);
 
   // --- Canvas Drawing Logic ---
   const drawChart = useCallback(
-    (currentPoints) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+    (blockId, currentPoints) => {
+      const canvas = canvasRefs.current[blockId];
+      if (!canvas || !currentPoints) return;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
       const sortedPoints = [...currentPoints].sort((a, b) => a.x - b.x);
 
-      // 1. Draw Background Grid/Guides (Simplified)
+      // 1. Draw Background Grid/Guides
       ctx.strokeStyle = '#e5e7eb';
       ctx.lineWidth = 1;
       for (let i = 1; i < 4; i++) {
@@ -133,25 +286,30 @@ const EnergyProfileModal = ({
         ctx.stroke();
       });
     },
-    [] // No dependency needed for drawChart itself
+    []
   );
 
-  // Effect to redraw and recalculate data whenever points change
+  // Redraw and recalculate data whenever points change for selected block
   useEffect(() => {
-    drawChart(points);
-    calculateOutputData(points);
-  }, [points, calculateOutputData, drawChart]);
+    if (selectedBlockId && currentBlock) {
+      drawChart(selectedBlockId, currentBlock.points);
+      calculateOutputData(selectedBlockId, currentBlock.points);
+    }
+  }, [selectedBlockId, currentBlock?.points, calculateOutputData, drawChart]);
 
-  // --- Mouse Event Handlers ---
-  const getCanvasCoordinates = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
+  // --- Utility Functions ---
+  const getCanvasCoordinates = (e, blockId) => {
+    const canvas = canvasRefs.current[blockId];
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     return { x, y };
   };
 
-  const getNearestPointIndex = (coords) => {
-    return points.findIndex((p) => {
+  const getNearestPointIndex = (coords, currentPoints) => {
+    if (!currentPoints) return -1;
+    return currentPoints.findIndex((p) => {
       const distance = Math.sqrt((p.x - coords.x) ** 2 + (p.y - coords.y) ** 2);
       return distance < DRAG_THRESHOLD;
     });
@@ -159,10 +317,70 @@ const EnergyProfileModal = ({
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+  // --- Point Management ---
+
+  // Add a new point near the center with a slight random offset
+  const addPoint = () => {
+    if (!selectedBlockId) return;
+    const block = blocks.find(b => b.id === selectedBlockId);
+    if (!block) return;
+    
+    const newPoint = {
+      id: Date.now(),
+      // Add a slight random offset to prevent overlap
+      x: CANVAS_WIDTH / 2 + Math.random() * 50 - 25,
+      y: CANVAS_HEIGHT / 2 + Math.random() * 50 - 25,
+    };
+    const newPoints = [...block.points, newPoint];
+    updateBlock(selectedBlockId, { points: newPoints });
+  };
+
+  // Remove the most recently added point (highest ID > 1) or the last point in array as fallback
+  const removeLastAddedPoint = () => {
+    if (!selectedBlockId) return;
+    const block = blocks.find(b => b.id === selectedBlockId);
+    if (!block || block.points.length <= 2) {
+      console.warn("Cannot remove point: Minimum two points required.");
+      return;
+    }
+
+      // Filter out initial points (id 0 and 1)
+    const nonInitialPoints = block.points.filter(p => p.id > 1);
+
+      if (nonInitialPoints.length > 0) {
+        // Find the point with the highest ID (most recently added)
+        const pointToRemove = nonInitialPoints.reduce((latest, current) =>
+          current.id > latest.id ? current : latest, nonInitialPoints[0]
+        );
+      const newPoints = block.points.filter(p => p.id !== pointToRemove.id);
+      updateBlock(selectedBlockId, { points: newPoints });
+    } else {
+      // Fallback: if only initial points or points added without unique IDs remain (unlikely)
+      const newPoints = block.points.slice(0, -1);
+      updateBlock(selectedBlockId, { points: newPoints });
+    }
+  };
+
+  // Remove specific point (used by list UI)
+  const removePoint = (idToRemove) => {
+    if (!selectedBlockId) return;
+    const block = blocks.find(b => b.id === selectedBlockId);
+    if (!block || block.points.length <= 2) {
+      console.warn("Cannot remove point: Minimum two points required.");
+      return;
+    }
+    const newPoints = block.points.filter(p => p.id !== idToRemove);
+    updateBlock(selectedBlockId, { points: newPoints });
+  };
+
+  // --- Mouse Event Handlers (Canvas Interaction) ---
+
   const handleMouseDown = (e) => {
+    if (!selectedBlockId) return;
     e.preventDefault();
-    const { x, y } = getCanvasCoordinates(e);
-    const nearestIndex = getNearestPointIndex({ x, y });
+    const { x, y } = getCanvasCoordinates(e, selectedBlockId);
+    const currentPoints = currentBlock?.points || [];
+    const nearestIndex = getNearestPointIndex({ x, y }, currentPoints);
 
     if (nearestIndex !== -1) {
       // Start dragging existing point
@@ -170,7 +388,7 @@ const EnergyProfileModal = ({
       setDraggedPointIndex(nearestIndex);
     } else {
       // Check if near the line to add a new point
-      const sortedPoints = [...points].sort((a, b) => a.x - b.x);
+      const sortedPoints = [...currentPoints].sort((a, b) => a.x - b.x);
       let isNearLine = false;
 
       for (let i = 0; i < sortedPoints.length - 1; i++) {
@@ -189,30 +407,27 @@ const EnergyProfileModal = ({
       }
 
       if (isNearLine) {
-        // Add new point and start dragging it
+        // Add new point at click location and start dragging it
         const newPoint = {
           id: Date.now(),
           x: clamp(x, 0, CANVAS_WIDTH),
           y: clamp(y, 0, CANVAS_HEIGHT),
         };
-        setPoints((prevPoints) => {
-          const newPoints = [...prevPoints, newPoint];
+        const newPoints = [...currentPoints, newPoint];
+        updateBlock(selectedBlockId, { points: newPoints });
           setIsDragging(true);
           setDraggedPointIndex(newPoints.length - 1);
-          return newPoints;
-        });
       }
     }
   };
 
   const handleMouseMove = useCallback(
     (e) => {
-      if (!isDragging || draggedPointIndex === null) return;
-      const { x: newX, y: newY } = getCanvasCoordinates(e);
+      if (!isDragging || draggedPointIndex === null || !selectedBlockId || !currentBlock) return;
+      const { x: newX, y: newY } = getCanvasCoordinates(e, selectedBlockId);
 
       requestAnimationFrame(() => {
-        setPoints((prevPoints) => {
-          const updatedPoints = prevPoints.map((p, index) => {
+        const updatedPoints = currentBlock.points.map((p, index) => {
             if (index === draggedPointIndex) {
               const clampedX = clamp(newX, 0, CANVAS_WIDTH);
               const clampedY = clamp(newY, 0, CANVAS_HEIGHT);
@@ -220,28 +435,16 @@ const EnergyProfileModal = ({
             }
             return p;
           });
-          drawChart(updatedPoints); // Draw with updated points immediately
-          return updatedPoints;
-        });
+        updateBlock(selectedBlockId, { points: updatedPoints });
+        drawChart(selectedBlockId, updatedPoints);
       });
     },
-    [isDragging, draggedPointIndex, drawChart]
+    [isDragging, draggedPointIndex, selectedBlockId, currentBlock, drawChart]
   );
 
   const handleMouseUp = () => {
     setIsDragging(false);
     setDraggedPointIndex(null);
-    // Data calculation runs via useEffect on points change
-  };
-
-  // --- Point Management ---
-  const removePoint = (idToRemove) => {
-    if (points.length <= 2) {
-      console.warn('Cannot remove point: Minimum two points required.');
-      return;
-    }
-    const newPoints = points.filter((p) => p.id !== idToRemove);
-    setPoints(newPoints);
   };
 
   // Attach global listeners for move and up
@@ -256,9 +459,15 @@ const EnergyProfileModal = ({
 
   // --- Send Message Handler ---
   const handleSend = () => {
-    onSend({ points, output: outputData });
-    // Optionally close modal after sending
-    // onClose();
+    // Send all blocks data
+    onSend({
+      blocks: blocks.map(block => ({
+        id: block.id,
+        points: block.points,
+        output: block.output,
+        tools: block.selectedTools,
+      })),
+    });
   };
 
   // --- Component Render: Modal Wrapper ---
@@ -270,12 +479,14 @@ const EnergyProfileModal = ({
         left: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)', // Backdrop
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
         zIndex: 1000,
         fontFamily: 'sans-serif',
+        padding: '10vh 1rem 20vh 1rem',
+        overflowY: 'auto',
       }}
     >
       <div
@@ -288,8 +499,8 @@ const EnergyProfileModal = ({
           borderRadius: '0.75rem',
           padding: '1.5rem',
           position: 'relative',
-          maxHeight: '90vh',
-          overflowY: 'auto',
+          // Max height set relative to inner modal content
+          maxHeight: '100%',
         }}
       >
         {/* Modal Header */}
@@ -329,6 +540,7 @@ const EnergyProfileModal = ({
               border: 'none',
               cursor: 'pointer',
               color: '#9ca3af',
+              padding: '0.5rem',
             }}
             title="Close"
           >
@@ -336,21 +548,419 @@ const EnergyProfileModal = ({
           </button>
         </div>
 
-        <p style={{ color: '#4b5563', marginBottom: '1.5rem' }}>
-          Click and drag the green points to shape the energy profile (0-99).
-          Click on the line to add a new point.
-        </p>
+        {selectedBlockId === null ? (
+          // List View - Show all blocks
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <p style={{ color: '#4b5563', margin: 0 }}>
+                Manage configuration blocks. Click "Edit / Visualize" to edit a block, or add a new block.
+              </p>
+              <button
+                onClick={addBlock}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  fontWeight: '600',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                  transition: 'background-color 150ms',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1d4ed8')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
+              >
+                <Plus style={{ width: '1.25rem', height: '1.25rem' }} />
+                Add Block
+              </button>
+            </div>
+            
+            {/* Blocks List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {blocks.map((block, index) => (
+                <div
+                  key={block.id}
+                  style={{
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '0.75rem',
+                    padding: '1.5rem',
+                    border: '2px solid #e5e7eb',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    transition: 'border-color 150ms, box-shadow 150ms',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e5e7eb';
+                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                      Block {index + 1}
+                    </h3>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => setSelectedBlockId(block.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.5rem 1rem',
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          fontWeight: '600',
+                          borderRadius: '0.5rem',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'background-color 150ms',
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#10b981')}
+                      >
+                        <Zap style={{ width: '1rem', height: '1rem' }} />
+                        Edit / Visualize
+                      </button>
+                      {blocks.length > 1 && (
+                        <button
+                          onClick={() => removeBlock(block.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '0.5rem 1rem',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            fontWeight: '600',
+                            borderRadius: '0.5rem',
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'background-color 150ms',
+                          }}
+                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#dc2626')}
+                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
+                        >
+                          <Trash2 style={{ width: '1rem', height: '1rem' }} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Tools Dropdown for each block */}
+                  <div className="tool-dropdown-container" style={{ position: 'relative', marginTop: '1rem' }}>
+                    <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                      Selected Tools ({block.selectedTools.length})
+                    </label>
+                    <button
+                      onClick={() => toggleDropdown(block.id)}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        fontSize: '0.875rem',
+                        fontWeight: '500',
+                        color: '#374151',
+                        backgroundColor: '#ffffff',
+                        border: '2px solid #d1d5db',
+                        borderRadius: '0.5rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        transition: 'border-color 150ms',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
+                      onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
+                    >
+                      {block.selectedTools.length > 0 
+                        ? `${block.selectedTools.length} Tool(s) Selected` 
+                        : 'Select Tools...'}
+                      <ChevronDown 
+                        style={{ 
+                          width: '1rem', 
+                          height: '1rem', 
+                          transform: openDropdowns[block.id] ? 'rotate(180deg)' : 'rotate(0deg)', 
+                          transition: 'transform 0.2s' 
+                        }} 
+                      />
+                    </button>
+
+                    {openDropdowns[block.id] && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          marginTop: '0.25rem',
+                          backgroundColor: 'white',
+                          border: '2px solid #d1d5db',
+                          borderRadius: '0.5rem',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          zIndex: 20,
+                          maxHeight: '300px',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {TOOL_OPTIONS.map((tool) => {
+                          const isSelected = block.selectedTools.includes(tool);
+                          return (
+                            <div
+                              key={tool}
+                              onClick={() => handleItemToggle(tool, block.id)}
+                              style={{
+                                padding: '0.75rem 1rem',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                backgroundColor: isSelected ? '#ecfdf5' : 'white',
+                                color: isSelected ? '#065f46' : '#374151',
+                                fontWeight: isSelected ? '600' : '400',
+                                borderBottom: '1px solid #f3f4f6',
+                                fontSize: '0.875rem',
+                                transition: 'background-color 100ms',
+                              }}
+                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
+                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
+                            >
+                              <span>{tool}</span>
+                              {isSelected && <Check style={{ width: '0.875rem', height: '0.875rem', color: '#059669' }} />}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Block Summary */}
+                  <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#ffffff', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                      <span>Points: <strong style={{ color: '#374151' }}>{block.points.length}</strong></span>
+                      <span>Output Segments: <strong style={{ color: '#374151' }}>{block.output.length}</strong></span>
+                      <span>Tools: <strong style={{ color: '#374151' }}>{block.selectedTools.length}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Send Button */}
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <button
+                onClick={onClose}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  color: '#6b7280',
+                  backgroundColor: '#f3f4f6',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  transition: 'background-color 150ms',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={blocks.length === 0}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  fontSize: '1rem',
+                  fontWeight: '700',
+                  color: 'white',
+                  backgroundColor: blocks.length === 0 ? '#9ca3af' : '#10b981',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: blocks.length === 0 ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 150ms',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+                onMouseOver={(e) => {
+                  if (blocks.length > 0) e.currentTarget.style.backgroundColor = '#059669';
+                }}
+                onMouseOut={(e) => {
+                  if (blocks.length > 0) e.currentTarget.style.backgroundColor = '#10b981';
+                }}
+              >
+                Send Configuration
+              </button>
+            </div>
+          </div>
+        ) : (
+          // Visual Editor View - Show when a block is selected
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <p style={{ color: '#4b5563', margin: 0 }}>
+                Editing Block {blocks.findIndex(b => b.id === selectedBlockId) + 1}. Click and drag the green points to shape the energy profile (0-{MAX_ENERGY}). Click on the line to add a new point.
+              </p>
+              <button
+                onClick={() => setSelectedBlockId(null)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  fontWeight: '600',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background-color 150ms',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4b5563')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#6b7280')}
+              >
+                ← Back to Blocks
+              </button>
+            </div>
+
+        {/* --- Tool Selection Dropdown --- */}
+        <div className="tool-dropdown-container" style={{ marginBottom: '2rem', position: 'relative', maxWidth: '300px' }}>
+          <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
+            Select Required Tools
+          </label>
+          <button
+                onClick={() => toggleDropdown(selectedBlockId)}
+            style={{
+              width: '100%',
+              padding: '0.75rem 1rem',
+              fontSize: '1rem',
+              fontWeight: '500',
+              color: '#374151',
+              backgroundColor: '#f3f4f6',
+                  border: '2px solid #d1d5db',
+              borderRadius: '0.5rem',
+              cursor: 'pointer',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+                  transition: 'border-color 150ms',
+            }}
+                onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
+                onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
+          >
+            {selectedTools.length > 0 ? `${selectedTools.length} Tool(s) Selected` : 'Select Tools...'}
+                <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transform: openDropdowns[selectedBlockId] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+          </button>
+
+              {openDropdowns[selectedBlockId] && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                width: '100%',
+                marginTop: '0.25rem',
+                backgroundColor: 'white',
+                    border: '2px solid #d1d5db',
+                borderRadius: '0.5rem',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    zIndex: 20,
+                    maxHeight: '300px',
+                overflowY: 'auto',
+              }}
+            >
+              {TOOL_OPTIONS.map((tool) => {
+                const isSelected = selectedTools.includes(tool);
+                return (
+                  <div
+                    key={tool}
+                        onClick={() => handleItemToggle(tool, selectedBlockId)}
+                    style={{
+                          padding: '0.75rem 1rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: isSelected ? '#ecfdf5' : 'white',
+                      color: isSelected ? '#065f46' : '#374151',
+                      fontWeight: isSelected ? '600' : '400',
+                      borderBottom: '1px solid #f3f4f6',
+                          fontSize: '0.875rem',
+                          transition: 'background-color 100ms',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
+                  >
+                        <span>{tool}</span>
+                    {isSelected && <Check style={{ width: '1rem', height: '1rem', color: '#059669' }} />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
 
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
             gap: '2rem',
-            '@media (min-width: 1024px)': { flexDirection: 'row' },
+            // FIX: Use dynamic property instead of invalid @media inline style
+            flexDirection: isDesktop ? 'row' : 'column',
           }}
         >
           {/* --- Canvas Area and Point Management --- */}
           <div style={{ flex: '1 1 0%', minWidth: '0' }}>
+             {/* Control Buttons for Points */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+              <button
+                onClick={addPoint}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#22c55e', // Green-500
+                  color: 'white',
+                  fontWeight: '600',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'background-color 150ms',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#16a34a')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#22c55e')}
+              >
+                <Plus style={{ width: '1.25rem', height: '1.25rem' }} /> Add Data Point
+              </button>
+              <button
+                onClick={removeLastAddedPoint}
+                disabled={points.length <= 2}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: points.length <= 2 ? '#9ca3af' : '#ef4444', // Red-500 or gray
+                  color: 'white',
+                  fontWeight: '600',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  cursor: points.length <= 2 ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'background-color 150ms',
+                }}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = points.length <= 2 ? '#9ca3af' : '#dc2626')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = points.length <= 2 ? '#9ca3af' : '#ef4444')}
+              >
+                <Minus style={{ width: '1.25rem', height: '1.25rem' }} /> Remove Last Added
+              </button>
+            </div>
+
             {/* Chart */}
             <div
               style={{
@@ -363,8 +973,8 @@ const EnergyProfileModal = ({
                 marginBottom: '0.5rem',
               }}
             >
-              <span>Energy Profile (Click and Drag)</span>
-              <span>Iters (Time)</span>
+              <span>Energy Profile (Y-Axis)</span>
+              <span>Iters (X-Axis)</span>
             </div>
             <div
               style={{
@@ -381,7 +991,11 @@ const EnergyProfileModal = ({
               onMouseDown={handleMouseDown}
             >
               <canvas
-                ref={canvasRef}
+                ref={(ref) => {
+                  if (ref && selectedBlockId) {
+                    canvasRefs.current[selectedBlockId] = ref;
+                  }
+                }}
                 width={CANVAS_WIDTH}
                 height={CANVAS_HEIGHT}
                 style={{ display: 'block' }}
@@ -406,10 +1020,10 @@ const EnergyProfileModal = ({
               </div>
             </div>
 
-            {/* Point Management/Deletion UI */}
+            {/* Point Management/Deletion UI List */}
             <div
               style={{
-                marginTop: '1rem',
+                marginTop: '1.5rem',
                 padding: '0.75rem',
                 backgroundColor: 'white',
                 borderRadius: '0.75rem',
@@ -427,7 +1041,7 @@ const EnergyProfileModal = ({
                   paddingBottom: '0.5rem',
                 }}
               >
-                Segment Points ({points.length} Total)
+                Individual Segment Points ({points.length} Total)
               </h3>
               <div
                 style={{
@@ -466,6 +1080,7 @@ const EnergyProfileModal = ({
                       <span style={{ color: '#065f46', fontWeight: '700' }}>
                         E:{mapYToEnergy(point.y)}
                       </span>
+                      {/* Only allow removal if there are more than 2 points */}
                       {points.length > 2 && (
                         <button
                           onClick={() => removePoint(point.id)}
@@ -567,32 +1182,32 @@ const EnergyProfileModal = ({
               )}
             </div>
 
-            {/* Send Message Button */}
+            {/* Save and Back Button */}
+            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
             <button
-              onClick={handleSend}
+                onClick={() => setSelectedBlockId(null)}
               style={{
-                marginTop: '1.5rem',
-                width: '100%',
+                  flex: 1,
                 padding: '0.75rem 1.5rem',
                 fontSize: '1rem',
-                fontWeight: '700',
-                color: 'white',
-                backgroundColor: '#10b981',
+                  fontWeight: '600',
+                  color: '#6b7280',
+                  backgroundColor: '#f3f4f6',
                 border: 'none',
                 borderRadius: '0.5rem',
                 cursor: 'pointer',
-                transition: 'background-color 150ms ease-in-out',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                  transition: 'background-color 150ms',
               }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#10b981')}
+                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
             >
-              Send Message
+                Save & Back to Blocks
             </button>
           </div>
         </div>
+        </div>
+          </div>
+        )}
       </div>
     </div>
   );

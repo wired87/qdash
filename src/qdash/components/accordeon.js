@@ -1,6 +1,7 @@
 import {Accordion, AccordionItem} from "@heroui/react";
 import {Button, Input} from "@heroui/react";
-import {useState} from "react";
+import {useCallback, useState} from "react";
+import ParticleChoice from "./node_cfg/particle_choice_dd";
 
 const filteredCfg = {
     sim_time_s: {
@@ -50,8 +51,10 @@ const filteredCfg = {
 const ConfigAccordion = ({sendMessage}) => {
     const [completed, setCompleted] = useState(false);
     const [cfg, setCfg] = useState(filteredCfg);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [selectedTools, setSelectedTools] = useState([]);
 
-    const handleValueChange = (sid, newValue) => {
+    const handleValueChange = useCallback((sid, newValue) => {
         setCfg((prevCfg) => {
             let updatedCfg = {...prevCfg};
             if (updatedCfg[sid]) {
@@ -67,7 +70,16 @@ const ConfigAccordion = ({sendMessage}) => {
             }
             return updatedCfg;
         });
-    };
+    }, []);
+
+    const updateIsDropdownOpen = useCallback(() => {
+        setIsDropdownOpen(!isDropdownOpen);
+    }, [isDropdownOpen]);
+
+    const updateSelectedTools = useCallback((item) => {
+        setSelectedTools(item);
+        handleValueChange("particle", item);
+    }, [handleValueChange]);
 
     const filter_cfg = () => {
         const maxValues = Object.fromEntries(
@@ -78,8 +90,7 @@ const ConfigAccordion = ({sendMessage}) => {
     };
 
     const send = () => {
-        sendMessage(
-            {
+        sendMessage({
                 world_cfg: [filter_cfg()],
                 type: "world_cfg",
                 timestamp: new Date().toISOString(),
@@ -88,12 +99,25 @@ const ConfigAccordion = ({sendMessage}) => {
         setCompleted(true);
     }
 
-    /*
-    const handle_disabled = (sid) => {
-
-        return disabled_key.includes(sid);
-    };
-     */
+    const validate_input = useCallback((key) => {
+        if (key !== "particle") {
+            return(
+                <Input
+                    disabled={false} // handle_disabled(key)
+                    value={cfg[key]?.value || ''}
+                    onValueChange={(val) => handleValueChange(key, val)}
+                    size="sm"
+                />
+            )
+        }
+        return(
+            <ParticleChoice
+                updateSelectedTools={updateSelectedTools}
+                updateIsDropdownOpen={updateIsDropdownOpen}
+                isDropdownOpen={isDropdownOpen}
+            />
+        )
+    }, [cfg, updateSelectedTools, updateIsDropdownOpen, isDropdownOpen, handleValueChange])
 
     const get_input = (sid, attrs) => {
         return (
@@ -104,12 +128,7 @@ const ConfigAccordion = ({sendMessage}) => {
                 <label style={{fontSize: "0.875rem", fontWeight: 500}}>
                     {sid} {attrs.description && <span title={attrs.description}>ℹ️</span>}
                 </label>
-                <Input
-                    disabled={false} // handle_disabled(sid)
-                    value={attrs.value}
-                    onValueChange={(val) => handleValueChange(sid, val)}
-                    size="sm"
-                />
+                {validate_input(sid)}
             </div>
         )
     }

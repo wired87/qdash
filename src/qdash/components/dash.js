@@ -1,5 +1,6 @@
-import React, {useCallback} from "react";
+import React, {useCallback, useState} from "react";
 import {Button} from "@heroui/react";
+import EnergyProfileModal from "./node_cfg/block_visual";
 
 
 const CustomChip = ({children, color, className = ""}) => {
@@ -100,13 +101,71 @@ export const Dashboard = (
         toggleModal,
         startSim,
         toggleNcfg,
+        toggleDataSlider,
+        sendMessage,
+        isDataSliderOpen,
     }
 ) => {
+    const [envNcfg, setEnvNcfg] = useState("")
+    const [isNcfgModalOpen, setIsNcfgModalOpen] = useState(false)
+    const [blockVisualData, setBlockVisualData] = useState({
+        points: [
+            { id: 0, x: 50, y: 150 },
+            { id: 1, x: 550, y: 150 },
+        ],
+        output: [],
+        selectedTools: []
+    });
+    
     const addEnvLen = useCallback(() => {
         const len_envs = Object.keys(envs).length
         console.log("envs len", len_envs);
         return len_envs
     }, [envs])
+
+    const handleSetNcfg = (env_id) => {
+        setEnvNcfg(env_id)
+        setIsNcfgModalOpen(true)
+        // Initialize with default blocks array
+        setBlockVisualData({
+            blocks: [{
+                id: Date.now(),
+                points: [
+                    { id: 0, x: 50, y: 150 },
+                    { id: 1, x: 550, y: 150 },
+                ],
+                output: [],
+                selectedTools: []
+            }]
+        });
+    }
+
+    const handleCloseNcfgModal = () => {
+        setIsNcfgModalOpen(false)
+        setEnvNcfg("")
+        setBlockVisualData({
+            blocks: [{
+                id: Date.now(),
+                points: [
+                    { id: 0, x: 50, y: 150 },
+                    { id: 1, x: 550, y: 150 },
+                ],
+                output: [],
+                selectedTools: []
+            }]
+        });
+    }
+
+    const handleSendNcfg = (data) => {
+        // Send all blocks data with the environment ID
+        sendMessage({
+            type: "ncfg",
+            env_id: envNcfg,
+            node_cfg: data.blocks || [],
+            timestamp: new Date().toISOString(),
+        });
+        handleCloseNcfgModal();
+    }
 
     const get_content = useCallback(() => {
         if (addEnvLen() > 0 ) {
@@ -155,7 +214,7 @@ export const Dashboard = (
                             </td>
                             <td style={styles.cell}>
                                 <Button
-                                    onPress={() => toggleNcfg()}
+                                    onPress={() => handleSetNcfg(env_id)}
                                     color="primary"
                                     style={{
                                         width: "10vh",
@@ -165,17 +224,32 @@ export const Dashboard = (
                                         alignItems: "center",
                                     }}
                                 >
-                                    Show Graph
+                                    SetNcfg
                                 </Button>
                             </td>
 
                             {/* Column 3: Start Sim Button */}
                             <td style={styles.cell}>
-                                <Button
-                                    onPress={() => startSim(env_id)}
-                                    startContent="📊">
-                                    Start Sim
-                                </Button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <Button
+                                        onPress={() => startSim(env_id)}
+                                        startContent="📊">
+                                        Start Sim
+                                    </Button>
+                                    <Button
+                                        onPress={() => {
+                                            toggleDataSlider();
+                                            sendMessage({
+                                                type: "toggle_data_slider",
+                                                env_id: env_id,
+                                                timestamp: new Date().toISOString(),
+                                            });
+                                        }}
+                                        color="secondary"
+                                        startContent="📊">
+                                        {isDataSliderOpen ? "Close Data" : "Open Data"}
+                                    </Button>
+                                </div>
                             </td>
                         </tr>
                     ))}
@@ -185,9 +259,7 @@ export const Dashboard = (
         }else {
             return <p> No environments created now... </p>
         }
-    }, [envs, addEnvLen,  toggleNcfg])
-
-
+    }, [envs, addEnvLen, toggleNcfg, toggleDataSlider, sendMessage, isDataSliderOpen])
 
     return (
     <>
@@ -219,6 +291,15 @@ export const Dashboard = (
                 </div>
             </div>
         </div>
+
+        {/* Block Visual Modal - Opens directly when SetNcfg is clicked */}
+        {isNcfgModalOpen && envNcfg && (
+            <EnergyProfileModal
+                initialData={blockVisualData}
+                onClose={handleCloseNcfgModal}
+                onSend={handleSendNcfg}
+            />
+        )}
     </>
     );
 };

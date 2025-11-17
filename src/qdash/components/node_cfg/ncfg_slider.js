@@ -184,15 +184,7 @@ const NCfgCreator = ({ sendMessage, isOpen, onToggle }) => {
                 >
                     &larr; Back to Block List
                 </button>
-                <EnergyProfileModal
-                    initialData={currentBlock.visual_data}
-                    onDataChange={handleVisualDataChange}
-                    onSend={sendMessage({
-                      type: "node_cfg",
-                      env_id: "envId",
-                      timestamp: new Date().toISOString(),
-                    })}
-                />
+
             </div>
         );
     }

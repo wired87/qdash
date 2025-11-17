@@ -135,15 +135,15 @@ export const TerminalConsole = ({
 
 
     const {
-    files,
-    loading,
-    fileInputRef,
-    handleDrop,
-    handleFileSelect,
-    handleUpload,
-    handleDragOver,
-    handleRemoveFile,
-  } = useFile();
+        files,
+        loading,
+        fileInputRef,
+        handleDrop,
+        handleFileSelect,
+        handleUpload,
+        handleDragOver,
+        handleRemoveFile,
+      } = useFile();
 
 
   // Define 5 action cases
