@@ -1,112 +1,83 @@
-import React, { useState, useCallback } from "react";
-import {useFile} from "../../hooks/useFile";
-import {BucketStruct} from "./bucket_view";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import Webcam from "react-webcam";
+import { useFile } from "../../hooks/useFile";
+import { Camera, X, Paperclip } from "lucide-react";
 
-const CustomChip = ({ children, color, size, style: customStyle = {}, onPress }) => {
-    const baseStyle = {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: '9999px',
-        fontWeight: '500',
-        transition: 'all 0.15s',
-        cursor: onPress ? 'pointer' : 'default',
-    };
 
-    const sizeStyle = size === 'sm' ? { paddingLeft: '0.5rem', paddingRight: '0.5rem', paddingTop: '0.125rem', paddingBottom: '0.125rem', fontSize: '0.75rem' } : { paddingLeft: '0.75rem', paddingRight: '0.75rem', paddingTop: '0.25rem', paddingBottom: '0.25rem', fontSize: '0.875rem' };
+const CustomChip = ({ children, color, size, className = "", onPress }) => {
+  const baseClasses = "inline-flex items-center justify-center rounded-md font-medium transition-all duration-150";
+  const cursorClass = onPress ? "cursor-pointer hover:bg-gray-700" : "cursor-default";
 
-    let colorStyle = { backgroundColor: '#4b5563', color: '#d1d5db' };
+  const sizeClasses = size === 'sm'
+    ? "px-2 py-0.5 text-xs"
+    : "px-3 py-1 text-sm";
 
-    // Color schemes translated to inline CSS
-    if (color === 'primary') colorStyle = { backgroundColor: 'rgba(22, 163, 74, 0.2)', color: '#4ade80', border: '1px solid #16a34a' }; // Green
-    else if (color === 'danger') colorStyle = { backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid #ef4444' }; // Red
-    else if (color === 'warning') colorStyle = { backgroundColor: 'rgba(251, 191, 36, 0.2)', color: '#fcd34d', border: '1px solid #f59e0b' }; // Yellow
-    else if (color === 'success') colorStyle = { backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', border: '1px solid #3b82f6' }; // Blue (System)
-    else if (color === 'secondary') colorStyle = { backgroundColor: 'rgba(75, 85, 99, 0.2)', color: '#9ca3af', border: '1px solid #4b5563' }; // Dark Gray
-    else if (color === 'default') colorStyle = { backgroundColor: 'rgba(55, 65, 81, 0.5)', color: '#9ca3af', border: '1px solid #374151' }; // Faded/Bordered Gray
+  let colorClasses = "bg-gray-900/50 text-gray-300 border border-gray-700";
 
-    const interactionStyle = onPress ? { cursor: 'pointer', ':hover': { backgroundColor: '#374151' } } : {};
+  if (color === 'primary') colorClasses = "bg-blue-50 text-blue-600 border border-blue-200";
+  else if (color === 'danger') colorClasses = "bg-red-50 text-red-600 border border-red-200";
+  else if (color === 'warning') colorClasses = "bg-amber-50 text-amber-600 border border-amber-200";
+  else if (color === 'success') colorClasses = "bg-emerald-50 text-emerald-600 border border-emerald-200";
+  else if (color === 'secondary') colorClasses = "bg-slate-100 text-slate-600 border border-slate-200";
+  else if (color === 'default') colorClasses = "bg-slate-50 text-slate-500 border border-slate-200";
 
-    return (
-        <span
-            onClick={onPress}
-            style={{ ...baseStyle, ...sizeStyle, ...colorStyle, ...interactionStyle, ...customStyle }}
-        >
-            {children}
-        </span>
-    );
+  return (
+    <span
+      onClick={onPress}
+      className={`${baseClasses} ${sizeClasses} ${colorClasses} ${cursorClass} ${className}`}
+    >
+      {children}
+    </span>
+  );
 };
 
-// Custom Button Component (replaces external Button)
-const CustomButton = ({ children, onPress, isIconOnly, style: customStyle = {}, title, type = "button" }) => {
-    const baseStyle = {
-        borderRadius: '0.5rem',
-        fontWeight: '600',
-        transition: 'all 0.2s',
-        outline: 'none',
-        boxShadow: 'none',
-        cursor: 'pointer',
-    };
-    const sizeStyle = isIconOnly ? { padding: '0.5rem', height: '2rem', width: '2rem', fontSize: '1.125rem', display: 'flex', alignItems: 'center', justifyContent: 'center' } : { paddingLeft: '0.75rem', paddingRight: '0.75rem', paddingTop: '0.375rem', paddingBottom: '0.375rem', fontSize: '0.875rem', height: '2rem' };
+const CustomButton = ({ children, onPress, isIconOnly, className = "", title, type = "button" }) => {
+  const baseClasses = "rounded-lg font-semibold transition-all duration-200 outline-none focus:outline-none cursor-pointer flex-shrink-0";
 
-    const defaultColorStyle = { backgroundColor: '#10b981', color: '#ffffff', ':hover': { backgroundColor: '#059669' } };
+  const sizeClasses = isIconOnly
+    ? "p-2 h-8 w-8 text-lg flex items-center justify-center"
+    : "px-3 py-1.5 text-sm h-8";
 
-    const iconButtonStyle = isIconOnly ? {
-        backgroundColor: 'transparent',
-        color: '#9ca3af',
-        border: '1px solid #374151',
-        ':hover': { backgroundColor: '#1f2937' }
-    } : {};
+  // Neon Button Styles
+  const defaultColorClasses = "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-blue-600 shadow-sm";
 
-    return (
-        <button
-            onClick={onPress}
-            title={title}
-            type={type}
-            style={{
-                ...baseStyle,
-                ...sizeStyle,
-                ...defaultColorStyle,
-                ...iconButtonStyle,
-                ...customStyle
-            }}
-        >
-            {children}
-        </button>
-    );
+  const iconButtonClasses = isIconOnly
+    ? "bg-transparent text-slate-500 border border-transparent hover:text-blue-600 hover:bg-slate-100"
+    : defaultColorClasses;
+
+  // If className overrides colors, we should be careful, but Tailwind handles specificity usually by order or !important. 
+  // Here we assume className might add margins or specific overrides.
+
+  // If it's an icon button, we don't want the default green background unless specified.
+  const finalClasses = isIconOnly ? iconButtonClasses : defaultColorClasses;
+
+  return (
+    <button
+      onClick={onPress}
+      title={title}
+      type={type}
+      className={`${baseClasses} ${sizeClasses} ${finalClasses} ${className}`}
+    >
+      {children}
+    </button>
+  );
 };
 
-// Custom Input Component (replaces external Input)
-const CustomInput = ({ placeholder, value, onValueChange, style: customStyle = {} }) => {
-    const inputStyle = {
-        width: '100%',
-        backgroundColor: 'transparent',
-        outline: 'none',
-        fontSize: '1rem',
-        fontFamily: 'monospace',
-        padding: '0',
-        margin: '0',
-        border: 'none',
-        color: '#e5e7eb', // Always bright color since disabled state is removed
-    };
-
-    return (
-        <input
-            type="text"
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => {
-                // Defensive check to avoid TypeError
-                if (typeof onValueChange === 'function') {
-                    onValueChange(e.target.value);
-                }
-            }}
-            style={{ ...inputStyle, ...customStyle }}
-        />
-    );
+const CustomInput = ({ placeholder, value, onValueChange, className = "" }) => {
+  return (
+    <input
+      type="text"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => {
+        if (typeof onValueChange === 'function') {
+          onValueChange(e.target.value);
+        }
+      }}
+      className={`w-full bg-transparent outline-none text-base font-mono p-0 m-0 border-none text-slate-900 placeholder-slate-400 ${className}`}
+    />
+  );
 };
-
-
 
 export const TerminalConsole = ({
   error,
@@ -114,289 +85,249 @@ export const TerminalConsole = ({
   isConnected,
   inputValue,
   updateInputValue,
-    toggleCfgSlider,
-    toggleDataSlider,
-    toggleDashboard,
-    sendMessage,
-    envs,
-    toggleBucket,
-    toggleNcfgSlider,
+  toggleCfgSlider,
+  toggleDataSlider,
+  toggleDashboard,
+  sendMessage,
+  envs,
+  toggleBucket,
+  toggleNcfgSlider,
+  toggleLogSidebar,
+  toggleClusterModal,
+  toggleInjection,
+  toggleBilling,
+  saveMessage,
+  setMessages,
+  fbIsConnected = true, // Default to true to avoid flashing if not passed
+  messages,
   options = [],
+  isVisible = true,
+  userProfile,
+  isVoiceActive,
+  setIsVoiceActive,
+  toggleModuleDesigner,
+  toggleFieldDesigner,
+  toggleSessionConfig
 }) => {
-  // Set initial state to true so the history window shows up immediately
   const [isExpanded, setIsExpanded] = useState(true);
-  const [messages, setMessages] = useState([
-      {
-          type: "dave", // Use "COMMAND" type for user input
-          text: "Hi, Im dave, I support you within the entire simulation process. Your todos: \n1. Create wcfg\n2. create ncfg\n3.run and monitor sim\n4. viauslize and export data\n5. apply ml if needed",
-          timestamp: new Date().toISOString(),
-      }
-  ]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const webcamRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
+  // Listen for external camera trigger
+  useEffect(() => {
+    if (window.externalAction === "open_camera") {
+      setIsCameraOpen(true);
+      window.externalAction = null; // Reset
+    }
+  }, [messages]);
 
-    const {
-        files,
-        loading,
-        fileInputRef,
-        handleDrop,
-        handleFileSelect,
-        handleUpload,
-        handleDragOver,
-        handleRemoveFile,
-      } = useFile();
+  const {
+    files,
+    loading,
+    fileInputRef,
+    handleDrop,
+    handleFileSelect,
+    handleDragOver,
+    handleRemoveFile,
+    clearFiles,
+  } = useFile();
 
+  // Better approach: MainApp passes a prop. But for now let's add a manual trigger button.
 
-  // Define 5 action cases
+  const capturePhoto = useCallback(() => {
+    const imageSrc = webcamRef.current.getScreenshot();
+    if (imageSrc) {
+      // Convert data URL to File object
+      fetch(imageSrc)
+        .then(res => res.blob())
+        .then(blob => {
+          const file = new File([blob], `photo_${Date.now()}.jpg`, { type: "image/jpeg" });
+          const mockEvent = { target: { files: [file] } };
+          handleFileSelect(mockEvent);
+          setIsCameraOpen(false);
+        });
+    }
+  }, [webcamRef, handleFileSelect]);
+
+  const openUpgradeModal = () => {
+    // In real app, call backend to get stripe URL
+    window.open("https://example.com/upgrade", "_blank");
+  };
+
+  useEffect(() => {
+    if (isExpanded) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isExpanded]);
+
   const actionButtons = [
-    { name: "Show ENVs", case: "show_envs" },
-    { name: "Set Config", case: "set_config" },
-    { name: "Data Space", case: "watch_data" },
-    //{ name: "Upload Node Config", case: "upload_ncfg" },
+    { name: "Session Cfg", case: "session_cfg" },
+    { name: "Env Cfg", case: "set_config" },
+    { name: "Modules 🧩", case: "module" },
+    { name: "Fields 📊", case: "fields_manager" },
+    { name: "Injection ⚡", case: "injection" },
   ];
 
-  // Handler for the 5 action buttons
   const handleAction = useCallback((actionCase) => {
-    if (actionCase === "set_config") {
-        toggleCfgSlider()
-    }else if (actionCase === "watch_data") {
-        toggleDataSlider()
-    }else if (actionCase === "show_envs") {
-        toggleDashboard()
-    }else if (actionCase === "upload_files") {
-        toggleBucket()
-    }else if (actionCase === "upload_ncfg") {
-        toggleNcfgSlider()
-    }else {
-        updateInputValue(`${actionCase}`);
+    if (actionCase === "set_config") toggleCfgSlider();
+    else if (actionCase === "session_cfg") toggleSessionConfig();
+    else if (actionCase === "watch_data") toggleDataSlider();
+    else if (actionCase === "upload_files") toggleBucket();
+    else if (actionCase === "upload_ncfg") toggleNcfgSlider();
+    else if (actionCase === "show_logs") toggleLogSidebar();
+    else if (actionCase === "show_cluster") toggleClusterModal();
+    else if (actionCase === "injection") toggleInjection();
+    else if (actionCase === "module") toggleModuleDesigner();
+    else if (actionCase === "fields_manager") toggleFieldDesigner();
+    else if (actionCase === "change_plan" || actionCase === "view_billing" || actionCase === "upgrade_plan") toggleBilling();
+    else if (actionCase === "get_billings") {
+      // Fetch billing history via terminal command
+      updateInputValue("get_billings");
     }
-  }, [
-      updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider, toggleBucket, toggleNcfgSlider]);
+    else updateInputValue(`${actionCase}`);
+  }, [updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider, toggleBucket, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleInjection, toggleBilling]);
 
-  // Form submission handler (Handles Enter key press and Send button click)
-  const onSubmit = useCallback((e) => {
-    console.log("Form submitted with value:", inputValue);
-    e.preventDefault(); // Prevent default form submission on Enter
-
-    // Ensure inputValue is treated as a string to prevent 'trim' errors
-    const valueToSubmit = inputValue || "";
-
-    // Functional check: Only submit if connected and input is not empty
-    if (valueToSubmit.trim() && isConnected) {
-      sendMessage({
-            data: {
-                message:valueToSubmit,
-                files: files,
-            },
-            type: "cmd",
-            timestamp: new Date().toISOString(),
-        });
-      setMessages(prevMessages => [...prevMessages, {
-          type: "cmd", // Use "COMMAND" type for user input
-          text: valueToSubmit,
-          timestamp: new Date().toISOString(),
-      }]);
-    }
-  }, [inputValue, isConnected, handleSubmit, files]);
-
+  const get_env_len = useCallback((_case) => {
+    return null;
+  }, [envs]);
 
   const getMessageIcon = (type) => {
     switch (type) {
-      case "COMMAND":
-        return "💻";
-      case "CHAT_MESSAGE":
-        return "💬";
-      case "LOGS":
-        return "📋";
-      case "ERROR":
-        return "⚠️";
-      case "SYSTEM":
-        return "🔧";
-      case "cfg_file":
-        return "⚙️";
-      default:
-        return "ℹ️";
+      case "user": return "👤";
+      case "gemini": return "✨";
+      case "system": return "⚙️";
+      default: return "ℹ️";
     }
-  };
-
-  const getStatusColor = (type) => {
-    switch (type) {
-      case "ERROR":
-        return "danger";
-      case "COMMAND":
-        return "primary";
-      case "LOGS":
-        return "warning";
-      case "SYSTEM":
-        return "success";
-      case "cfg_file":
-        return "secondary";
-      default:
-        return "default";
-    }
-  };
-
-  // Base style for the fixed bottom container
-  const containerStyle = {
-    position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    margin: '0 auto',
-    maxWidth: '64rem', // max-w-5xl
-    backgroundColor: '#030712', // bg-gray-950
-    color: '#f9fafb', // text-gray-50
-    borderRadius: '0.75rem 0.75rem 0 0', // rounded-xl only top corners
-    boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.5)',
-    border: '1px solid #1f2937',
-    borderBottom: 'none',
-    fontFamily: 'monospace',
-    zIndex: 1000,
-  };
-
-  // Style for the expanded panel (includes buttons and scroll area)
-  const expandedPanelStyle = {
-    padding: '1rem',
-    paddingBottom: 0, // Padding handled by scrollable area bottom margin
-    // Near-transparent dark background for better readability against different page colors
-    backgroundColor: 'rgba(3, 7, 18, 0.95)',
-    borderBottom: '1px solid #1f2937',
-  };
-
-  // Scrollable history container style (messages only)
-  const scrollableHistoryStyle = {
-    height: '20rem', // Reduced height slightly to accommodate action buttons
-    overflowY: 'auto',
-    paddingTop: '0.75rem',
-    paddingBottom: '0.75rem',
-  };
-
-  // Message item style (show just messages)
-  const messageItemStyle = {
-    padding: '0.5rem',
-    fontSize: '0.875rem',
-    borderRadius: '0.5rem',
-    // Fully transparent background for "just messages" look
-    backgroundColor: 'transparent',
-    border: '1px solid #1f2937',
-    transition: 'all 0.2s',
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '0.75rem'
-  };
-
-
-    const get_env_len = useCallback((_case) => {
-        if (_case === "show_envs") {
-            return `(${Object.keys(envs).length})`
-        }
-        return null
-    }, [envs]);
-
-
-    const bucketProps = {
-    sendMessage,
-    files,
-    handleUpload,
-    loading,
-    fileInputRef,
-    handleFileSelect,
-    handleDragOver,
-    handleDrop,
-    handleRemoveFile
   };
 
   return (
-    <div style={containerStyle}>
-      {isExpanded && (
-        // Terminal History Area (Chat Window)
-        <div style={expandedPanelStyle}>
-          {/* Action Buttons (Placed above the scrollable message list) */}
-          <div style={scrollableHistoryStyle}>
-            {/* Output Messages */}
-            {messages.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                {messages.slice(-50).map((message, index) => (
-                  <div
-                    key={`${message.timestamp}-${index}`}
-                    style={messageItemStyle}
-                  >
-                      <span style={{ fontSize: '1.125rem', flexShrink: 0 }}>
-                        {getMessageIcon(message.type)}
-                      </span>
-                      <div style={{ flexGrow: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem' }}>
-                          <CustomChip size="sm" color={getStatusColor(message.type)} style={{ fontSize: '0.75rem', fontWeight: '600' }}>
-                            {message.type}
-                          </CustomChip>
-                          <span style={{ fontSize: '0.75rem', color: '#6b7280', flexShrink: 0 }}>
-                            {new Date(message.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <pre style={{ whiteSpace: 'pre-wrap', color: '#d1d5db' }}>
-                          {message.text || message.message}
-                        </pre>
-                        {message.cfg && (
-                          <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#fcd34d' }}>
-                            <span style={{ fontWeight: '600' }}>
-                              {getMessageIcon("cfg_file")} Config Keys:{" "}
-                            </span>
-                            {Object.keys(message.cfg).join(", ")}
-                          </div>
-                        )}
-                      </div>
-                  </div>
-                ))}
-                <BucketStruct  {...bucketProps} />
-              </div>
-            ) : (
-              // Empty State
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '150px', color: '#555' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📟</div>
-                <p style={{ fontSize: '1.25rem', fontWeight: '600' }}>Ready for Action</p>
-                <p style={{ fontSize: '0.875rem' }}>Use the buttons above or type a command.</p>
-              </div>
-            )}
+    <div
+      className={`fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl 
+        bg-white text-slate-800 rounded-lg z-50 
+        transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] font-mono border border-slate-200
+        shadow-2xl
+        ${isVisible ? 'translate-y-0' : 'translate-y-[120%]'}
+        ${isDragging ? 'bg-slate-50 border-blue-400 ring-2 ring-blue-200' : 'bg-white'}
+      `}
+      onDragEnter={() => setIsDragging(true)}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+          setIsDragging(false);
+        }
+      }}
+      onDragOver={handleDragOver}
+      onDrop={(e) => {
+        handleDrop(e);
+        setIsDragging(false);
+      }}
+    >
+      {/* Drag & Drop Overlay Layer - Explicitly covering everything if dragging, though the container handles it */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/90 rounded-lg pointer-events-none backdrop-blur-sm border-2 border-dashed border-blue-400">
+          <p className="text-2xl font-bold text-blue-600 animate-pulse">Drop files here</p>
+        </div>
+      )}
+
+      {/* WebSocket Connection Loading Overlay */}
+      {/* WebSocket Connection Loading Overlay - Removed per request */}
+      {/* {!isConnected && null} - removed entirely */}
+
+      {/* Camera Modal Overlay */}
+      {/* Small Floating Camera Preview */}
+      {isCameraOpen && (
+        <div className="absolute bottom-20 right-6 z-[60] w-64 bg-black rounded-xl border border-slate-600 shadow-2xl overflow-hidden">
+          <div className="relative">
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="w-full h-auto object-cover"
+            />
+
+            {/* Overlay Controls */}
+            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-4 p-2 bg-gradient-to-t from-black/80 to-transparent">
+              <button
+                onClick={capturePhoto}
+                className="p-2 bg-white rounded-full text-blue-600 hover:bg-blue-50 transition-colors shadow-lg"
+                title="Capture"
+              >
+                <Camera size={20} />
+              </button>
+              <button
+                onClick={() => setIsCameraOpen(false)}
+                className="p-2 bg-red-500/80 rounded-full text-white hover:bg-red-600 transition-colors shadow-lg"
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Input and Controls Area */}
-      <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', paddingTop: isExpanded ? '0.5rem' : '1rem' }}>
-        <div style={{
-            display: 'flex',
-            gap: '0.5rem',
-            paddingBottom: '0.75rem',
-            borderBottom: '1px solid #1f2937',
-          }}>
-            {actionButtons.map((btn) => (
-                <CustomButton
-                    key={btn.case}
-                    onPress={
-                        () => handleAction(btn.case)
-                    }
-                    style={{
-                      flexShrink: 0,
-                      backgroundColor: '#1f2937',
-                      color: '#4ade80',
-                      border: '1px solid #374151',
-                      flex: '1 1 auto',
-                      minWidth: '0'
-                    }}>
-                    {btn.name} {get_env_len(btn.case)}
-                </CustomButton>
-            ))}
-          </div>
-        {/* Options / Suggestions */}
+      <div
+        className={`overflow-hidden transition-[height] duration-300 ease-in-out ${isExpanded ? 'h-96' : 'h-0'}`}
+      >
+        <div className="h-full overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-transparent">
+          <table className="w-full text-left border-collapse">
+            <thead className="sticky top-0 bg-white z-10 text-[10px] uppercase text-slate-500 font-bold tracking-[0.2em] border-b border-slate-200 shadow-sm">
+              <tr>
+                <th className="p-3 w-24">Time</th>
+                <th className="p-3 w-28">Entity</th>
+                <th className="p-3">Data Stream</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm font-mono">
+              {messages.map((msg, index) => (
+                <tr key={index} className="hover:bg-slate-50 transition-colors border-b border-slate-100 group">
+                  <td className="p-3 text-slate-500 whitespace-nowrap align-top group-hover:text-blue-600 transition-colors">
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </td>
+                  <td className="p-3 align-top">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wide border
+                      ${msg.type === 'user' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                        msg.type === 'gemini' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
+                          msg.type === 'system' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                            'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                      {getMessageIcon(msg.type)} {msg.type}
+                    </span>
+                  </td>
+                  <td className="p-3 text-slate-700 whitespace-pre-wrap align-top leading-relaxed">
+                    {msg.text}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="flex gap-2 mb-3 overflow-x-auto pb-2 scrollbar-hide">
+          {actionButtons.map((btn) => (
+            <CustomButton
+              key={btn.case}
+              onPress={() => handleAction(btn.case)}
+              className="bg-slate-50 text-slate-600 border border-slate-200 hover:bg-white hover:text-blue-600 hover:shadow-md flex-1 min-w-fit transition-all duration-300"
+            >
+              {btn.name} {get_env_len(btn.case)}
+            </CustomButton>
+          ))}
+        </div>
+
         {options.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.75rem', color: '#9ca3af', alignSelf: 'center', marginRight: '0.25rem' }}>Suggestions:</span>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <span className="text-xs text-slate-500 self-center mr-1 font-bold uppercase tracking-wider">Signals:</span>
             {options.map((option, index) => (
               <CustomChip
                 key={index}
                 size="sm"
                 color="default"
                 onPress={() => updateInputValue(option)}
-                style={{ cursor: 'pointer', ':hover': { backgroundColor: '#374151', color: '#d1d5db' } }}
+                className="cursor-pointer hover:bg-gray-700 hover:text-gray-300"
               >
                 {option}
               </CustomChip>
@@ -404,70 +335,139 @@ export const TerminalConsole = ({
           </div>
         )}
 
-        <form onSubmit={onSubmit} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(files); clearFiles(); }} className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {/* WS Status */}
+            <div className="flex items-center gap-1.5" title="WebSocket Connection">
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+              />
+              <span className="text-xs text-slate-500 font-bold tracking-wider uppercase">
+                {isConnected ? "ONLINE" : "OFFLINE"}
+              </span>
+            </div>
+
+            {/* System Status */}
+            <div className="flex items-center gap-1.5" title="System Connection">
+              {!fbIsConnected ? (
+                <>
+                  <div className="w-1.5 h-1.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-slate-500 font-bold tracking-wider uppercase animate-pulse">SYNC...</span>
+                </>
+              ) : (
+                <>
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  <span className="text-xs text-slate-500 font-bold tracking-wider uppercase">NET</span>
+                </>
+              )}
+            </div>
+
+            {/* Voice Status */}
             <div
-              style={{
-                width: '0.625rem',
-                height: '0.625rem',
-                borderRadius: '50%',
-                backgroundColor: isConnected ? '#10b981' : '#ef4444'
-              }}
-            />
-            <span style={{ fontSize: '0.875rem', color: '#9ca3af' }}>
-              {isConnected ? "Ready" : "Offline"}
-            </span>
+              className={`flex items-center gap-1.5 cursor-pointer transition-all px-2 py-0.5 rounded ${isVoiceActive ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'hover:bg-slate-100 text-slate-500'}`}
+              title="Toggle Voice Control (Natural Language Shortcuts)"
+              onClick={() => setIsVoiceActive(!isVoiceActive)}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${isVoiceActive ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+              <span className="text-xs font-bold tracking-wider uppercase">
+                {isVoiceActive ? "MIC ON" : "MIC OFF"}
+              </span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', flexGrow: 1, backgroundColor: '#1f2937', borderRadius: '0.5rem', padding: '0.25rem', border: '1px solid #374151' }}>
-            <span style={{ color: '#4ade80', fontWeight: '700', fontSize: '1.125rem', paddingLeft: '0.5rem', paddingRight: '0.25rem', flexShrink: 0 }}>$</span>
+          <div className="flex items-center flex-grow bg-slate-50 border border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 rounded p-2 transition-all">
+            <span className="text-slate-400 font-bold text-lg pr-2 flex-shrink-0">$</span>
             <CustomInput
-              placeholder={
-                isConnected
-                  ? "Enter command or choose a suggestion..."
-                  : "Disconnected - waiting..."
-              }
+              placeholder={isConnected ? "Query system..." : "Connection lost"}
               value={inputValue}
               onValueChange={updateInputValue}
-              style={{ flexGrow: 1 }}
+              className="flex-grow text-slate-900 placeholder-slate-400"
             />
+            {/* Camera Button inside input container */}
+            <button
+              type="button"
+              onClick={() => setIsCameraOpen(true)}
+              className="text-slate-400 hover:text-blue-600 transition-all ml-2"
+              title="Activate Visual Input"
+            >
+              <Camera size={18} />
+            </button>
+            {/* File Upload Button */}
+            <input
+              type="file"
+              multiple
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              className="hidden"
+              id="terminal-file-upload"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-slate-400 hover:text-blue-600 transition-all ml-2"
+              title="Attach Files"
+            >
+              <Paperclip size={18} />
+            </button>
           </div>
 
-          <CustomButton
-            type="submit"
-            style={{ flexShrink: 0 }}
-            onclick={onSubmit}>
+          <CustomButton type="submit" className="flex-shrink-0">
             Send
           </CustomButton>
 
           <CustomButton
             isIconOnly
             onPress={() => setIsExpanded(!isExpanded)}
-            title={isExpanded ? "Collapse terminal" : "Expand terminal"}
-            style={{ color: '#9ca3af', border: '1px solid #374151', backgroundColor: 'transparent', flexShrink: 0 }}
-            type="button"
+            title={isExpanded ? "Collapse" : "Expand"}
+            className="text-slate-500 border border-transparent bg-transparent hover:bg-slate-100 hover:text-blue-600 flex-shrink-0 shadow-none"
           >
-            <span style={{ fontSize: '1.125rem' }}>{isExpanded ? "⬇️" : "⬆️"}</span>
+            <span className={`text-xs transition-transform duration-300 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
+              ▲
+            </span>
           </CustomButton>
-
         </form>
 
-        {error && (
-          // Error Message Bar
-          <div style={{ marginTop: '0.75rem' }}>
-            <div style={{ backgroundColor: 'rgba(127, 29, 29, 0.3)', border: '1px solid #b91c1c', color: '#f87171', borderRadius: '0.5rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '0.75rem', padding: '0.75rem' }}>
-                <span style={{ fontSize: '1.25rem' }}>⚠️</span>
-                <p style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+        {
+          files.length > 0 && (
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2">
+                {files.map((file, index) => (
+                  <CustomChip
+                    key={index}
+                    size="sm"
+                    color="secondary"
+                    className="pr-1"
+                  >
+                    {file.name}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRemoveFile(index); }}
+                      className="ml-2 text-red-400 hover:text-red-300 focus:outline-none"
+                    >
+                      &times;
+                    </button>
+                  </CustomChip>
+                ))}
+              </div>
+            </div>
+          )
+        }
+
+        {
+          error && (
+            <div className="mt-3">
+              <div className="bg-red-900/30 border border-red-700 text-red-400 rounded-lg p-3 flex items-center gap-3">
+                <span className="text-xl">⚠️</span>
+                <p className="text-sm font-semibold">
                   Error: {error.message || "Unknown Error"}
                 </p>
               </div>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+          )
+        }
+      </div >
+    </div >
   );
 };
 
 export default TerminalConsole;
+

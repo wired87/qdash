@@ -1,492 +1,728 @@
-import React, {useState, useCallback} from "react";
-import {Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader} from "@heroui/react";
-import { DataSlider } from "./components/DataSlider";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useEnvStore } from "./env_store";
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/react";
+
 
 import "../index.css";
 import WorldCfgCreator from "./components/world_cfg";
 import _useWebSocket from "./websocket";
+import { USER_ID_KEY } from "./auth";
 import Dashboard from "./components/dash";
-import {useFirebaseListeners} from "./firebase";
-import {getNodeColor} from "./get_color";
-import {NodeInfoPanel} from "./components/node_info_panel";
-import {ThreeScene} from "./_use_three";
+import { useFirebaseListeners } from "./firebase";
+import { getNodeColor } from "./get_color";
+import { NodeInfoPanel } from "./components/node_info_panel";
+import { ThreeScene } from "./_use_three";
 import TerminalConsole from "./components/terminal";
-import ToDoCard from "./components/todo_card";
+import { classifyAndRespond, analyzeCommand, generateSimpleResponse } from "./gemini";
 import NCfgCreator from "./components/node_cfg/ncfg_slider";
+import LogSidebar from "./components/log_sidebar";
+import { ClusterVisualizerModal } from "./components/cluster_visualizer";
+import { LandingPage } from "./components/landing_page";
+import { initializeVoice, processVoiceInput } from "./voice_logic";
 
+
+import { AuthForm } from "./components/AuthForm";
+import { DataSlider } from "./components/DataSlider";
+import { UserCard } from "./components/UserCard";
+import { NCFGTreeSidebar } from "./components/NCFGTreeSidebar";
+import { NCFGModal } from "./components/NCFGModal";
+import EnergyDesignerWithViz from "./components/EnergyDesignerWithViz";
+import BillingManager from "./components/BillingManager";
+
+import ModuleDesigner from "./components/ModuleDesigner";
+import FieldDesigner from "./components/FieldDesigner";
+import SessionConfig from "./components/SessionConfig";
+import { createOrUpdateUser, updateUserPlan as firestoreUpdateUserPlan, trackResourceUsage, getUserProfile } from "./utils/firestoreUserManager";
 
 export const MainApp = () => {
+  // 1. ALL STATE DECLARATIONS
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [fbCreds, setFbCreds] = useState(null);
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState("");
+  const [authError, setAuthError] = useState(null);
 
-  const [isDataSidebarOpen, setIsDataSidebarOpen] = useState(false);
+  const [isLogSidebarOpen, setIsLogSidebarOpen] = useState(false);
   const [isDataSliderOpen, setIsDataSliderOpen] = useState(false);
   const [isCfgSliderOpen, setIsCfgSliderOpen] = useState(false);
-  const [worldCfgCreated, setWorldCfgCreated] = useState(false);
-  const [envs, setEnvs] = useState({
-      "env_edae32cbbbaf47a985f006a7f756d11fc16822f03355430e9702bd09af1aadc14": 64,
-  });
+  const [isClusterModalOpen, setIsClusterModalOpen] = useState(false);
+  const [isDashOpen, setIsDashOpen] = useState(false);
+  const [isNSliderOpen, setIsNSliderOpen] = useState(false);
+  const [isBucketOpen, setIsBucketOpen] = useState(false);
+  const [isBillingOpen, setIsBillingOpen] = useState(false);
+  const [isModuleDesignerOpen, setIsModuleDesignerOpen] = useState(false);
+  const [isFieldDesignerOpen, setIsFieldDesignerOpen] = useState(false);
+  const [isSessionConfigOpen, setIsSessionConfigOpen] = useState(false);
+  const [selectedEnv, setSelectedEnv] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  const [envs, setEnvs] = useState({});
   const [clickedNode, setClickedNode] = useState(null);
-  const [nodeSliderOpen, setNodeOpen] = useState(null);
+  const [nodeSliderOpen, setNodeOpen] = useState(false);
   const [graph, setGraph] = useState({
-      nodes: [],
-      edges: [],
+    nodes: [],
+    edges: [],
+  });
+  const [clusterData, setClusterData] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [extractedEntities, setExtractedEntities] = useState({});
+
+  // Terminal visibility state
+  const [isTerminalVisible, setIsTerminalVisible] = useState(false);
+  const [isNCFGModalOpen, setIsNCFGModalOpen] = useState(false);
+  const [activeGridPos, setActiveGridPos] = useState(null);
+  const scrollContainerRef = useRef(null);
+
+  // Voice Control State
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const recognitionRef = useRef(null);
+
+  // Injection Designer State
+  const [injectionEnvId, setInjectionEnvId] = useState(null);
+  const [injectionData, setInjectionData] = useState({
+    blocks: [{
+      id: Date.now(),
+      points: [
+        { id: 0, x: 50, y: 150 },
+        { id: 1, x: 550, y: 150 },
+      ],
+      output: [],
+      selectedTools: [],
+    }],
   });
 
-  const updateNodesliderOpen = () => {
-    setNodeOpen(!nodeSliderOpen)
-  }
+  const [liveData, setLiveData] = useState([
+    [0, 12.5, 45.2, 88.1, 23.4, 67.8, 90.1],
+    [1, 13.2, 46.1, 87.5, 24.1, 68.2, 89.5],
+    [2, 14.1, 47.3, 86.9, 25.0, 69.1, 88.9],
+    [3, 14.8, 48.5, 86.2, 25.8, 70.5, 88.2],
+    [4, 15.5, 49.2, 85.8, 26.5, 71.2, 87.6],
+    [5, 16.2, 50.1, 85.1, 27.2, 72.0, 87.1],
+    [6, 16.9, 51.0, 84.5, 28.0, 72.8, 86.5],
+    [7, 17.5, 51.8, 83.9, 28.7, 73.5, 85.9],
+    [8, 18.2, 52.6, 83.2, 29.5, 74.2, 85.3],
+    [9, 18.9, 53.4, 82.6, 30.2, 75.0, 84.8],
+  ]);
 
-  const [dataset, setDataset] = useState(
-    {
-      keys: [],
-      rows: []
-    }
-  );
-
-  const updateNodeInfo = (nodeId, env_id) => {
-    console.log(`${nodeId} click detected`)
-    setClickedNode(
-        {
-          env: env_id,
-          node: envs[env_id]["nodes"][nodeId],
-        }
-    )
-    updateNodesliderOpen()
-  }
+  const [dataset, setDataset] = useState({ keys: [], rows: [] });
 
   const [logs, setLogs] = useState({
     node_1: {
-      err: [
-        "Connection timeout at 14:30:15",
-        "Failed to process request #1234",
-        "Memory leak detected in module XYZ",
-      ],
-      out: [
-        "Server started successfully",
-        "Processing 15 requests",
-        "Memory usage: 45%",
-        "Cache cleared successfully",
-        "Database connection established",
-      ],
+      err: ["Connection timeout at 14:30:15", "Failed to process request #1234", "Memory leak detected in module XYZ"],
+      out: ["Server started successfully", "Processing 15 requests", "Memory usage: 45%", "Cache cleared successfully", "Database connection established"],
     },
     node_2: {
       err: ["Disk space warning: 85% full", "Query timeout after 30s"],
-      out: [
-        "Database connected",
-        "Query executed in 0.03ms",
-        "Backup completed",
-        "Index rebuild finished",
-        "Replication sync completed",
-      ],
+      out: ["Database connected", "Query executed in 0.03ms", "Backup completed", "Index rebuild finished", "Replication sync completed"],
     },
     node_3: {
-      err: [
-        "Network interface down",
-        "Failed to bind to port 80",
-        "SSL certificate expired",
-      ],
+      err: ["Network interface down", "Failed to bind to port 80", "SSL certificate expired"],
       out: ["Load balancer initialized", "Health check passed"],
     },
   });
 
-  const addEnvs = (data) => {
-    console.log("Add ENV Data", data)
-    setEnvs((prev) => {
-      return {
-        ...prev,
-        ...data,
-      }
-    })
-  }
+  // 2. HELPER FUNCTIONS & CALLBACKS
+  const updateNodesliderOpen = useCallback(() => {
+    setNodeOpen(prev => !prev);
+  }, []);
 
-    const [selectedEnv, setSelectedEnv] = useState("");
-    const [isOpen, setIsOpen] = useState(false);
-    const [isDashOpen, setIsDashOpen] = useState(false);
-    const [isBucketOpen, setIsBucketOpen] = useState(false);
-    const [isNSliderOpen, setIsNSliderOpen] = useState(false);
-
-    const get_info_card = useCallback((_case) => {
-        if (!isDashOpen && !isOpen && !isCfgSliderOpen) {
-            return <ToDoCard />
-        }
-    },[isOpen, isDashOpen, isCfgSliderOpen]);
-
-
-    const toggleModal = useCallback((env_id) => {
-
-        if (env_id) {
-            setSelectedEnv(env_id);
-        }
-        setIsOpen(!isOpen);
-    }, [isOpen, selectedEnv]);
-
-    const toggleBucket = useCallback(() => {
-        setIsBucketOpen(!isBucketOpen);
-    }, [isBucketOpen]);
-
-    const modal = useCallback(() => {
-        console.log("isOpen, selectedEnv, graph",isOpen, selectedEnv, graph)
-        return (
-            <Modal 
-                isOpen={isOpen} 
-                onClose={() => toggleModal("")} 
-                size="5xl" 
-                className="graph-modal"
-                style={{position:"fixed", width:500, height:500, zIndex: 99999}}
-            >
-                <ModalContent>
-                        <>
-                            <ModalHeader className="flex flex-col gap-1 modal-header-enhanced">
-                                <h3 className="modal-title">Graph Visualization</h3>
-                                <p className="modal-subtitle">Interactive 3D Network View</p>
-                            </ModalHeader>
-                            <ModalBody>
-                                <div style={{width: "100%", height: "60vh", position: "relative"}}>
-                                    <ThreeScene
-                                        nodes={graph.nodes}
-                                        edges={graph.edges}
-                                        onNodeClick={updateNodeInfo}
-                                        env_id={selectedEnv}
-                                    />
-                                </div>
-                            </ModalBody>
-                            <ModalFooter className="modal-footer-enhanced">
-                                <Button 
-                                    color="danger" 
-                                    variant="light" 
-                                    onPress={toggleModal}
-                                    className="modal-close-button"
-                                    size="lg"
-                                >
-                                    Close
-                                </Button>
-                            </ModalFooter>
-                        </>
-
-                </ModalContent>
-            </Modal>
-        )
-    }, [isOpen, selectedEnv, graph])
-
-
-  const updateEnv = (listener_type, env_id, data) => {
-    console.log("Update Env Data");
-
-    if (listener_type === "meta") {
-      // Apply color change to the node
-      const state = data.status.state
-      let new_color = getNodeColor(state)
-      updatenodeColor(listener_type, env_id, data, new_color)
-      console.log("Updated node color:", new_color)
+  const updateNodeInfo = useCallback((nodeId, env_id, gridPos) => {
+    console.log(`${nodeId} interaction detected`, gridPos);
+    if (gridPos) {
+      setActiveGridPos(gridPos);
+      setClickedNode({ id: nodeId });
+      setIsNCFGModalOpen(true);
+      return;
     }
+    setClickedNode({
+      env: env_id,
+      node: envs[env_id]?.nodes[nodeId],
+    });
+    setNodeOpen(true);
+  }, [envs]);
 
-    setEnvs((prev) => {
-      // Kopie des vorherigen States
+  const addEnvs = useCallback((data) => {
+    setEnvs(prev => ({ ...prev, ...data }));
+  }, []);
+
+  const deleteEnv = useCallback((env_id) => {
+    setEnvs(prev => {
+      const newEnvs = { ...prev };
+      delete newEnvs[env_id];
+      return newEnvs;
+    });
+    // Also sync with global store
+    useEnvStore.getState().removeEnv(env_id);
+  }, []);
+
+  const updatenodeColor = useCallback((listener_type, env_id, data, new_color) => {
+    if (new_color === null) return;
+    setEnvs(prev => ({
+      ...prev,
+      [env_id]: {
+        ...prev[env_id],
+        [listener_type]: {
+          ...prev[env_id][listener_type],
+          [data.id]: {
+            ...prev[env_id][listener_type][data.id],
+            color: new_color,
+          },
+        },
+      },
+    }));
+  }, []);
+
+  const updateEnv = useCallback((listener_type, env_id, data) => {
+    if (listener_type === "status") {
+      setEnvs(prev => {
+        const updated = { ...prev };
+        if (updated[env_id]) updated[env_id] = { ...updated[env_id], status: data };
+        return updated;
+      });
+      return;
+    }
+    if (listener_type === "logs") {
+      setLogs(prev => ({ ...prev, ...data }));
+      return;
+    }
+    if (listener_type === "cluster_data") {
+      setClusterData(data);
+      return;
+    }
+    if (listener_type === "meta") {
+      const state = data.status.state;
+      let new_color = getNodeColor(state);
+      updatenodeColor(listener_type, env_id, data, new_color);
+    }
+    setEnvs(prev => {
       const updated = { ...prev };
-      if (
-        updated[env_id] &&
-        updated[env_id][listener_type] &&
-        updated[env_id][listener_type][data.id]
-      ) {
-
-        if (listener_type === "node" || listener_type === "edge") {
-          console.log("update node:", updated[env_id][listener_type][data.id])
-          // .update(data) vorausgesetzt → neues Objekt zurück
-          updated[env_id][listener_type][data.id] = {
-            ...updated[env_id][listener_type][data.id],
-            ...data,
-          };
-        } else if (listener_type === "meta") {
-          //Apply changes direclt inside te node
-          console.log("update node:", updated[env_id][listener_type][data.id])
-          // .update(data) vorausgesetzt → neues Objekt zurück
-          updated[env_id][listener_type][data.id] = {
-            ...updated[env_id][listener_type][data.id]["meta"],
-            ...data,
-          };
-        }
-      } else {
-        console.log(`node ${data.id} not found in ${env_id}`)
+      if (updated[env_id] && updated[env_id][listener_type] && updated[env_id][listener_type][data.id]) {
+        updated[env_id][listener_type][data.id] = { ...updated[env_id][listener_type][data.id], ...data };
       }
       return updated;
     });
-  };
-
-  const updatenodeColor = (listener_type, env_id, data, new_color) => {
-    // Wenn der Listener-Typ "meta" ist, hole die neue Farbe, ansonsten ist sie null.
-
-    // Wenn keine neue Farbe vorhanden ist, tu nichts und beende die Funktion.
-    if (new_color === null) {
-      return;
-    }
-
-    setEnvs((prev) => {
-      // Erstelle eine tiefe Kopie des Pfades, den du ändern musst.
-      return {
-        ...prev,
-        [env_id]: {
-          ...prev[env_id],
-          [listener_type]: {
-            ...prev[env_id][listener_type],
-            [data.id]: {
-              ...prev[env_id][listener_type][data.id],
-              color: new_color,
-            },
-          },
-        },
-      };
-    });
-  };
-
+  }, [updatenodeColor]);
 
   const updateCreds = useCallback((data) => {
-    if (data) {
-        setFbCreds({
-            creds: data.creds,
-            db_path: data.db_path,
-            listener_paths: data.listener_paths,
-        });
-    } else {
-        setFbCreds(null);
-    }
-  },[]);
-
-  const updateDataset = (data) => {
-    setDataset(data);
-  };
-
-
-
-  const updateGraph = (graph) => {
-      setGraph(graph)
-  }
-
-  // HOOKS
-  const {
-      messages, sendMessage,
-      isConnected
-  } = _useWebSocket(
-      updateCreds, updateDataset, addEnvs, updateGraph
-  );
-
-  const { fbIsConnected, firebaseDb } = useFirebaseListeners(
-      fbCreds,
-      updateEnv
-  )
-
-  const handleSubmit = useCallback(() => {
-    if (inputValue.trim() && isConnected) {
-      sendMessage({
-        text: inputValue,
-        type: "COMMAND",
-        timestamp: new Date().toISOString(),
-      });
-      setInputValue("");
-    }
-  }, [inputValue, isConnected, sendMessage]);
-
-  const updateInputValue = useCallback((value) => {
-    setInputValue(value);
+    if (data) setFbCreds({ creds: data.creds, db_path: data.db_path, listener_paths: data.listener_paths });
+    else setFbCreds(null);
   }, []);
 
-  const toggleDataSlider = useCallback(() => {
-    setIsDataSliderOpen(!isDataSliderOpen);
-  }, [isDataSliderOpen]);
+  const updateDataset = useCallback((data) => setDataset(data), []);
+  const updateGraph = useCallback((g) => setGraph(g), []);
 
+  const handleInjectionMessage = useCallback((message) => {
+    if (message.type === "INJ_PATTERN_STRUCT_ERR") {
+      setMessages(prev => [...prev, { text: `⚠️ Gemini Error: ${message.data}`, type: 'gemini', timestamp: new Date().toISOString() }]);
+    } else if (message.type === "INJ_PATTERN_STRUCT") {
+      const { env_id, data } = message;
+      setEnvs(prev => (prev[env_id] ? { ...prev, [env_id]: { ...prev[env_id], ...data } } : prev));
+    }
+  }, []);
 
-    const toggleNcfgSlider = useCallback(() => {
-        setIsNSliderOpen(!isNSliderOpen);
-      }, [isNSliderOpen]);
+  const addConsoleMessage = useCallback((text, type = 'system') => {
+    setMessages(prev => [...prev, { text: text, type, timestamp: new Date().toISOString() }]);
+  }, []);
 
-  const toggleDahboard = useCallback(() => {
-      console.log("toggleDahboard:", !isDashOpen)
-    setIsDashOpen(!isDashOpen);
-  }, [isDashOpen]);
+  // 3. HOOKS THAT DEPEND ON CALLBACKS
+  const { sendMessage, isConnected } = _useWebSocket(
+    updateCreds, updateDataset, addEnvs, updateGraph, setClusterData, setLiveData, handleInjectionMessage, addConsoleMessage
+  );
 
-  const toggleCfgSlider = useCallback(() => {
-     console.log("toggleDahboard:", !isDashOpen)
-    setIsCfgSliderOpen(!isCfgSliderOpen);
-  }, [isCfgSliderOpen]);
+  const {
+    fbIsConnected, firebaseDb, saveMessage, user, userProfile, signInWithEmail, signUpWithEmail, logout,
+    saveUserWorldConfig, listenToUserWorldConfig, updateUser, getPaymentUrl, loading, error: authErrorState
+  } = useFirebaseListeners(fbCreds, updateEnv, setMessages);
 
-    const startSim = (env_id) => {
-        sendMessage({
-            data: {
-                env_ids: [env_id]
-            },
-            type: "start_sim",
-            timestamp: new Date().toISOString(),
-        })
+  // 4. ACTION TOGGLES
+  const handleLogin = async (email, password) => {
+    try { setAuthError(null); await signInWithEmail(email, password); }
+    catch (e) { setAuthError(e); }
+  };
+
+  const handleSignup = async (email, password) => {
+    try { setAuthError(null); await signUpWithEmail(email, password); }
+    catch (e) { setAuthError(e); }
+  };
+
+  // Firestore: Create/Update user document on login
+  useEffect(() => {
+    const initializeUserDocument = async () => {
+      if (firebaseDb && user && fbIsConnected) {
+        try {
+          const userDoc = await createOrUpdateUser(firebaseDb, user);
+          if (userDoc) {
+            setMessages(prev => [...prev, {
+              text: `✅ Welcome ${userDoc.display_name || user.email}! Plan: ${userDoc.plan?.toUpperCase() || 'FREE'}`,
+              type: 'system',
+              timestamp: new Date().toISOString()
+            }]);
+          }
+        } catch (error) {
+          console.error('Failed to initialize user document:', error);
+          setMessages(prev => [...prev, {
+            text: `⚠️ Warning: Could not sync user profile`,
+            type: 'system',
+            timestamp: new Date().toISOString()
+          }]);
+        }
+      }
+    };
+
+    initializeUserDocument();
+  }, [firebaseDb, user, fbIsConnected]);
+
+  const updateInputValue = useCallback((value) => setInputValue(value), []);
+  const toggleDataSlider = useCallback(() => setIsDataSliderOpen(prev => !prev), []);
+  const toggleLogSidebar = useCallback(() => setIsLogSidebarOpen(prev => !prev), []);
+  const toggleClusterModal = useCallback(() => setIsClusterModalOpen(prev => !prev), []);
+  const toggleNcfgSlider = useCallback(() => setIsNSliderOpen(prev => !prev), []);
+  const toggleDahboard = useCallback(() => setIsDashOpen(prev => !prev), []);
+  const toggleCfgSlider = useCallback(() => setIsCfgSliderOpen(prev => !prev), []);
+  const toggleBucket = useCallback(() => setIsBucketOpen(prev => !prev), []);
+  const toggleBilling = useCallback(() => setIsBillingOpen(prev => !prev), []);
+  const toggleModuleDesigner = useCallback(() => setIsModuleDesignerOpen(prev => !prev), []);
+  const toggleFieldDesigner = useCallback(() => setIsFieldDesignerOpen(prev => !prev), []);
+  const toggleSessionConfig = useCallback(() => setIsSessionConfigOpen(prev => !prev), []);
+
+  const updateUserPlan = useCallback(async (uid, planData) => {
+    try {
+      // Use Firestore update if plan is being changed
+      if (firebaseDb && planData.plan) {
+        await firestoreUpdateUserPlan(firebaseDb, uid, planData.plan);
+      } else if (updateUser) {
+        // Fallback to original updateUser for other updates
+        await updateUser(uid, planData);
+      }
+      setMessages(prev => [...prev, {
+        text: `✅ Plan updated successfully to ${planData.plan?.toUpperCase() || 'updated'}`,
+        type: 'system',
+        timestamp: new Date().toISOString()
+      }]);
+    } catch (error) {
+      console.error('Failed to update plan:', error);
+      setMessages(prev => [...prev, {
+        text: `❌ Failed to update plan: ${error.message}`,
+        type: 'system',
+        timestamp: new Date().toISOString()
+      }]);
+      alert('Failed to update plan');
+    }
+  }, [updateUser, firebaseDb, setMessages]);
+
+  const toggleModal = useCallback((env_id) => {
+    if (env_id) setSelectedEnv(env_id);
+    setIsOpen(prev => !prev);
+  }, []);
+
+  const requestClusterData = useCallback((env_id) => {
+    const userId = localStorage.getItem(USER_ID_KEY);
+    sendMessage({
+      auth: {
+        user_id: userId,
+        env_id: env_id
+      },
+      data: {},
+      type: "GET_CLUSTER_DATA",
+      status: {
+        error: null,
+        state: "pending",
+        message: "Fetching cluster data",
+        code: null
+      }
+    });
+    toggleClusterModal();
+  }, [sendMessage, toggleClusterModal]);
+
+  const toggleInjection = useCallback(() => {
+    setInjectionEnvId(prev => prev === null ? 'standalone' : null);
+  }, []);
+
+  const handleCloseInjection = useCallback(() => {
+    setInjectionEnvId(null);
+  }, []);
+
+  const handleSendInjection = useCallback((data) => {
+    // Energy Designer now handles WebSocket communication directly via set_inj
+    // This callback is kept for resource tracking only
+
+    // Track injection usage
+    if (user && firebaseDb) {
+      trackResourceUsage(firebaseDb, user.uid, 'injections', 1)
+        .catch(err => console.error('Failed to track injection:', err));
     }
 
+    handleCloseInjection();
+  }, [user, firebaseDb, handleCloseInjection]);
 
+
+  const startSim = useCallback(async (env_id_or_ids) => {
+    if (userProfile?.plan === 'free') {
+      if (window.confirm("Free tier reached. Upgrade?")) window.open("https://example.com/upgrade", "_blank");
+      return;
+    }
+    if (userProfile?.balance?.compute_hours <= 0) { alert("Insufficient balance."); return; }
+
+    // Always send as array - handle both single env_id and array of env_ids
+    const env_ids = Array.isArray(env_id_or_ids) ? env_id_or_ids : [env_id_or_ids];
+    sendMessage({ data: { env_ids }, type: "START_SIM", timestamp: new Date().toISOString() });
+
+    // Track resource usage in Firestore
+    if (user && firebaseDb) {
+      try {
+        await trackResourceUsage(firebaseDb, user.uid, 'simulations', env_ids.length);
+        await updateUser(user.uid, { "active_sim": { start_time: Date.now(), rate: 10 } });
+      } catch (error) {
+        console.error('Failed to track resource usage:', error);
+      }
+    }
+  }, [userProfile, sendMessage, user, updateUser, firebaseDb]);
+
+  const startAllEnvs = useCallback(async () => {
+    const allEnvIds = Object.keys(envs);
+    if (allEnvIds.length === 0) {
+      alert("No environments to start.");
+      return;
+    }
+    await startSim(allEnvIds);
+  }, [envs, startSim]);
+
+  const executeIntent = useCallback((intent) => {
+    console.log("🎙️ Executing Voice Intent:", intent);
+    switch (intent) {
+      case "show_envs": if (!isDashOpen) toggleDahboard(); break;
+      case "set_config": if (!isCfgSliderOpen) toggleCfgSlider(); break;
+      case "watch_data": if (!isDataSliderOpen) toggleDataSlider(); break;
+      case "upload_ncfg": if (!isNSliderOpen) toggleNcfgSlider(); break;
+      case "show_logs": if (!isLogSidebarOpen) toggleLogSidebar(); break;
+      case "show_cluster": if (!isClusterModalOpen) toggleClusterModal(); break;
+      case "upload_files": if (!isBucketOpen) toggleBucket(); break;
+      case "open_camera":
+        window.externalAction = "open_camera";
+        setMessages(prev => [...prev, { text: "[VOICE] Opening Camera", type: 'system', timestamp: new Date().toISOString() }]);
+        break;
+      case "start_sim":
+        const env_to_start = selectedEnv || Object.keys(envs)[0];
+        if (env_to_start) startSim(env_to_start);
+        break;
+      default: console.warn("🎙️ Unknown voice intent:", intent);
+    }
+  }, [isDashOpen, isCfgSliderOpen, isDataSliderOpen, isNSliderOpen, isLogSidebarOpen, isClusterModalOpen, isBucketOpen, selectedEnv, envs, toggleDahboard, toggleCfgSlider, toggleDataSlider, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleBucket, startSim]);
+
+  // 5. EFFECTS
+  useEffect(() => {
+    if (isVoiceActive) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) { setIsVoiceActive(false); return; }
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true; recognition.interimResults = false; recognition.lang = 'en-US';
+      recognition.onstart = () => initializeVoice();
+      recognition.onresult = async (event) => {
+        const text = event.results[event.results.length - 1][0].transcript.trim();
+        if (!text) return;
+        setMessages(prev => [...prev, { text: `🎙️ "${text}"`, type: 'user', timestamp: new Date().toISOString() }]);
+        const match = await processVoiceInput(text);
+        if (match && match.score > 0.6) executeIntent(match.intent);
+      };
+      recognition.onerror = () => setIsVoiceActive(false);
+      recognition.onend = () => { if (isVoiceActive) try { recognition.start(); } catch { } };
+      try { recognition.start(); recognitionRef.current = recognition; } catch { }
+    } else if (recognitionRef.current) { recognitionRef.current.stop(); recognitionRef.current = null; }
+    return () => recognitionRef.current?.stop();
+  }, [isVoiceActive, executeIntent]);
+
+  useEffect(() => {
+    setMessages(prev => [...prev, {
+      text: "Welcome to Q-Dash Environment.\n\nI am ready to assist you. (type=info)",
+      type: 'gemini',
+      timestamp: new Date().toISOString(),
+    }]);
+  }, []);
+
+  // 6. RENDER HELPERS
   const get_dashboard = useCallback(() => {
-    if (isDashOpen) {
-      return(
-        <Dashboard 
-          envs={envs} 
-          startSim={startSim} 
-          toggleModal={toggleModal} 
-          toggleNcfg={toggleNcfgSlider}
-          toggleDataSlider={toggleDataSlider}
-          sendMessage={sendMessage}
-          isDataSliderOpen={isDataSliderOpen}
-        />
-      );
-    }
-    return <></>
-  }, [envs, isDashOpen, toggleNcfgSlider, toggleDataSlider, sendMessage, isDataSliderOpen]);
-
-
-
+    if (isDashOpen) return (
+      <Dashboard envs={envs} startSim={startSim} toggleModal={toggleModal} toggleNcfg={toggleNcfgSlider}
+        toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} isDataSliderOpen={isDataSliderOpen}
+        toggleLogSidebar={toggleLogSidebar} requestClusterData={requestClusterData} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive}
+        isDashOpen={isDashOpen} setIsDashOpen={setIsDashOpen} startAllEnvs={startAllEnvs} onDeleteEnv={deleteEnv}
+      />
+    );
+    return <></>;
+  }, [envs, isDashOpen, setIsDashOpen, toggleNcfgSlider, toggleDataSlider, sendMessage, isDataSliderOpen, toggleLogSidebar, requestClusterData, startSim, toggleModal, isVoiceActive, setIsVoiceActive, startAllEnvs]);
 
   const get_node_panel = useCallback(() => {
-    if (clickedNode !== null){
-      return <NodeInfoPanel
-        node={clickedNode} // Format env:env_id, node:node_objä
-        sliderOpen={nodeSliderOpen}
-        onClose={() => {
-          updateNodesliderOpen();
-          setClickedNode(null);
-        }}
-        firebaseDb={firebaseDb}
-        fbIsConnected={fbIsConnected}
-        user_id
-      />
-    }
-    else return(
-        <WorldCfgCreator
-            sendMessage={sendMessage}
-            isOpen={isCfgSliderOpen}
-            onToggle={toggleCfgSlider}
-          />
-    )
-  },[clickedNode, isCfgSliderOpen])
+    if (clickedNode !== null) return (
+      <NodeInfoPanel node={clickedNode} sliderOpen={nodeSliderOpen} onClose={() => { updateNodesliderOpen(); setClickedNode(null); }}
+        firebaseDb={firebaseDb} fbIsConnected={fbIsConnected} />
+    );
+    return <></>;
+  }, [clickedNode, nodeSliderOpen, updateNodesliderOpen, firebaseDb, fbIsConnected]);
 
-  const get_data_slider = useCallback(() => {
-    if (isDataSliderOpen) {
-      return(
-        <DataSlider
-        nodes={nodes}
-        edges={edges}
-        logs={logs}
-        isOpen={isDataSliderOpen}
-        onToggle={toggleDataSlider}
+  const get_world_cfg = useCallback(() => {
+    return (
+      <WorldCfgCreator sendMessage={sendMessage} isOpen={isCfgSliderOpen} onToggle={toggleCfgSlider} user={user}
+        userProfile={userProfile} initialValues={extractedEntities} saveUserWorldConfig={saveUserWorldConfig}
+        listenToUserWorldConfig={listenToUserWorldConfig} authLoading={loading} authError={authErrorState}
+        toggleModal={toggleModal} startSim={startSim} toggleDataSlider={toggleDataSlider} openClusterInjection={toggleInjection}
       />
-      );
-    }
-    return <></>
-  }, [isDataSliderOpen, toggleDataSlider, nodes, edges]);
+    );
+  }, [isCfgSliderOpen, toggleCfgSlider, user, userProfile, extractedEntities, saveUserWorldConfig, listenToUserWorldConfig, loading, authErrorState, sendMessage, toggleModal, startSim, toggleDataSlider, toggleInjection]);
 
   const get_ncfgslider = useCallback(() => {
-    if (isNSliderOpen) {
-      return(
-        <NCfgCreator
-            sendMessage={sendMessage}
-            isOpen={isNSliderOpen}
-            onToggle={toggleNcfgSlider}
-        />
-      );
+    if (isNSliderOpen) return <NCfgCreator sendMessage={sendMessage} isOpen={isNSliderOpen} onToggle={toggleNcfgSlider} initialValues={extractedEntities} />;
+    return <></>;
+  }, [isNSliderOpen, toggleNcfgSlider, sendMessage, extractedEntities]);
+
+  const modal = useCallback(() => {
+    if (!isOpen || !selectedEnv) return <></>;
+    return (
+      <Modal
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+        size="5xl"
+        classNames={{
+          base: "bg-slate-50 border border-slate-200 shadow-2xl rounded-3xl",
+          header: "border-b border-slate-100",
+          footer: "border-t border-slate-100",
+        }}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1 text-slate-900 font-bold">
+                Environment Topology: {selectedEnv}
+              </ModalHeader>
+              <ModalBody>
+                <div className="h-[600px] w-full bg-slate-900 rounded-2xl overflow-hidden shadow-inner relative border border-slate-800">
+                  <ThreeScene
+                    env_id={selectedEnv}
+                    onNodeClick={updateNodeInfo}
+                  />
+                  <div className="absolute top-4 left-4 bg-blue-600/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded-md font-bold uppercase tracking-widest flex items-center gap-1.5 border border-blue-400/30">
+                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                    Live Connection Active
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="danger" variant="flat" onPress={onClose} className="font-semibold">
+                  Close Visualization
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+    );
+  }, [isOpen, selectedEnv, updateNodeInfo, setIsOpen]);
+
+  const get_data_slider = useCallback(() => (
+    <DataSlider
+      nodes={graph.nodes}
+      edges={graph.edges}
+      logs={logs}
+      isOpen={isDataSliderOpen}
+      onToggle={toggleDataSlider}
+      envsList={Object.keys(envs)}
+      sendMessage={sendMessage}
+    />
+  ), [graph.nodes, graph.edges, logs, isDataSliderOpen, toggleDataSlider, envs, sendMessage]);
+
+  const get_bucket = useCallback(() => {
+    if (!isBucketOpen) return <></>;
+    return (
+      <Modal isOpen={isBucketOpen} onOpenChange={setIsBucketOpen} size="3xl" classNames={{ base: "bg-slate-50 rounded-3xl" }}>
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="font-bold text-slate-900">Global Storage (Buckets)</ModalHeader>
+              <ModalBody>
+                <div className="p-12 text-center border-2 border-dashed border-slate-200 rounded-[40px] bg-slate-100/50">
+                  <div className="text-4xl mb-4">🪣</div>
+                  <h3 className="text-xl font-bold text-slate-800 mb-2">Workspace Bucket</h3>
+                  <p className="text-slate-500 max-w-md mx-auto">Global file management is being synchronized. Please use per-environment upload sections in the dashboard to inject data into specific simulations.</p>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="primary" variant="shadow" onPress={onClose} className="font-bold">
+                  Understood
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+    );
+  }, [isBucketOpen]);
+
+  const handleSubmit = useCallback(async (files = []) => {
+    if (!inputValue.trim() && files.length === 0) return;
+
+    // Helper function to convert File to base64
+    const fileToBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+    };
+
+    // Send files as separate websocket requests with type=file
+    if (files.length > 0) {
+      for (const file of files) {
+        try {
+          const base64Data = await fileToBase64(file);
+          const fileMessage = {
+            type: "FILE",
+            data: {
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              content: base64Data,
+              lastModified: file.lastModified,
+            },
+            timestamp: new Date().toISOString()
+          };
+          sendMessage(fileMessage);
+          setMessages(prev => [...prev, {
+            text: `📎 File uploaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`,
+            type: 'system',
+            timestamp: new Date().toISOString()
+          }]);
+        } catch (error) {
+          console.error(`Error processing file ${file.name}:`, error);
+          setMessages(prev => [...prev, {
+            text: `❌ Failed to upload file: ${file.name}`,
+            type: 'system',
+            timestamp: new Date().toISOString()
+          }]);
+        }
+      }
     }
-    return <></>
-  }, [isNSliderOpen, toggleNcfgSlider]);
+
+    // Process text input if present
+    if (!inputValue.trim()) return;
+
+    const userMsg = { text: inputValue, type: 'user', timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, userMsg]);
+    saveMessage(userMsg);
+    const checkInput = inputValue.trim();
+    if (checkInput.startsWith("request_inj_process")) {
+      sendMessage({ type: "REQUEST_INJ_PROCESS", timestamp: new Date().toISOString() });
+      setInputValue(''); return;
+    }
+    if (checkInput.startsWith("set_cfg_process")) {
+      try {
+        const data = JSON.parse(checkInput.replace("set_cfg_process", "").trim());
+        sendMessage({ type: "SET_CFG_PROCESS", data, timestamp: new Date().toISOString() });
+        setInputValue(''); return;
+      } catch (e) {
+        setMessages(prev => [...prev, { type: 'system', text: `Error: ${e.message}`, timestamp: new Date().toISOString() }]);
+        setInputValue(''); return;
+      }
+    }
+    const currentInput = inputValue; setInputValue('');
+    const botMsg = { text: '', type: 'bot', timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, botMsg]);
+    let fullResponse = '';
+    await classifyAndRespond(currentInput, chunk => {
+      fullResponse += chunk;
+      setMessages(prev => prev.map((msg, i) => i === prev.length - 1 ? { ...msg, text: msg.text + chunk } : msg));
+    });
+    saveMessage({ ...botMsg, text: fullResponse });
+    const analysis = await analyzeCommand(currentInput, ["show_envs", "set_config", "watch_data", "upload_ncfg", "show_logs", "show_cluster", "upload_files", "start_sim", "get_cluster_data", "research", "upgrade_plan", "downgrade_plan", "chat"]);
+    const { intent, entities } = analysis;
+    if (intent !== "unknown" && intent !== "chat") {
+      setExtractedEntities(entities);
+      let actionDesc = "";
+      if (intent === "show_envs") { toggleDahboard(); actionDesc = "Opening Dashboard"; }
+      else if (intent === "set_config") { toggleCfgSlider(); actionDesc = "Opening World Config"; }
+      else if (intent === "watch_data") { toggleDataSlider(); actionDesc = "Opening Data View"; }
+      else if (intent === "upload_ncfg") { toggleNcfgSlider(); actionDesc = "Opening Node Config"; }
+      else if (intent === "show_logs") { toggleLogSidebar(); actionDesc = "Opening Logs"; }
+      else if (intent === "show_cluster") { toggleClusterModal(); actionDesc = "Opening Cluster Visualization"; }
+      else if (intent === "upload_files") { toggleBucket(); actionDesc = "Opening File Uploader"; }
+      else if (intent === "start_sim" || intent === "get_cluster_data") {
+        sendMessage({ type: intent.toUpperCase(), data: { ...entities, input: currentInput }, timestamp: new Date().toISOString() });
+        actionDesc = `Executing ${intent}`;
+      }
+      if (actionDesc) setMessages(prev => [...prev, { text: `[SYSTEM] ${actionDesc}`, type: 'system', timestamp: new Date().toISOString() }]);
+    }
+  }, [inputValue, saveMessage, setMessages, setInputValue, toggleDahboard, toggleCfgSlider, toggleDataSlider, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleBucket, sendMessage, extractedEntities]);
+
+  if (fbIsConnected && !user) return <AuthForm onLogin={handleLogin} onSignup={handleSignup} error={authError} />;
 
   return (
-    <div className={"flex absolut flex-row w-full h-screen"}>
-      <div className="dashboard-container">
-      {/* Top Navigation */}
-
-
-          {get_data_slider()}
+    <div className="flex absolute flex-row w-full h-screen overflow-hidden">
+      <div className="dashboard-container w-full h-full overflow-y-auto scroll-smooth" ref={scrollContainerRef} onScroll={() => {
+        if (scrollContainerRef.current) setIsTerminalVisible(scrollContainerRef.current.scrollTop + scrollContainerRef.current.clientHeight >= scrollContainerRef.current.scrollHeight - 50);
+      }}>
+        <LandingPage liveData={liveData}>
+          <LogSidebar logs={logs} isOpen={isLogSidebarOpen} onClose={toggleLogSidebar} />
           {get_dashboard()}
           {get_ncfgslider()}
-        <TerminalConsole
-            error={error}
-              handleSubmit={handleSubmit}
-              isConnected={isConnected}
-              inputValue={inputValue}
-              updateInputValue={updateInputValue}
-              messages={messages}
-            toggleCfgSlider={toggleCfgSlider}
-            toggleDataSlider={toggleDataSlider}
-            sendMessage={sendMessage}
-            toggleDashboard={toggleDahboard}
-            toggleNcfgSlider={toggleNcfgSlider}
-            envs={envs}
-            toggleBucket={toggleBucket}
-        />
-    </div>
-      <div className={"flex "}>
-          {
-            get_node_panel()
-          }
+        </LandingPage>
+        <TerminalConsole error={error} handleSubmit={handleSubmit} isConnected={isConnected} fbIsConnected={fbIsConnected} userProfile={userProfile} inputValue={inputValue} updateInputValue={updateInputValue} messages={messages} toggleCfgSlider={toggleCfgSlider} toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} toggleDashboard={toggleDahboard} toggleNcfgSlider={toggleNcfgSlider} toggleLogSidebar={toggleLogSidebar} toggleClusterModal={toggleClusterModal} toggleInjection={toggleInjection} toggleBilling={toggleBilling} toggleModuleDesigner={toggleModuleDesigner} toggleFieldDesigner={toggleFieldDesigner} toggleSessionConfig={toggleSessionConfig} envs={envs} toggleBucket={toggleBucket} saveMessage={saveMessage} setMessages={setMessages} isVisible={isTerminalVisible} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive} />
       </div>
-    {modal()}
-  </div>
+      <div className="flex">
+        {get_node_panel()}
+        {get_world_cfg()}
+      </div>
+
+      {modal()}
+      {get_data_slider()}
+      {get_bucket()}
+      <ClusterVisualizerModal isOpen={isClusterModalOpen} onClose={toggleClusterModal} data={clusterData} />
+      <UserCard user={user} userProfile={userProfile} onLogout={logout} />
+
+      {/* Module Designer */}
+      <ModuleDesigner
+        isOpen={isModuleDesignerOpen}
+        onClose={toggleModuleDesigner}
+        sendMessage={sendMessage}
+        user={user}
+      />
+
+      {/* Field Designer */}
+      <FieldDesigner
+        isOpen={isFieldDesignerOpen}
+        onClose={toggleFieldDesigner}
+        sendMessage={sendMessage}
+        user={user}
+      />
+
+      {/* Billing Manager Modal */}
+      {isBillingOpen && (
+        <BillingManager
+          user={user}
+          userProfile={userProfile}
+          onClose={toggleBilling}
+          updateUserPlan={updateUserPlan}
+        />
+      )}
+
+      {/* Session Config */}
+      <SessionConfig
+        isOpen={isSessionConfigOpen}
+        onClose={toggleSessionConfig}
+        sendMessage={sendMessage}
+        user={user}
+      />
+
+      {/* Energy Designer - Bottom-to-top slider modal */}
+      {injectionEnvId && (
+        <EnergyDesignerWithViz
+          initialData={injectionData}
+          onClose={handleCloseInjection}
+          onSend={handleSendInjection}
+          sendMessage={sendMessage}
+        />
+      )}
+    </div>
   );
 };
 
 export default MainApp;
-
-
-/*
-
-<nav className="nav-container">
-        <div className="nav-content">
-          <div className="logo-container">
-            <div className="logo-icon">
-              <span className="logo-text">Q</span>
-            </div>
-            <div>
-              <h1 className="nav-title">QDash</h1>
-              <p className="nav-subtitle">Quantum Dashboard v2.0</p>
-            </div>
-          </div>
-
-          <div className="nav-buttons">
-            <Button
-              color={isDataSliderOpen ? "primary" : "default"}
-              variant={isDataSliderOpen ? "solid" : "bordered"}
-              onPress={toggleDataSlider}
-              startContent={<span className="button-icon">📊</span>}
-              size="lg"
-              className="nav-action-button"
-            >
-              Data Explorer
-            </Button>
-
-            <Button
-              color={isCfgSliderOpen ? "secondary" : "default"}
-              variant={isCfgSliderOpen ? "solid" : "bordered"}
-              onPress={toggleCfgSlider}
-              startContent={<span className="button-icon">⚙️</span>}
-              size="lg"
-              className="nav-action-button"
-            >
-              Configuration
-            </Button>
-
-            <div className="status-indicator">
-              <Button
-                color={isConnected ? "success" : "danger"}
-                variant="flat"
-                size="sm"
-                className="status-button"
-                startContent={
-                  <div
-                    className={`status-dot ${
-                      isConnected ? "status-dot-online" : "status-dot-offline"
-                    }`}
-                  />
-                }
-              >
-                {isConnected ? "Online" : "Offline"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
- */

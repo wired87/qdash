@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { Button, Input, Card, CardBody, Chip } from "@heroui/react";
 import "../../index.css";
 
-export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle }) => {
+export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle, userProfile }) => {
   const [cfg, setCfg] = useState(cfg_content || {});
   const [openPixelId, setOpenPixelId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -17,6 +17,11 @@ export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle }) => {
   }, [cfg_content]);
 
   const handleValueChange = useCallback((pixelId, sid, newValue) => {
+    if (userProfile?.plan === 'free') {
+      // Use a toast or alert. For now alert.
+      alert("Free tier: cfg file is not editable. Upgrade to Magician.");
+      return;
+    }
     setCfg((prevCfg) => {
       const updatedCfg = { ...prevCfg };
       if (updatedCfg[pixelId] && updatedCfg[pixelId][sid]) {
@@ -42,7 +47,7 @@ export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle }) => {
   const onConfirm = useCallback(() => {
     if (inputMessage.trim()) {
       sendMessage({
-        type: "cfg_file",
+        type: "CFG_FILE",
         cfg: cfg,
         message: inputMessage,
         timestamp: new Date().toISOString(),
@@ -79,9 +84,9 @@ export const CfgCreator = ({ cfg_content, sendMessage, isOpen, onToggle }) => {
     <>
       <div className="slider-overlay" onClick={onToggle} />
       <div className="cfg-slider-container">
-          <Button isIconOnly variant="dark" onPress={onToggle}>
-              ✕
-            </Button>
+        <Button isIconOnly variant="dark" onPress={onToggle}>
+          ✕
+        </Button>
         <div className="cfg-slider-header">
           <div className="cfg-header-top">
             <div className="cfg-title-section">

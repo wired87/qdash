@@ -66,6 +66,10 @@ export const useFile = () => {
     }
   }, [files]);
 
+  const clearFiles = useCallback(() => {
+    setFiles([]);
+  }, []);
+
   // Expose state and handlers
   return {
     files,
@@ -75,7 +79,7 @@ export const useFile = () => {
     handleFileSelect,
     handleUpload,
     handleDragOver: (event) => event.preventDefault(), // Simple drag over handler
-      handleRemoveFile,
+    handleRemoveFile,
+    clearFiles,
   };
 };
-

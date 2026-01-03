@@ -9,8 +9,7 @@ export function getNodeColor(state) {
   }
   return "#004999";
 }
-
-export function getEdgeColor() {
-  console.log("getEdgeColor")
-  return "#ffffff";
+export function getUniqueColor(index, total) {
+  const hue = (index * 137.5) % 360; // Use golden angle for even distribution
+  return `hsl(${hue}, 70%, 50%)`;
 }

@@ -20,7 +20,7 @@ const TOOL_OPTIONS = [
     "strange_quark",
     "top_quark",
     "bottom_quark",
-    "higgs"
+    "higgs",
 ];
 
 // Component for the particle selection dropdown

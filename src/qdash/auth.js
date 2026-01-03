@@ -25,3 +25,20 @@ export const getOrCreateUserId = () => {
 
   return userId;
 };
+
+// Key for session persistence
+export const SESSION_ID_KEY = 'QBRAIN_SESSION_ID';
+
+/**
+ * Retrieves the current session ID from session storage.
+ * If not found, generates a new one and stores it.
+ * @returns {string} The session ID.
+ */
+export const getSessionId = () => {
+  let sid = sessionStorage.getItem(SESSION_ID_KEY);
+  if (!sid) {
+    sid = crypto.randomUUID().replace(/-/g, '');
+    sessionStorage.setItem(SESSION_ID_KEY, sid);
+  }
+  return sid;
+};

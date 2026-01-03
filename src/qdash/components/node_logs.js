@@ -11,7 +11,7 @@ export const NodeLogsSection = ({ logs }) => {
   }
 
   return (
-    <div className="w-full max-w-md h-64 overflow-y-auto border rounded-md p-2 bg-content1">
+    <div className="w-full max-w-md h-64 overflow-y-auto rounded-md p-2 bg-content1">
       <h3 className="text-lg font-semibold mb-3">Logs</h3>
       <Listbox aria-label="Node Logs" variant="flat">
         {entries.map(([id, logItem]) =>

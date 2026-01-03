@@ -1,32 +1,27 @@
-import React, {useCallback, useEffect, useRef, useState} from "react";
-import {get, off, onChildChanged, query, ref, limitToLast} from "firebase/database";
-import {Button, Drawer, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader} from "@heroui/react";
-import {NodeStatusSection} from "./node_info";
-import {NodeLogsSection} from "./node_logs";
-import {NodeConfigForm} from "./node_cfg/node_cfg";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { get, off, onChildChanged, query, ref, limitToLast } from "firebase/database";
+import { Button } from "@heroui/react";
+import { NodeStatusSection } from "./node_info";
+import { NodeLogsSection } from "./node_logs";
+import SliderPanel from "./common/SliderPanel";
 
-import {CustomButton} from "../components";
+import { CustomButton } from "../components";
 import useNcfg from "../../hooks/useNcfg";
 
 export const NodeInfoPanel = (
   {
-      node,
-      onClose,
-      firebaseDb,
-      fbIsConnected,
-      user_id,
-      sliderOpen,
-      sendMessage,
+    node,
+    onClose,
+    firebaseDb,
+    fbIsConnected,
+    user_id,
+    sliderOpen,
+    sendMessage,
   }
 ) => {
-  console.log("node, onClose, firebaseDb, fbIsConnected, user_id", node, onClose, firebaseDb, fbIsConnected, user_id)
-
   // ALLE Hooks müssen am Anfang stehen, VOR JEDEM bedingten Return.
   const [logs, setLogs] = useState({});
   const listenerRefs = useRef([]);
-
-
-  console.log("node, firebaseDb,fbIsConnected", node, firebaseDb, fbIsConnected)
 
   const updateLogs = useCallback((newLogs) => {
     setLogs(prevLogs => {
@@ -40,23 +35,22 @@ export const NodeInfoPanel = (
     });
   }, []);
 
-    const {
-        ncfg,
-        get_ncfg_section
-    } = useNcfg();
+  const {
+    ncfg,
+    get_ncfg_section
+  } = useNcfg();
 
-    const get_ncfg = useCallback(() => {
-        return ncfg;
-    }, [ncfg])
+  const get_ncfg = useCallback(() => {
+    return ncfg;
+  }, [ncfg])
 
   useEffect(() => {
     // Hier kannst du Bedingungen sicher prüfen.
     if (!node || !fbIsConnected || !firebaseDb.current) {
-      console.log("!node || !fbIsConnected || !firebaseDb.current", node, fbIsConnected, firebaseDb)
-        // Aufräumen, auch wenn keine Bedingung erfüllt ist
-        listenerRefs.current.forEach(({ refObj, callback }) => off(refObj, "child_changed", callback));
-        listenerRefs.current = [];
-        return;
+      // Aufräumen, auch wenn keine Bedingung erfüllt ist
+      listenerRefs.current.forEach(({ refObj, callback }) => off(refObj, "child_changed", callback));
+      listenerRefs.current = [];
+      return;
     }
 
     // Cleanup vorheriger Listener
@@ -67,22 +61,17 @@ export const NodeInfoPanel = (
 
 
     const logs_path = `users/${user_id}/env/${node.env}/logs/${node.id}`;
-    console.log("start second logs listener")
     const dbRef = ref(firebaseDb.current, logs_path);
     const logsQuery = query(
       dbRef,
       limitToLast(30)
     );
 
-    console.log("Fetching initial log data...");
-
     get(logsQuery).then((snapshot) => {
       if (snapshot.exists()) {
         const initialData = snapshot.val();
-        console.log("Initial data loaded:", initialData);
         setLogs(initialData);
       } else {
-        console.log("No initial data available.");
         setLogs({});
       }
     }).catch((error) => {
@@ -91,7 +80,6 @@ export const NodeInfoPanel = (
 
     const onChildChangedCallback = (snapshot) => {
       const changedData = snapshot.val();
-      console.log("Child changed detected:", changedData);
       updateLogs({ id: snapshot.key, ...changedData });
     };
 
@@ -103,7 +91,6 @@ export const NodeInfoPanel = (
     );
 
     return () => {
-      console.log("Cleaning up listeners.");
       listenerRefs.current.forEach(({ refObj, callback }) =>
         off(refObj, "child_changed", callback)
       );
@@ -119,42 +106,45 @@ export const NodeInfoPanel = (
 
 
   return (
-    <Drawer isOpen={sliderOpen} onOpenChange={onClose}>
-      <DrawerContent>
-        {(onClose) => (
-          <>
-            <DrawerHeader className="flex flex-col gap-1">Info {new_node?.id}</DrawerHeader>
-            <DrawerBody>
-                {get_ncfg_section()}
-                <CustomButton
-                  color="primary"
-                  onPress={() => {
-                    sendMessage({
-                      type: "cfg_file",
-                      data: {
-                        ncfg: get_ncfg(),
-                        env_id: node.env,
-                      },
-                      timestamp: new Date().toISOString(),
-                    });
-                  }}
-                >
-                  Send Configuration
-                </CustomButton>
-              <NodeStatusSection node={new_node} />
-              <NodeLogsSection logs={logs} />
-            </DrawerBody>
-            <DrawerFooter>
-              <Button color="danger" variant="light" onPress={onClose}>
-                Close
-              </Button>
-              <Button color="primary" onPress={onClose}>
-                Action
-              </Button>
-            </DrawerFooter>
-          </>
-        )}
-      </DrawerContent>
-    </Drawer>
+    <SliderPanel
+      isOpen={sliderOpen}
+      onClose={onClose}
+      title={`Info ${new_node?.id}`}
+      subtitle="Node Details & Configuration"
+      width="500px"
+    >
+      <div className="space-y-6">
+        {get_ncfg_section()}
+
+        <CustomButton
+          color="primary"
+          className="w-full"
+          onPress={() => {
+            sendMessage({
+              type: "CFG_FILE",
+              data: {
+                ncfg: get_ncfg(),
+                env_id: node.env,
+              },
+              timestamp: new Date().toISOString(),
+            });
+          }}
+        >
+          Send Configuration
+        </CustomButton>
+
+        <NodeStatusSection node={new_node} />
+        <NodeLogsSection logs={logs} />
+
+        <div className="flex justify-end gap-2 pt-4">
+          <Button color="danger" variant="light" onPress={onClose}>
+            Close
+          </Button>
+          <Button color="primary" onPress={onClose}>
+            Action
+          </Button>
+        </div>
+      </div>
+    </SliderPanel>
   );
 };

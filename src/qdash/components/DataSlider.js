@@ -2,9 +2,7 @@ import React, { useState } from "react";
 import {
   Button,
   Card,
-  CardHeader,
   CardBody,
-  CardFooter,
   Chip,
   Table,
   TableHeader,
@@ -27,6 +25,7 @@ import {
   Input,
 } from "@heroui/react";
 import { MoreVertical } from "lucide-react";
+import SliderPanel from "./common/SliderPanel";
 import "../../index.css";
 
 export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, envData, sendMessage, setEnvData }) => {
@@ -39,7 +38,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
   // Handler for get_data button click
   const handleGetEnvData = (envId) => {
     sendMessage({
-      type: "get_env_data",
+      type: "GET_ENV_DATA",
       env_id: envId,
       timestamp: new Date().toISOString(),
     });
@@ -59,25 +58,25 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
   // Handler for checkbox actions
   const handleCheckboxAction = (action) => {
     const selectedList = Array.from(selectedRows);
-    
-    switch(action) {
+
+    switch (action) {
       case 'apply_ml':
         sendMessage({
-          type: "apply_ml",
+          type: "APPLY_ML",
           entries: selectedList,
           timestamp: new Date().toISOString(),
         });
         break;
       case 'delete':
         sendMessage({
-          type: "delete",
+          type: "DELETE",
           entries: selectedList,
           timestamp: new Date().toISOString(),
         });
         break;
       case 'ask':
         sendMessage({
-          type: "ask",
+          type: "ASK",
           entries: selectedList,
           timestamp: new Date().toISOString(),
         });
@@ -90,11 +89,28 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
   // Handler for NCFG slider submit
   const handleNcfgSubmit = () => {
     sendMessage({
-      type: "ncfg_update",
+      type: "NCFG_UPDATE",
       value: ncfgValue,
       timestamp: new Date().toISOString(),
     });
     setShowNcfgModal(false);
+  };
+  //...
+  // Handler for row actions (visualize, delete)
+  const handleRowAction = (itemId, action) => {
+    if (action === "visualize") {
+      sendMessage({
+        type: "VISUALIZE",
+        item_id: itemId,
+        timestamp: new Date().toISOString(),
+      });
+    } else if (action === "delete") {
+      sendMessage({
+        type: "DELETE_ITEM",
+        item_id: itemId,
+        timestamp: new Date().toISOString(),
+      });
+    }
   };
 
   const formatDataForTable = (nodes, edges) => {
@@ -203,22 +219,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
     return allLogs;
   };
 
-  // Handler for row actions (visualize, delete)
-  const handleRowAction = (itemId, action) => {
-    if (action === "visualize") {
-      sendMessage({
-        type: "visualize",
-        item_id: itemId,
-        timestamp: new Date().toISOString(),
-      });
-    } else if (action === "delete") {
-      sendMessage({
-        type: "delete_item",
-        item_id: itemId,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  };
+
 
   const tableData = formatDataForTable(nodes, edges);
   const columns = [
@@ -238,82 +239,78 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
 
   return (
     <>
-      <div className="" onClick={onToggle} />
-      <Card className="data-slider-wide">
-        <CardHeader className="data-slider-header">
-          <div className="data-header-top">
-            <div className="data-title-section">
-              <h2 className="data-title">Data Explorer</h2>
-            </div>
-            <div className="data-header-actions">
-              {selectedRows.size > 0 && (
-                <Dropdown>
-                  <DropdownTrigger>
-                    <Button 
-                      size="sm" 
-                      color="primary" 
-                      variant="solid"
-                    >
-                      Actions ({selectedRows.size} selected)
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu aria-label="Checkbox Actions">
-                    <DropdownItem key="apply_ml" onClick={() => handleCheckboxAction('apply_ml')}>
-                      Apply Machine Learning
-                    </DropdownItem>
-                    <DropdownItem key="delete" onClick={() => handleCheckboxAction('delete')} className="text-danger" color="danger">
-                      Delete
-                    </DropdownItem>
-                    <DropdownItem key="ask" onClick={() => handleCheckboxAction('ask')}>
-                      Send Request
-                    </DropdownItem>
-                  </DropdownMenu>
-                </Dropdown>
-              )}
-
-              <Button isIconOnly variant="light" onPress={onToggle}>
-                ✕
+      <SliderPanel
+        isOpen={isOpen}
+        onClose={onToggle}
+        title="Data Explorer"
+        subtitle={`Nodes: ${nodes.length} | Edges: ${edges.length}`}
+        width="900px"
+      >
+        <div className="flex flex-col gap-4">
+          {/* Header Actions & Tabs */}
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-100 dark:bg-slate-900/50 p-3 rounded-xl">
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                color={activeTab === "environments" ? "primary" : "default"}
+                variant={activeTab === "environments" ? "solid" : "flat"}
+                onPress={() => setActiveTab("environments")}>
+                Environments
+              </Button>
+              <Button
+                size="sm"
+                color={activeTab === "data" ? "primary" : "default"}
+                variant={activeTab === "data" ? "solid" : "flat"}
+                onPress={() => setActiveTab("data")}
+              >
+                Data Table
+              </Button>
+              <Button
+                size="sm"
+                color={activeTab === "logs" ? "primary" : "default"}
+                variant={activeTab === "logs" ? "solid" : "flat"}
+                onPress={() => setActiveTab("logs")}
+              >
+                Logs
               </Button>
             </div>
+
+            {selectedRows.size > 0 && (
+              <Dropdown>
+                <DropdownTrigger>
+                  <Button
+                    size="sm"
+                    color="primary"
+                    variant="shadow"
+                  >
+                    Actions ({selectedRows.size} selected)
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu aria-label="Checkbox Actions">
+                  <DropdownItem key="apply_ml" onClick={() => handleCheckboxAction('apply_ml')}>
+                    Apply Machine Learning
+                  </DropdownItem>
+                  <DropdownItem key="delete" onClick={() => handleCheckboxAction('delete')} className="text-danger" color="danger">
+                    Delete
+                  </DropdownItem>
+                  <DropdownItem key="ask" onClick={() => handleCheckboxAction('ask')}>
+                    Send Request
+                  </DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
+            )}
           </div>
 
-          <div className="data-tab-container">
-            <Button
-              size="sm"
-              color={activeTab === "environments" ? "primary" : "default"}
-              variant={activeTab === "environments" ? "solid" : "bordered"}
-              onPress={() => setActiveTab("environments")}>
-              Environments
-            </Button>
-            <Button
-              size="sm"
-              color={activeTab === "data" ? "primary" : "default"}
-              variant={activeTab === "data" ? "solid" : "bordered"}
-              onPress={() => setActiveTab("data")}
-            >
-              Data Table
-            </Button>
-            <Button
-              size="sm"
-              color={activeTab === "logs" ? "primary" : "default"}
-              variant={activeTab === "logs" ? "solid" : "bordered"}
-              onPress={() => setActiveTab("logs")}
-            >
-              Logs
-            </Button>
-          </div>
-        </CardHeader>
-        <CardBody className="data-slider-content">
+          {/* Content Sections */}
           {activeTab === "environments" && (
-            <div className="environments-section">
-              <h3 className="data-section-title">Available Environments</h3>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Available Environments</h3>
               {envsList && envsList.length > 0 ? (
                 <>
                   <Table
                     aria-label="Environments table"
                     isStriped
-                    isCompact
-                    className="data-table-full"
+                    className="bg-white dark:bg-slate-900"
                   >
                     <TableHeader>
                       <TableColumn width="50"></TableColumn>
@@ -340,66 +337,50 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                             </Chip>
                           </TableCell>
                           <TableCell>
-                            <span className="text-primary">{envId}</span>
+                            <span className="text-primary font-medium">{envId}</span>
                           </TableCell>
                           <TableCell>
-                            <Dropdown>
-                              <DropdownTrigger>
-                                <Button
-                                  size="sm"
-                                  variant="light"
-                                  endContent={
-                                    <span className="text-default-400">⋮</span>
-                                  }
-                                >
-                                  Actions
-                                </Button>
-                              </DropdownTrigger>
-                              <DropdownMenu aria-label="Environment Actions">
-                                <DropdownItem 
-                                  key="start" 
-                                  startContent={<span>▶</span>}
-                                >
-                                  Start/Resume
-                                </DropdownItem>
-                                <DropdownItem key="stop">
-                                  Stop
-                                </DropdownItem>
-                                <DropdownItem key="suspend">
-                                  Suspend
-                                </DropdownItem>
-                                <DropdownItem 
-                                  key="reset" 
-                                  startContent={<span>⟲</span>}
-                                >
-                                  Reset
-                                </DropdownItem>
-                              </DropdownMenu>
-                            </Dropdown>
-                            <Button
-                              size="sm"
-                              color="primary"
-                              variant="flat"
-                              onPress={() => handleGetEnvData(envId)}
-                              className="ml-2"
-                            >
-                              Get Data
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Dropdown>
+                                <DropdownTrigger>
+                                  <Button
+                                    size="sm"
+                                    variant="light"
+                                    isIconOnly
+                                  >
+                                    <MoreVertical size={18} />
+                                  </Button>
+                                </DropdownTrigger>
+                                <DropdownMenu aria-label="Environment Actions">
+                                  <DropdownItem key="start" startContent={<span>▶</span>}>Start/Resume</DropdownItem>
+                                  <DropdownItem key="stop">Stop</DropdownItem>
+                                  <DropdownItem key="suspend">Suspend</DropdownItem>
+                                  <DropdownItem key="reset" startContent={<span>⟲</span>}>Reset</DropdownItem>
+                                </DropdownMenu>
+                              </Dropdown>
+                              <Button
+                                size="sm"
+                                color="primary"
+                                variant="flat"
+                                onPress={() => handleGetEnvData(envId)}
+                              >
+                                Get Data
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
-                  
+
                   {/* Show environment data if available */}
                   {envData && envData.length > 0 && (
-                    <div className="env-data-section" style={{ marginTop: "20px" }}>
-                      <h4 className="data-section-title">Environment Data</h4>
+                    <div className="mt-6">
+                      <h4 className="text-md font-semibold mb-3 text-slate-700 dark:text-slate-300">Environment Data</h4>
                       <Table
                         aria-label="Environment data table"
                         isStriped
-                        isCompact
-                        className="data-table-full"
+                        className="bg-white dark:bg-slate-900"
                       >
                         <TableHeader>
                           {envData[0] && Object.keys(envData[0]).map((key) => (
@@ -422,24 +403,25 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                   )}
                 </>
               ) : (
-                <p>No environments available. Loading...</p>
+                <div className="text-center py-10 text-slate-400 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                  <p>No environments available.</p>
+                </div>
               )}
             </div>
           )}
 
           {activeTab === "data" && (
-            <div className="data-table-section">
-              <h3 className="data-section-title">Network Data</h3>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Network Data</h3>
               <Table
                 aria-label="Network data table"
                 isStriped
-                isCompact
-                className="data-table-full"
+                className="bg-white dark:bg-slate-900"
               >
                 <TableHeader>
                   {columns.map((column) => (
-                    <TableColumn 
-                      key={column.key} 
+                    <TableColumn
+                      key={column.key}
                       width={column.key === "checkbox" || column.key === "actions" ? "50" : undefined}
                       align={column.key === "actions" ? "end" : "start"}
                     >
@@ -458,7 +440,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                               onValueChange={(isSelected) => handleRowSelection(item.id, isSelected)}
                             />
                           ) : column.key === "actions" ? (
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <div className="flex justify-end items-center">
                               <Dropdown>
                                 <DropdownTrigger>
                                   <Button
@@ -466,31 +448,16 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                                     size="sm"
                                     variant="light"
                                     aria-label="More actions"
-                                    style={{
-                                      minWidth: 'auto',
-                                      width: '32px',
-                                      height: '32px',
-                                    }}
                                   >
-                                    <MoreVertical size={18} style={{ color: '#6b7280' }} />
+                                    <MoreVertical size={18} className="text-slate-500" />
                                   </Button>
                                 </DropdownTrigger>
-                                <DropdownMenu 
+                                <DropdownMenu
                                   aria-label="Row actions"
                                   onAction={(key) => handleRowAction(item.id, key)}
                                 >
-                                  <DropdownItem 
-                                    key="visualize"
-                                  >
-                                    Visualize
-                                  </DropdownItem>
-                                  <DropdownItem 
-                                    key="delete"
-                                    className="text-danger" 
-                                    color="danger"
-                                  >
-                                    Delete
-                                  </DropdownItem>
+                                  <DropdownItem key="visualize">Visualize</DropdownItem>
+                                  <DropdownItem key="delete" className="text-danger" color="danger">Delete</DropdownItem>
                                 </DropdownMenu>
                               </Dropdown>
                             </div>
@@ -499,10 +466,11 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                               size="sm"
                               color={
                                 item[column.key] === "ALIVE" ||
-                                item[column.key] === "Active"
+                                  item[column.key] === "Active"
                                   ? "success"
                                   : "default"
                               }
+                              variant="flat"
                             >
                               {item[column.key]}
                             </Chip>
@@ -519,44 +487,46 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
           )}
 
           {activeTab === "logs" && (
-            <div className="logs-section">
-              <h3 className="logs-section-title">System Logs</h3>
-              <div className="logs-container">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">System Logs</h3>
+              <div className="space-y-4">
                 {nodes.map((node) => {
                   const nodeLogs = logs[node.id];
                   const logEntries = nodeLogs
                     ? renderLogEntries(nodeLogs, node.id)
                     : [];
                   return (
-                    <Card key={node.id} className="log-node-card">
-                      <CardBody>
-                        <div className="log-node-header">
-                          <div className="log-node-indicator" />
-                          <span className="log-node-name">Node: {node.id}</span>
+                    <Card key={node.id} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <CardBody className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500" />
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">Node: {node.id}</span>
+                          </div>
                           <Chip size="sm" variant="flat">
                             {logEntries.length} entries
                           </Chip>
                         </div>
 
-                        <div className="log-entries">
+                        <div className="bg-slate-950 rounded-lg p-3 max-h-[200px] overflow-y-auto font-mono text-xs space-y-1">
                           {logEntries.length > 0 ? (
                             logEntries.map((logEntry) => (
-                              <Code
+                              <div
                                 key={logEntry.id}
-                                color={
+                                className={
                                   logEntry.type === "error"
-                                    ? "danger"
-                                    : "success"
+                                    ? "text-red-400"
+                                    : "text-green-400"
                                 }
-                                className="log-code-line"
                               >
-                                {logEntry.id}: {logEntry.line}
-                              </Code>
+                                <span className="opacity-50 mr-2">{logEntry.id.split('_').pop()}:</span>
+                                {logEntry.line}
+                              </div>
                             ))
                           ) : (
-                            <Code className="log-code-line" color="default">
+                            <div className="text-slate-500 italic">
                               {node.id}: No logs available
-                            </Code>
+                            </div>
                           )}
                         </div>
                       </CardBody>
@@ -566,15 +536,12 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
               </div>
             </div>
           )}
-        </CardBody>
-        <CardFooter className="data-subtitle">
-            <p>Nodes: {nodes.length} | Edges: {edges.length}</p>
-        </CardFooter>
-      </Card>
+        </div>
+      </SliderPanel>
 
       {/* NCFG Slider Modal */}
-      <Modal 
-        isOpen={showNcfgModal} 
+      <Modal
+        isOpen={showNcfgModal}
         onOpenChange={setShowNcfgModal}
         size="md"
       >
@@ -601,8 +568,8 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                     showTooltip={true}
                     showOutline={true}
                     disableThumbScale={true}
-                    formatOptions={{style: "percent"}}
-                    tooltipValueFormatOptions={{style: "decimal"}}
+                    formatOptions={{ style: "percent" }}
+                    tooltipValueFormatOptions={{ style: "decimal" }}
                   />
                   <Input
                     type="number"
@@ -630,3 +597,4 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
     </>
   );
 };
+

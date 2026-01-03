@@ -64,12 +64,12 @@ const EnergyProfileModal = ({
   initialData = {
     blocks: [{
       id: 0,
-    points: [
-      { id: 0, x: 50, y: 150 },
-      { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
-    ],
-    output: [],
-    selectedTools: [],
+      points: [
+        { id: 0, x: 50, y: 150 },
+        { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
+      ],
+      output: [],
+      selectedTools: [],
     }],
   },
   // Mock handler for modal close
@@ -119,7 +119,7 @@ const EnergyProfileModal = ({
       selectedTools: [],
     }];
   });
-  
+
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [openDropdowns, setOpenDropdowns] = useState({});
   const [isDragging, setIsDragging] = useState(false);
@@ -151,7 +151,7 @@ const EnergyProfileModal = ({
   };
 
   const updateBlock = useCallback((blockId, updates) => {
-    setBlocks(prev => prev.map(block => 
+    setBlocks(prev => prev.map(block =>
       block.id === blockId ? { ...block, ...updates } : block
     ));
   }, []);
@@ -170,11 +170,11 @@ const EnergyProfileModal = ({
   const handleItemToggle = (tool, blockId) => {
     const block = blocks.find(b => b.id === blockId);
     if (!block) return;
-    
+
     const newTools = block.selectedTools.includes(tool)
       ? block.selectedTools.filter(t => t !== tool)
       : [...block.selectedTools, tool];
-    
+
     updateBlock(blockId, { selectedTools: newTools });
   };
 
@@ -201,7 +201,7 @@ const EnergyProfileModal = ({
   // --- Core Logic: Data Calculation ---
   const calculateOutputData = useCallback((blockId, currentPoints) => {
     if (!blockId || !currentPoints) return [];
-    
+
     const data = [];
     if (currentPoints.length < 2) {
       updateBlock(blockId, { output: [] });
@@ -324,7 +324,7 @@ const EnergyProfileModal = ({
     if (!selectedBlockId) return;
     const block = blocks.find(b => b.id === selectedBlockId);
     if (!block) return;
-    
+
     const newPoint = {
       id: Date.now(),
       // Add a slight random offset to prevent overlap
@@ -344,14 +344,14 @@ const EnergyProfileModal = ({
       return;
     }
 
-      // Filter out initial points (id 0 and 1)
+    // Filter out initial points (id 0 and 1)
     const nonInitialPoints = block.points.filter(p => p.id > 1);
 
-      if (nonInitialPoints.length > 0) {
-        // Find the point with the highest ID (most recently added)
-        const pointToRemove = nonInitialPoints.reduce((latest, current) =>
-          current.id > latest.id ? current : latest, nonInitialPoints[0]
-        );
+    if (nonInitialPoints.length > 0) {
+      // Find the point with the highest ID (most recently added)
+      const pointToRemove = nonInitialPoints.reduce((latest, current) =>
+        current.id > latest.id ? current : latest, nonInitialPoints[0]
+      );
       const newPoints = block.points.filter(p => p.id !== pointToRemove.id);
       updateBlock(selectedBlockId, { points: newPoints });
     } else {
@@ -415,8 +415,8 @@ const EnergyProfileModal = ({
         };
         const newPoints = [...currentPoints, newPoint];
         updateBlock(selectedBlockId, { points: newPoints });
-          setIsDragging(true);
-          setDraggedPointIndex(newPoints.length - 1);
+        setIsDragging(true);
+        setDraggedPointIndex(newPoints.length - 1);
       }
     }
   };
@@ -428,13 +428,13 @@ const EnergyProfileModal = ({
 
       requestAnimationFrame(() => {
         const updatedPoints = currentBlock.points.map((p, index) => {
-            if (index === draggedPointIndex) {
-              const clampedX = clamp(newX, 0, CANVAS_WIDTH);
-              const clampedY = clamp(newY, 0, CANVAS_HEIGHT);
-              return { ...p, x: clampedX, y: clampedY };
-            }
-            return p;
-          });
+          if (index === draggedPointIndex) {
+            const clampedX = clamp(newX, 0, CANVAS_WIDTH);
+            const clampedY = clamp(newY, 0, CANVAS_HEIGHT);
+            return { ...p, x: clampedX, y: clampedY };
+          }
+          return p;
+        });
         updateBlock(selectedBlockId, { points: updatedPoints });
         drawChart(selectedBlockId, updatedPoints);
       });
@@ -470,69 +470,51 @@ const EnergyProfileModal = ({
     });
   };
 
-  // --- Component Render: Modal Wrapper ---
+
+  // --- Component Render: Direct Content (No Modal Wrapper) ---
   return (
     <div
       style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        zIndex: 1000,
+        backgroundColor: 'white',
         fontFamily: 'sans-serif',
-        padding: '10vh 1rem 20vh 1rem',
-        overflowY: 'auto',
+        padding: '1.5rem',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
+      {/* Modal Header */}
       <div
         style={{
-          width: '90%',
-          maxWidth: '1280px',
-          backgroundColor: 'white',
-          boxShadow:
-            '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          borderRadius: '0.75rem',
-          padding: '1.5rem',
-          position: 'relative',
-          // Max height set relative to inner modal content
-          maxHeight: '100%',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderBottom: '1px solid #e5e7eb',
+          paddingBottom: '1rem',
+          marginBottom: '1rem',
         }}
       >
-        {/* Modal Header */}
-        <div
+        <h2
           style={{
+            fontSize: '1.5rem',
+            fontWeight: '800',
+            color: '#1f2937',
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            borderBottom: '1px solid #e5e7eb',
-            paddingBottom: '1rem',
-            marginBottom: '1rem',
           }}
         >
-          <h2
+          <Zap
             style={{
-              fontSize: '1.5rem',
-              fontWeight: '800',
-              color: '#1f2937',
-              display: 'flex',
-              alignItems: 'center',
+              width: '1.5rem',
+              height: '1.5rem',
+              marginRight: '0.75rem',
+              color: '#10b981',
             }}
-          >
-            <Zap
-              style={{
-                width: '1.5rem',
-                height: '1.5rem',
-                marginRight: '0.75rem',
-                color: '#10b981',
-              }}
-            />
-            Energy Profile Designer
-          </h2>
+          />
+          Energy Profile Designer
+        </h2>
+        {onClose && (
           <button
             onClick={onClose}
             style={{
@@ -546,74 +528,96 @@ const EnergyProfileModal = ({
           >
             <X style={{ width: '1.5rem', height: '1.5rem' }} />
           </button>
-        </div>
+        )}
+      </div>
 
-        {selectedBlockId === null ? (
-          // List View - Show all blocks
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <p style={{ color: '#4b5563', margin: 0 }}>
-                Manage configuration blocks. Click "Edit / Visualize" to edit a block, or add a new block.
-              </p>
-              <button
-                onClick={addBlock}
+      {selectedBlockId === null ? (
+        // List View - Show all blocks
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <p style={{ color: '#4b5563', margin: 0 }}>
+              Manage configuration blocks. Click "Edit / Visualize" to edit a block, or add a new block.
+            </p>
+            <button
+              onClick={addBlock}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.5rem',
+                backgroundColor: '#2563eb',
+                color: 'white',
+                fontWeight: '600',
+                borderRadius: '0.5rem',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                transition: 'background-color 150ms',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1d4ed8')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
+            >
+              <Plus style={{ width: '1.25rem', height: '1.25rem' }} />
+              Add Block
+            </button>
+          </div>
+
+          {/* Blocks List */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {blocks.map((block, index) => (
+              <div
+                key={block.id}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.75rem 1.5rem',
-                  backgroundColor: '#2563eb',
-                  color: 'white',
-                  fontWeight: '600',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  cursor: 'pointer',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '0.75rem',
+                  padding: '1.5rem',
+                  border: '2px solid #e5e7eb',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                  transition: 'background-color 150ms',
+                  transition: 'border-color 150ms, box-shadow 150ms',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#1d4ed8')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#2563eb')}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#e5e7eb';
+                  e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                }}
               >
-                <Plus style={{ width: '1.25rem', height: '1.25rem' }} />
-                Add Block
-              </button>
-            </div>
-            
-            {/* Blocks List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {blocks.map((block, index) => (
-                <div
-                  key={block.id}
-                  style={{
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '0.75rem',
-                    padding: '1.5rem',
-                    border: '2px solid #e5e7eb',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    transition: 'border-color 150ms, box-shadow 150ms',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#d1d5db';
-                    e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e5e7eb';
-                    e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1f2937', margin: 0 }}>
-                      Block {index + 1}
-                    </h3>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1f2937', margin: 0 }}>
+                    Block {index + 1}
+                  </h3>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => setSelectedBlockId(block.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        fontWeight: '600',
+                        borderRadius: '0.5rem',
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'background-color 150ms',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
+                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#10b981')}
+                    >
+                      <Zap style={{ width: '1rem', height: '1rem' }} />
+                      Edit / Visualize
+                    </button>
+                    {blocks.length > 1 && (
                       <button
-                        onClick={() => setSelectedBlockId(block.id)}
+                        onClick={() => removeBlock(block.id)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '0.5rem',
                           padding: '0.5rem 1rem',
-                          backgroundColor: '#10b981',
+                          backgroundColor: '#ef4444',
                           color: 'white',
                           fontWeight: '600',
                           borderRadius: '0.5rem',
@@ -621,594 +625,581 @@ const EnergyProfileModal = ({
                           cursor: 'pointer',
                           transition: 'background-color 150ms',
                         }}
-                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#059669')}
-                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#10b981')}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#dc2626')}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
                       >
-                        <Zap style={{ width: '1rem', height: '1rem' }} />
-                        Edit / Visualize
+                        <Trash2 style={{ width: '1rem', height: '1rem' }} />
                       </button>
-                      {blocks.length > 1 && (
-                        <button
-                          onClick={() => removeBlock(block.id)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '0.5rem 1rem',
-                            backgroundColor: '#ef4444',
-                            color: 'white',
-                            fontWeight: '600',
-                            borderRadius: '0.5rem',
-                            border: 'none',
-                            cursor: 'pointer',
-                            transition: 'background-color 150ms',
-                          }}
-                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#dc2626')}
-                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#ef4444')}
-                        >
-                          <Trash2 style={{ width: '1rem', height: '1rem' }} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Tools Dropdown for each block */}
-                  <div className="tool-dropdown-container" style={{ position: 'relative', marginTop: '1rem' }}>
-                    <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
-                      Selected Tools ({block.selectedTools.length})
-                    </label>
-                    <button
-                      onClick={() => toggleDropdown(block.id)}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem 1rem',
-                        fontSize: '0.875rem',
-                        fontWeight: '500',
-                        color: '#374151',
-                        backgroundColor: '#ffffff',
-                        border: '2px solid #d1d5db',
-                        borderRadius: '0.5rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        transition: 'border-color 150ms',
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
-                      onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
-                    >
-                      {block.selectedTools.length > 0 
-                        ? `${block.selectedTools.length} Tool(s) Selected` 
-                        : 'Select Tools...'}
-                      <ChevronDown 
-                        style={{ 
-                          width: '1rem', 
-                          height: '1rem', 
-                          transform: openDropdowns[block.id] ? 'rotate(180deg)' : 'rotate(0deg)', 
-                          transition: 'transform 0.2s' 
-                        }} 
-                      />
-                    </button>
-
-                    {openDropdowns[block.id] && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          marginTop: '0.25rem',
-                          backgroundColor: 'white',
-                          border: '2px solid #d1d5db',
-                          borderRadius: '0.5rem',
-                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                          zIndex: 20,
-                          maxHeight: '300px',
-                          overflowY: 'auto',
-                        }}
-                      >
-                        {TOOL_OPTIONS.map((tool) => {
-                          const isSelected = block.selectedTools.includes(tool);
-                          return (
-                            <div
-                              key={tool}
-                              onClick={() => handleItemToggle(tool, block.id)}
-                              style={{
-                                padding: '0.75rem 1rem',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                backgroundColor: isSelected ? '#ecfdf5' : 'white',
-                                color: isSelected ? '#065f46' : '#374151',
-                                fontWeight: isSelected ? '600' : '400',
-                                borderBottom: '1px solid #f3f4f6',
-                                fontSize: '0.875rem',
-                                transition: 'background-color 100ms',
-                              }}
-                              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
-                              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
-                            >
-                              <span>{tool}</span>
-                              {isSelected && <Check style={{ width: '0.875rem', height: '0.875rem', color: '#059669' }} />}
-                            </div>
-                          );
-                        })}
-                      </div>
                     )}
                   </div>
-
-                  {/* Block Summary */}
-                  <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#ffffff', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
-                      <span>Points: <strong style={{ color: '#374151' }}>{block.points.length}</strong></span>
-                      <span>Output Segments: <strong style={{ color: '#374151' }}>{block.output.length}</strong></span>
-                      <span>Tools: <strong style={{ color: '#374151' }}>{block.selectedTools.length}</strong></span>
-                    </div>
-                  </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Send Button */}
-            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-              <button
-                onClick={onClose}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  color: '#6b7280',
-                  backgroundColor: '#f3f4f6',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: 'pointer',
-                  transition: 'background-color 150ms',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e5e7eb')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={blocks.length === 0}
-                style={{
-                  padding: '0.75rem 1.5rem',
-                  fontSize: '1rem',
-                  fontWeight: '700',
-                  color: 'white',
-                  backgroundColor: blocks.length === 0 ? '#9ca3af' : '#10b981',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  cursor: blocks.length === 0 ? 'not-allowed' : 'pointer',
-                  transition: 'background-color 150ms',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}
-                onMouseOver={(e) => {
-                  if (blocks.length > 0) e.currentTarget.style.backgroundColor = '#059669';
-                }}
-                onMouseOut={(e) => {
-                  if (blocks.length > 0) e.currentTarget.style.backgroundColor = '#10b981';
-                }}
-              >
-                Send Configuration
-              </button>
-            </div>
-          </div>
-        ) : (
-          // Visual Editor View - Show when a block is selected
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <p style={{ color: '#4b5563', margin: 0 }}>
-                Editing Block {blocks.findIndex(b => b.id === selectedBlockId) + 1}. Click and drag the green points to shape the energy profile (0-{MAX_ENERGY}). Click on the line to add a new point.
-              </p>
-              <button
-                onClick={() => setSelectedBlockId(null)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#6b7280',
-                  color: 'white',
-                  fontWeight: '600',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 150ms',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4b5563')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#6b7280')}
-              >
-                ← Back to Blocks
-              </button>
-            </div>
-
-        {/* --- Tool Selection Dropdown --- */}
-        <div className="tool-dropdown-container" style={{ marginBottom: '2rem', position: 'relative', maxWidth: '300px' }}>
-          <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
-            Select Required Tools
-          </label>
-          <button
-                onClick={() => toggleDropdown(selectedBlockId)}
-            style={{
-              width: '100%',
-              padding: '0.75rem 1rem',
-              fontSize: '1rem',
-              fontWeight: '500',
-              color: '#374151',
-              backgroundColor: '#f3f4f6',
-                  border: '2px solid #d1d5db',
-              borderRadius: '0.5rem',
-              cursor: 'pointer',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-                  transition: 'border-color 150ms',
-            }}
-                onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
-                onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
-          >
-            {selectedTools.length > 0 ? `${selectedTools.length} Tool(s) Selected` : 'Select Tools...'}
-                <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transform: openDropdowns[selectedBlockId] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-          </button>
-
-              {openDropdowns[selectedBlockId] && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                width: '100%',
-                marginTop: '0.25rem',
-                backgroundColor: 'white',
-                    border: '2px solid #d1d5db',
-                borderRadius: '0.5rem',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                    zIndex: 20,
-                    maxHeight: '300px',
-                overflowY: 'auto',
-              }}
-            >
-              {TOOL_OPTIONS.map((tool) => {
-                const isSelected = selectedTools.includes(tool);
-                return (
-                  <div
-                    key={tool}
-                        onClick={() => handleItemToggle(tool, selectedBlockId)}
+                {/* Tools Dropdown for each block */}
+                <div className="tool-dropdown-container" style={{ position: 'relative', marginTop: '1rem' }}>
+                  <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
+                    Selected Tools ({block.selectedTools.length})
+                  </label>
+                  <button
+                    onClick={() => toggleDropdown(block.id)}
                     style={{
-                          padding: '0.75rem 1rem',
+                      width: '100%',
+                      padding: '0.75rem 1rem',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      color: '#374151',
+                      backgroundColor: '#ffffff',
+                      border: '2px solid #d1d5db',
+                      borderRadius: '0.5rem',
                       cursor: 'pointer',
                       display: 'flex',
-                      alignItems: 'center',
                       justifyContent: 'space-between',
-                      backgroundColor: isSelected ? '#ecfdf5' : 'white',
-                      color: isSelected ? '#065f46' : '#374151',
-                      fontWeight: isSelected ? '600' : '400',
-                      borderBottom: '1px solid #f3f4f6',
-                          fontSize: '0.875rem',
-                          transition: 'background-color 100ms',
+                      alignItems: 'center',
+                      transition: 'border-color 150ms',
                     }}
-                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
-                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
+                    onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
+                    onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
                   >
-                        <span>{tool}</span>
-                    {isSelected && <Check style={{ width: '1rem', height: '1rem', color: '#059669' }} />}
+                    {block.selectedTools.length > 0
+                      ? `${block.selectedTools.length} Tool(s) Selected`
+                      : 'Select Tools...'}
+                    <ChevronDown
+                      style={{
+                        width: '1rem',
+                        height: '1rem',
+                        transform: openDropdowns[block.id] ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s'
+                      }}
+                    />
+                  </button>
+
+                  {openDropdowns[block.id] && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        marginTop: '0.25rem',
+                        backgroundColor: 'white',
+                        border: '2px solid #d1d5db',
+                        borderRadius: '0.5rem',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                        zIndex: 20,
+                        maxHeight: '300px',
+                        overflowY: 'auto',
+                      }}
+                    >
+                      {TOOL_OPTIONS.map((tool) => {
+                        const isSelected = block.selectedTools.includes(tool);
+                        return (
+                          <div
+                            key={tool}
+                            onClick={() => handleItemToggle(tool, block.id)}
+                            style={{
+                              padding: '0.75rem 1rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              backgroundColor: isSelected ? '#ecfdf5' : 'white',
+                              color: isSelected ? '#065f46' : '#374151',
+                              fontWeight: isSelected ? '600' : '400',
+                              borderBottom: '1px solid #f3f4f6',
+                              fontSize: '0.875rem',
+                              transition: 'background-color 100ms',
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
+                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
+                          >
+                            <span>{tool}</span>
+                            {isSelected && <Check style={{ width: '0.875rem', height: '0.875rem', color: '#059669' }} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Block Summary */}
+                <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#ffffff', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+                  <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                    <span>Points: <strong style={{ color: '#374151' }}>{block.points.length}</strong></span>
+                    <span>Output Segments: <strong style={{ color: '#374151' }}>{block.output.length}</strong></span>
+                    <span>Tools: <strong style={{ color: '#374151' }}>{block.selectedTools.length}</strong></span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              </div>
+            ))}
+          </div>
 
-
-        <div
-          style={{
-            display: 'flex',
-            gap: '2rem',
-            // FIX: Use dynamic property instead of invalid @media inline style
-            flexDirection: isDesktop ? 'row' : 'column',
-          }}
-        >
-          {/* --- Canvas Area and Point Management --- */}
-          <div style={{ flex: '1 1 0%', minWidth: '0' }}>
-             {/* Control Buttons for Points */}
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-              <button
-                onClick={addPoint}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#22c55e', // Green-500
-                  color: 'white',
-                  fontWeight: '600',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  transition: 'background-color 150ms',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#16a34a')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#22c55e')}
-              >
-                <Plus style={{ width: '1.25rem', height: '1.25rem' }} /> Add Data Point
-              </button>
-              <button
-                onClick={removeLastAddedPoint}
-                disabled={points.length <= 2}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.5rem 1rem',
-                  backgroundColor: points.length <= 2 ? '#9ca3af' : '#ef4444', // Red-500 or gray
-                  color: 'white',
-                  fontWeight: '600',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  cursor: points.length <= 2 ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  transition: 'background-color 150ms',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = points.length <= 2 ? '#9ca3af' : '#dc2626')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = points.length <= 2 ? '#9ca3af' : '#ef4444')}
-              >
-                <Minus style={{ width: '1.25rem', height: '1.25rem' }} /> Remove Last Added
-              </button>
-            </div>
-
-            {/* Chart */}
-            <div
+          {/* Send Button */}
+          <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+            <button
+              onClick={onClose}
               style={{
+                padding: '0.75rem 1.5rem',
+                fontSize: '1rem',
+                fontWeight: '600',
+                color: '#6b7280',
+                backgroundColor: '#f3f4f6',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
+                transition: 'background-color 150ms',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={blocks.length === 0}
+              style={{
+                padding: '0.75rem 1.5rem',
+                fontSize: '1rem',
+                fontWeight: '700',
+                color: 'white',
+                backgroundColor: blocks.length === 0 ? '#9ca3af' : '#10b981',
+                border: 'none',
+                borderRadius: '0.5rem',
+                cursor: blocks.length === 0 ? 'not-allowed' : 'pointer',
+                transition: 'background-color 150ms',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+              onMouseOver={(e) => {
+                if (blocks.length > 0) e.currentTarget.style.backgroundColor = '#059669';
+              }}
+              onMouseOut={(e) => {
+                if (blocks.length > 0) e.currentTarget.style.backgroundColor = '#10b981';
+              }}
+            >
+              Send Configuration
+            </button>
+          </div>
+        </div>
+      ) : (
+        // Visual Editor View - Show when a block is selected
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <p style={{ color: '#4b5563', margin: 0 }}>
+              Editing Block {blocks.findIndex(b => b.id === selectedBlockId) + 1}. Click and drag the green points to shape the energy profile (0-{MAX_ENERGY}). Click on the line to add a new point.
+            </p>
+            <button
+              onClick={() => setSelectedBlockId(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                backgroundColor: '#6b7280',
+                color: 'white',
+                fontWeight: '600',
+                borderRadius: '0.5rem',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background-color 150ms',
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#4b5563')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#6b7280')}
+            >
+              ← Back to Blocks
+            </button>
+          </div>
+
+          {/* --- Tool Selection Dropdown --- */}
+          <div className="tool-dropdown-container" style={{ marginBottom: '2rem', position: 'relative', maxWidth: '300px' }}>
+            <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
+              Select Required Tools
+            </label>
+            <button
+              onClick={() => toggleDropdown(selectedBlockId)}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                fontSize: '1rem',
+                fontWeight: '500',
+                color: '#374151',
+                backgroundColor: '#f3f4f6',
+                border: '2px solid #d1d5db',
+                borderRadius: '0.5rem',
+                cursor: 'pointer',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                color: '#374151',
-                marginBottom: '0.5rem',
+                transition: 'border-color 150ms',
               }}
+              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
+              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
             >
-              <span>Energy Profile (Y-Axis)</span>
-              <span>Iters (X-Axis)</span>
-            </div>
-            <div
-              style={{
-                position: 'relative',
-                borderRadius: '0.5rem',
-                border: '4px solid #d1d5db',
-                boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
-                cursor: 'crosshair',
-                width: CANVAS_WIDTH + 'px',
-                height: CANVAS_HEIGHT + 'px',
-                margin: '0 auto',
-                backgroundColor: '#f9fafb',
-              }}
-              onMouseDown={handleMouseDown}
-            >
-              <canvas
-                ref={(ref) => {
-                  if (ref && selectedBlockId) {
-                    canvasRefs.current[selectedBlockId] = ref;
-                  }
-                }}
-                width={CANVAS_WIDTH}
-                height={CANVAS_HEIGHT}
-                style={{ display: 'block' }}
-              />
-              {/* Overlay for Y-axis labels */}
+              {selectedTools.length > 0 ? `${selectedTools.length} Tool(s) Selected` : 'Select Tools...'}
+              <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transform: openDropdowns[selectedBlockId] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+            </button>
+
+            {openDropdowns[selectedBlockId] && (
               <div
                 style={{
                   position: 'absolute',
-                  top: 0,
-                  left: '-60px',
-                  height: '100%',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  fontSize: '0.75rem',
-                  color: '#6b7280',
-                  fontFamily: 'monospace',
+                  top: '100%',
+                  left: 0,
+                  width: '100%',
+                  marginTop: '0.25rem',
+                  backgroundColor: 'white',
+                  border: '2px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  zIndex: 20,
+                  maxHeight: '300px',
+                  overflowY: 'auto',
                 }}
               >
-                <span style={{ padding: '0.25rem' }}>High E ({MAX_ENERGY})</span>
-                <span style={{ padding: '0.25rem' }}>Low E (0)</span>
+                {TOOL_OPTIONS.map((tool) => {
+                  const isSelected = selectedTools.includes(tool);
+                  return (
+                    <div
+                      key={tool}
+                      onClick={() => handleItemToggle(tool, selectedBlockId)}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: isSelected ? '#ecfdf5' : 'white',
+                        color: isSelected ? '#065f46' : '#374151',
+                        fontWeight: isSelected ? '600' : '400',
+                        borderBottom: '1px solid #f3f4f6',
+                        fontSize: '0.875rem',
+                        transition: 'background-color 100ms',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
+                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
+                    >
+                      <span>{tool}</span>
+                      {isSelected && <Check style={{ width: '1rem', height: '1rem', color: '#059669' }} />}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+
+          <div
+            style={{
+              display: 'flex',
+              gap: '1.5rem',
+              // FIX: Use dynamic property instead of invalid @media inline style
+              flexDirection: isDesktop ? 'row' : 'column',
+              flex: 1,
+              overflow: 'hidden',
+            }}
+          >
+            {/* --- LEFT: Canvas Area and Interactive Controls --- */}
+            <div style={{ flex: '1 1 60%', minWidth: '0', display: 'flex', flexDirection: 'column' }}>
+              {/* Control Buttons for Points */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '0.75rem',
+                  marginBottom: '1rem',
+                  justifyContent: 'center',
+                }}
+              >
+                <button
+                  onClick={addPoint}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#22c55e', // Green-500
+                    color: 'white',
+                    fontWeight: '600',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    transition: 'background-color 150ms',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#16a34a')}
+                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#22c55e')}
+                >
+                  <Plus style={{ width: '1.25rem', height: '1.25rem' }} /> Add Data Point
+                </button>
+                <button
+                  onClick={removeLastAddedPoint}
+                  disabled={points.length <= 2}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem',
+                    padding: '0.5rem 1rem',
+                    backgroundColor: points.length <= 2 ? '#9ca3af' : '#ef4444', // Red-500 or gray
+                    color: 'white',
+                    fontWeight: '600',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    cursor: points.length <= 2 ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    transition: 'background-color 150ms',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = points.length <= 2 ? '#9ca3af' : '#dc2626')}
+                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = points.length <= 2 ? '#9ca3af' : '#ef4444')}
+                >
+                  <Minus style={{ width: '1.25rem', height: '1.25rem' }} /> Remove Last Added
+                </button>
+              </div>
+
+              {/* Chart */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  color: '#374151',
+                  marginBottom: '0.5rem',
+                }}
+              >
+                <span>Energy Profile (Y-Axis)</span>
+                <span>Iters (X-Axis)</span>
+              </div>
+              <div
+                style={{
+                  position: 'relative',
+                  borderRadius: '0.5rem',
+                  border: '4px solid #d1d5db',
+                  boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)',
+                  cursor: 'crosshair',
+                  width: CANVAS_WIDTH + 'px',
+                  height: CANVAS_HEIGHT + 'px',
+                  margin: '0 auto',
+                  backgroundColor: '#f9fafb',
+                }}
+                onMouseDown={handleMouseDown}
+              >
+                <canvas
+                  ref={(ref) => {
+                    if (ref && selectedBlockId) {
+                      canvasRefs.current[selectedBlockId] = ref;
+                    }
+                  }}
+                  width={CANVAS_WIDTH}
+                  height={CANVAS_HEIGHT}
+                  style={{ display: 'block' }}
+                />
+                {/* Overlay for Y-axis labels */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: '-60px',
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    fontSize: '0.75rem',
+                    color: '#6b7280',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  <span style={{ padding: '0.25rem' }}>High E ({MAX_ENERGY})</span>
+                  <span style={{ padding: '0.25rem' }}>Low E (0)</span>
+                </div>
+              </div>
+
+              {/* Point Management/Deletion UI List */}
+              <div
+                style={{
+                  marginTop: '1.5rem',
+                  padding: '0.75rem',
+                  backgroundColor: 'white',
+                  borderRadius: '0.75rem',
+                  border: '1px solid #e5e7eb',
+                  boxShadow:
+                    '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                }}
+              >
+                <h3
+                  style={{
+                    fontWeight: '700',
+                    color: '#374151',
+                    marginBottom: '0.5rem',
+                    borderBottom: '1px solid #e5e7eb',
+                    paddingBottom: '0.5rem',
+                  }}
+                >
+                  Individual Segment Points ({points.length} Total)
+                </h3>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  {[...points]
+                    .sort((a, b) => a.x - b.x)
+                    .map((point, index) => (
+                      <div
+                        key={point.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          backgroundColor: '#f0fff4',
+                          border: '1px solid #a7f3d0',
+                          borderRadius: '9999px',
+                          padding: '0.25rem 0.75rem',
+                          boxShadow:
+                            '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                          transition: 'background-color 150ms ease-in-out',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: '500',
+                            marginRight: '0.5rem',
+                            color: '#374151',
+                          }}
+                        >
+                          P{index + 1}:
+                        </span>
+                        <span style={{ color: '#065f46', fontWeight: '700' }}>
+                          E:{mapYToEnergy(point.y)}
+                        </span>
+                        {/* Only allow removal if there are more than 2 points */}
+                        {points.length > 2 && (
+                          <button
+                            onClick={() => removePoint(point.id)}
+                            title="Remove Point"
+                            style={{
+                              marginLeft: '0.5rem',
+                              color: '#ef4444',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Trash2 style={{ width: '1rem', height: '1rem' }} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                </div>
               </div>
             </div>
 
-            {/* Point Management/Deletion UI List */}
-            <div
-              style={{
-                marginTop: '1.5rem',
-                padding: '0.75rem',
-                backgroundColor: 'white',
-                borderRadius: '0.75rem',
-                border: '1px solid #e5e7eb',
-                boxShadow:
-                  '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-              }}
-            >
-              <h3
+            {/* --- Output Data List & Send Button --- */}
+            <div style={{ width: '384px' }}>
+              <h2
                 style={{
+                  fontSize: '1.5rem',
                   fontWeight: '700',
-                  color: '#374151',
-                  marginBottom: '0.5rem',
+                  color: '#1f2937',
+                  marginBottom: '1rem',
                   borderBottom: '1px solid #e5e7eb',
                   paddingBottom: '0.5rem',
                 }}
               >
-                Individual Segment Points ({points.length} Total)
-              </h3>
+                Calculated Output Data
+              </h2>
               <div
                 style={{
+                  maxHeight: '20rem',
+                  overflowY: 'auto',
+                  paddingRight: '0.5rem',
                   display: 'flex',
-                  flexWrap: 'wrap',
-                  gap: '0.5rem',
-                  fontSize: '0.875rem',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
                 }}
               >
-                {[...points]
-                  .sort((a, b) => a.x - b.x)
-                  .map((point, index) => (
-                    <div
-                      key={point.id}
+                {outputData.map((data, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      backgroundColor: '#eff6ff',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                      boxShadow:
+                        '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      borderLeft: '4px solid #1d4ed8',
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    <p
                       style={{
                         display: 'flex',
+                        justifyContent: 'space-between',
                         alignItems: 'center',
-                        backgroundColor: '#f0fff4',
-                        border: '1px solid #a7f3d0',
-                        borderRadius: '9999px',
-                        padding: '0.25rem 0.75rem',
-                        boxShadow:
-                          '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                        transition: 'background-color 150ms ease-in-out',
                       }}
                     >
-                      <span
-                        style={{
-                          fontWeight: '500',
-                          marginRight: '0.5rem',
-                          color: '#374151',
-                        }}
-                      >
-                        P{index + 1}:
+                      <span style={{ fontWeight: '700', color: '#374151' }}>
+                        Segment {index + 1}
                       </span>
-                      <span style={{ color: '#065f46', fontWeight: '700' }}>
-                        E:{mapYToEnergy(point.y)}
+                      <span style={{ fontSize: '0.75rem', color: '#1d4ed8' }}>
+                        {index === outputData.length - 1 ? 'END' : '->'}
                       </span>
-                      {/* Only allow removal if there are more than 2 points */}
-                      {points.length > 2 && (
-                        <button
-                          onClick={() => removePoint(point.id)}
-                          title="Remove Point"
-                          style={{
-                            marginLeft: '0.5rem',
-                            color: '#ef4444',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <Trash2 style={{ width: '1rem', height: '1rem' }} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    </p>
+                    <pre style={{ marginTop: '0.5rem', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                      <span style={{ display: 'block', color: '#374151' }}>
+                        energy: <span style={{ color: '#dc2626', fontWeight: '700' }}>{data.energy}</span>
+                      </span>
+                      <span style={{ display: 'block', color: '#374151' }}>
+                        break_iters: <span style={{ color: '#2563eb' }}>{data.break_iters}</span>
+                      </span>
+                      <span style={{ display: 'block', color: '#374151' }}>
+                        iters: <span style={{ color: '#9333ea', fontWeight: '700' }}>{data.iters}</span>
+                      </span>
+                    </pre>
+                  </div>
+                ))}
+                {outputData.length === 0 && (
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      padding: '1.5rem',
+                      color: '#6b7280',
+                      backgroundColor: '#f3f4f6',
+                      borderRadius: '0.5rem',
+                    }}
+                  >
+                    Draw at least two points to define a segment.
+                  </div>
+                )}
+              </div>
+
+              {/* Save and Back Button */}
+              <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+                <button
+                  onClick={() => setSelectedBlockId(null)}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem 1.5rem',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    color: '#6b7280',
+                    backgroundColor: '#f3f4f6',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    transition: 'background-color 150ms',
+                  }}
+                  onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+                  onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+                >
+                  Save & Back to Blocks
+                </button>
               </div>
             </div>
           </div>
-
-          {/* --- Output Data List & Send Button --- */}
-          <div style={{ width: '384px' }}>
-            <h2
-              style={{
-                fontSize: '1.5rem',
-                fontWeight: '700',
-                color: '#1f2937',
-                marginBottom: '1rem',
-                borderBottom: '1px solid #e5e7eb',
-                paddingBottom: '0.5rem',
-              }}
-            >
-              Calculated Output Data
-            </h2>
-            <div
-              style={{
-                maxHeight: '20rem',
-                overflowY: 'auto',
-                paddingRight: '0.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-              }}
-            >
-              {outputData.map((data, index) => (
-                <div
-                  key={index}
-                  style={{
-                    backgroundColor: '#eff6ff',
-                    padding: '1rem',
-                    borderRadius: '0.5rem',
-                    boxShadow:
-                      '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    borderLeft: '4px solid #1d4ed8',
-                    fontFamily: 'monospace',
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <p
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span style={{ fontWeight: '700', color: '#374151' }}>
-                      Segment {index + 1}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: '#1d4ed8' }}>
-                      {index === outputData.length - 1 ? 'END' : '->'}
-                    </span>
-                  </p>
-                  <pre style={{ marginTop: '0.5rem', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                    <span style={{ display: 'block', color: '#374151' }}>
-                      energy: <span style={{ color: '#dc2626', fontWeight: '700' }}>{data.energy}</span>
-                    </span>
-                    <span style={{ display: 'block', color: '#374151' }}>
-                      break_iters: <span style={{ color: '#2563eb' }}>{data.break_iters}</span>
-                    </span>
-                    <span style={{ display: 'block', color: '#374151' }}>
-                      iters: <span style={{ color: '#9333ea', fontWeight: '700' }}>{data.iters}</span>
-                    </span>
-                  </pre>
-                </div>
-              ))}
-              {outputData.length === 0 && (
-                <div
-                  style={{
-                    textAlign: 'center',
-                    padding: '1.5rem',
-                    color: '#6b7280',
-                    backgroundColor: '#f3f4f6',
-                    borderRadius: '0.5rem',
-                  }}
-                >
-                  Draw at least two points to define a segment.
-                </div>
-              )}
-            </div>
-
-            {/* Save and Back Button */}
-            <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
-            <button
-                onClick={() => setSelectedBlockId(null)}
-              style={{
-                  flex: 1,
-                padding: '0.75rem 1.5rem',
-                fontSize: '1rem',
-                  fontWeight: '600',
-                  color: '#6b7280',
-                  backgroundColor: '#f3f4f6',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                  transition: 'background-color 150ms',
-              }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#e5e7eb')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
-            >
-                Save & Back to Blocks
-            </button>
-          </div>
         </div>
-        </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

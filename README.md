@@ -2,6 +2,19 @@
 
 > A modern web-based dashboard for quantum computing visualization, monitoring, and management.
 
+## ⚠️ IMPORTANT: First-Time Setup
+
+**Before running the app, you MUST configure the Gemini API key:**
+
+1. **Quick Setup**: Run `setup-gemini.bat` (Windows) or see `SETUP_GEMINI.md`
+2. **Get API Key**: https://makersuite.google.com/app/apikey
+3. **Add to `.env`**: `REACT_APP_GEMINI_API_KEY=your_key_here`
+4. **Restart Server**: Stop and run `npm start` again
+
+Without this, the terminal chat will show connection errors. See **[SETUP_GEMINI.md](SETUP_GEMINI.md)** for detailed instructions.
+
+---
+
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
@@ -165,6 +178,19 @@ qdash/
    cp .env.example .env
    # Edit .env with your configuration
    ```
+
+   **Important: Set up your Gemini API Key**
+   
+   The application uses Google's Gemini AI for intelligent chat responses and command classification. You need to:
+   
+   1. Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   2. Add it to your `.env` file:
+      ```env
+      REACT_APP_GEMINI_API_KEY=your_actual_api_key_here
+      ```
+   3. Restart the development server after adding the key
+
+   Without this key, the terminal chat will show connection errors.
 
 5. **Start the development servers**
    

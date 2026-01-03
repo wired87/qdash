@@ -35,29 +35,3 @@ export default function NodeDrawer({}) {
 
   );
 }
-
-/*
-
-<Editor
-  className="flex-1 h-screen w-96"
-  defaultLanguage="yaml"
-  value={yamlConfig}
-  onChange={(val) => setYamlConfig(val || "")}
-  theme="vs-dark"
-  options={{
-    fontSize: 13,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    automaticLayout: true,
-  }}
-/>
-  const [yamlConfig, setYamlConfig] = useState(`phases:
-  - id: warmup
-    duration: 10s
-    changes:
-      electron_energy: { mode: "linear", start: 100, end: 500 }
-  - id: main_run
-    duration: 50s
-    changes:
-      temperature: { mode: "constant", value: 1.5 }`);
- */
