@@ -1,0 +1,97 @@
+const { heroui } = require('@heroui/theme');
+
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
+    './node_modules/@heroui/react/dist/**/*.{js,ts,jsx,tsx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        "reply-bg": "#fff",
+        darkslategray: {
+          100: "#393939",
+          200: "rgba(72, 72, 72, 0.5)",
+        },
+        "black-75": {
+          300: "rgba(43, 48, 58, 0.75)",
+        },
+        "main-colour": "#09165f",
+        black: "#2b303a",
+        dimgray: {
+          100: "#696969",
+          200: "#6e6666",
+          300: "#605959",
+          400: "#575757",
+          500: "#4e4b66",
+        },
+        "operator-message-text": "#000",
+        silver: "#c8c8c8",
+        gray: {
+          100: "#fefefe",
+          200: "#fafafa",
+          300: "#8d8d8d",
+          400: "#808080",
+          500: "#202020",
+          600: "#1e1e1e",
+          700: "#161616",
+          800: "#141414",
+          900: "#060e35",
+        },
+        whitesmoke: {
+          100: "#f5f5f5",
+          200: "#eee",
+          300: "#ebebeb",
+          400: "rgba(247, 247, 247, 0.6)",
+        },
+        "shades-dark-10": "#e8e8e8",
+        cornflowerblue: "#0693e3",
+        "main-primary": "#51aa1b",
+        "shades-dark-60": "#767676",
+        "main-secondary": "#ff4b37",
+        darkgray: "#b0b0b0",
+        gainsboro: {
+          100: "#e0e0e0",
+          200: "#d9d9d9",
+        },
+        blueviolet: "#7949ff",
+        gold: "#ffc421",
+        cornsilk: "#fff4d0",
+        "reply-icons": "#8f9195",
+        "stamp-text": "#737376",
+        "operator-message-bg": "#f2f2f2",
+        "header-body-text": "#f8f8f8",
+      },
+      fontFamily: {
+        "body-regular-paragraph-small": "Roboto",
+        h5: "Montserrat",
+        poppins: "Poppins",
+        "chat-operator-quick-reply": "Inter",
+        manrope: "Manrope",
+        inherit: "inherit",
+        raleway: "Raleway",
+        nunito: "Nunito",
+        "work-sans": "'Work Sans'",
+        "abril-fatface": "'Abril Fatface'",
+      },
+      borderRadius: {
+        "81xl": "100px",
+        "8xs": "5px",
+        "31xl": "50px",
+        xl: "20px",
+        "3xs": "10px",
+        mini: "15px",
+        "536xl": "555px",
+        "3xs-3": "9.3px",
+        "7xs-6": "5.6px",
+        "8xl-9": "27.9px",
+      },
+    },
+  },
+  plugins: [
+    require('@tailwindcss/typography'),
+    require('tailwind-scrollbar'),
+    heroui()
+  ],
+};
