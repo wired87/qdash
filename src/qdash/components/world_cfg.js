@@ -18,15 +18,15 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
 
   // ... (handlers remain)
 
-  const handleCloseConfig = () => {
+  function handleCloseConfig() {
     setSelectedEnvConfig(null);
-  };
+  }
 
-  const handleCreateNew = () => {
+  function handleCreateNew() {
     setSelectedEnvConfig({}); // Clear to defaults
-  };
+  }
 
-  const handleSessionLink = (envId, isLinked) => {
+  function handleSessionLink(envId, isLinked) {
     // Optimistic UI update
     setLinkedEnvs(prev => {
       const next = new Set(prev);
@@ -38,17 +38,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
     const sessionId = getSessionId();
     const userId = localStorage.getItem(USER_ID_KEY);
 
-    if (sendMessage) {
-      sendMessage({
-        type: isLinked ? "LINK_ENV_SESSION" : "RM_LINK_ENV_SESSION",
-        auth: {
-          user_id: userId,
-          session_id: sessionId,
-          env_id: envId
-        }
-      });
-    }
-  };
+  }
 
   // Request environments when modal opens
   useEffect(() => {
@@ -133,7 +123,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
     }
   }, []);
 
-  const handleDeleteEnv = (e, envId) => {
+  function handleDeleteEnv(e, envId) {
     e.stopPropagation();
     if (window.confirm(`Are you sure you want to delete environment ${envId}?`)) {
       if (sendMessage) {
@@ -146,9 +136,9 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
         setEnvironments(prev => prev.filter(env => env.id !== envId));
       }
     }
-  };
+  }
 
-  const handleSelectEnv = (env) => {
+  function handleSelectEnv(env) {
     // Map env properties to config values expected by ConfigAccordion
     const config = {
       id: env.id,
@@ -159,7 +149,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
       particle: env.particle
     };
     setSelectedEnvConfig(config);
-  };
+  }
 
 
 

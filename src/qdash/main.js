@@ -24,14 +24,13 @@ import { initializeVoice, processVoiceInput } from "./voice_logic";
 import { AuthForm } from "./components/AuthForm";
 import { DataSlider } from "./components/DataSlider";
 import { UserCard } from "./components/UserCard";
-import { NCFGTreeSidebar } from "./components/NCFGTreeSidebar";
-import { NCFGModal } from "./components/NCFGModal";
 import EnergyDesignerWithViz from "./components/EnergyDesignerWithViz";
 import BillingManager from "./components/BillingManager";
 
 import ModuleDesigner from "./components/ModuleDesigner";
 import FieldDesigner from "./components/FieldDesigner";
 import SessionConfig from "./components/SessionConfig";
+import ParamConfig from "./components/ParamConfig";
 import { createOrUpdateUser, updateUserPlan as firestoreUpdateUserPlan, trackResourceUsage, getUserProfile } from "./utils/firestoreUserManager";
 
 export const MainApp = () => {
@@ -54,6 +53,7 @@ export const MainApp = () => {
   const [isModuleDesignerOpen, setIsModuleDesignerOpen] = useState(false);
   const [isFieldDesignerOpen, setIsFieldDesignerOpen] = useState(false);
   const [isSessionConfigOpen, setIsSessionConfigOpen] = useState(false);
+  const [isParamConfigOpen, setIsParamConfigOpen] = useState(false);
   const [selectedEnv, setSelectedEnv] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -285,6 +285,7 @@ export const MainApp = () => {
   const toggleModuleDesigner = useCallback(() => setIsModuleDesignerOpen(prev => !prev), []);
   const toggleFieldDesigner = useCallback(() => setIsFieldDesignerOpen(prev => !prev), []);
   const toggleSessionConfig = useCallback(() => setIsSessionConfigOpen(prev => !prev), []);
+  const toggleParamConfig = useCallback(() => setIsParamConfigOpen(prev => !prev), []);
 
   const updateUserPlan = useCallback(async (uid, planData) => {
     try {
@@ -353,8 +354,9 @@ export const MainApp = () => {
         .catch(err => console.error('Failed to track injection:', err));
     }
 
-    handleCloseInjection();
-  }, [user, firebaseDb, handleCloseInjection]);
+    // Do not close the modal automatically
+    // handleCloseInjection();
+  }, [user, firebaseDb]);
 
 
   const startSim = useCallback(async (env_id_or_ids) => {
@@ -665,7 +667,7 @@ export const MainApp = () => {
           {get_dashboard()}
           {get_ncfgslider()}
         </LandingPage>
-        <TerminalConsole error={error} handleSubmit={handleSubmit} isConnected={isConnected} fbIsConnected={fbIsConnected} userProfile={userProfile} inputValue={inputValue} updateInputValue={updateInputValue} messages={messages} toggleCfgSlider={toggleCfgSlider} toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} toggleDashboard={toggleDahboard} toggleNcfgSlider={toggleNcfgSlider} toggleLogSidebar={toggleLogSidebar} toggleClusterModal={toggleClusterModal} toggleInjection={toggleInjection} toggleBilling={toggleBilling} toggleModuleDesigner={toggleModuleDesigner} toggleFieldDesigner={toggleFieldDesigner} toggleSessionConfig={toggleSessionConfig} envs={envs} toggleBucket={toggleBucket} saveMessage={saveMessage} setMessages={setMessages} isVisible={isTerminalVisible} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive} />
+        <TerminalConsole error={error} handleSubmit={handleSubmit} isConnected={isConnected} fbIsConnected={fbIsConnected} userProfile={userProfile} inputValue={inputValue} updateInputValue={updateInputValue} messages={messages} toggleCfgSlider={toggleCfgSlider} toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} toggleDashboard={toggleDahboard} toggleNcfgSlider={toggleNcfgSlider} toggleLogSidebar={toggleLogSidebar} toggleClusterModal={toggleClusterModal} toggleInjection={toggleInjection} toggleBilling={toggleBilling} toggleModuleDesigner={toggleModuleDesigner} toggleFieldDesigner={toggleFieldDesigner} toggleSessionConfig={toggleSessionConfig} toggleParamConfig={toggleParamConfig} envs={envs} toggleBucket={toggleBucket} saveMessage={saveMessage} setMessages={setMessages} isVisible={isTerminalVisible} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive} />
       </div>
       <div className="flex">
         {get_node_panel()}
@@ -710,6 +712,13 @@ export const MainApp = () => {
         onClose={toggleSessionConfig}
         sendMessage={sendMessage}
         user={user}
+      />
+
+      {/* Param Config */}
+      <ParamConfig
+        isOpen={isParamConfigOpen}
+        onClose={toggleParamConfig}
+        sendMessage={sendMessage}
       />
 
       {/* Energy Designer - Bottom-to-top slider modal */}

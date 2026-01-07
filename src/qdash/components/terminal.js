@@ -107,7 +107,8 @@ export const TerminalConsole = ({
   setIsVoiceActive,
   toggleModuleDesigner,
   toggleFieldDesigner,
-  toggleSessionConfig
+  toggleSessionConfig,
+  toggleParamConfig
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -168,6 +169,7 @@ export const TerminalConsole = ({
     { name: "Modules 🧩", case: "module" },
     { name: "Fields 📊", case: "fields_manager" },
     { name: "Injection ⚡", case: "injection" },
+    { name: "Param Cfg", case: "param_cfg" },
   ];
 
   const handleAction = useCallback((actionCase) => {
@@ -181,6 +183,7 @@ export const TerminalConsole = ({
     else if (actionCase === "injection") toggleInjection();
     else if (actionCase === "module") toggleModuleDesigner();
     else if (actionCase === "fields_manager") toggleFieldDesigner();
+    else if (actionCase === "param_cfg") toggleParamConfig();
     else if (actionCase === "change_plan" || actionCase === "view_billing" || actionCase === "upgrade_plan") toggleBilling();
     else if (actionCase === "get_billings") {
       // Fetch billing history via terminal command

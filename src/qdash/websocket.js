@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { USER_ID_KEY } from "./auth";
 import { useEnvStore } from "./env_store";
 import { store } from "./store";
-import { setUserModules, setActiveModuleFields } from "./store/slices/moduleSlice";
-import { setActiveSessionModules, setActiveSessionFields } from "./store/slices/sessionSlice";
-import { setUserFields } from "./store/slices/fieldSlice";
+import { setUserModules, setActiveModuleFields, updateModule } from "./store/slices/moduleSlice";
+import { setActiveSessionModules, setActiveSessionFields, setSessions, setActiveSessionEnvs, mergeLinkData, removeSessionEnv, removeSessionModule, removeSessionField, removeInjectionFromAllSessions } from "./store/slices/sessionSlice";
+import { setUserFields, updateField } from "./store/slices/fieldSlice";
+import { setUserInjections } from "./store/slices/injectionSlice";
 
 
 
@@ -76,6 +77,7 @@ const _useWebSocket = (
 
   const handleWebSocketMessage = (message) => {
     // Check for errors as requested: attr includes "error" or type includes "error"
+    console.log("received data", message?.data);
     const hasErrorAttr = Object.keys(message).some(key => key.toLowerCase().includes("error"));
     const isErrorType = message.type && typeof message.type === 'string' && message.type.toLowerCase().includes("error");
 
@@ -127,7 +129,8 @@ const _useWebSocket = (
       console.log("📋 Received environment list:", count, "environments");
 
       if (addConsoleMessage) {
-        addConsoleMessage(`📋 Loaded ${count} environment${count !== 1 ? 's' : ''}`, 'system');
+        if (count === 0) addConsoleMessage('ℹ️ No environments found', 'system');
+        else addConsoleMessage(`📋 Loaded ${count} environment${count !== 1 ? 's' : ''}`, 'system');
       }
 
       // Process and update environment state
@@ -164,6 +167,27 @@ const _useWebSocket = (
           console.warn("Could not update global env store directly:", e);
         }
       }
+    } else if (["GET_SESSIONS_ENVS", "LIST_SESSIONS_ENVS", "LINK_ENV_SESSION", "RM_LINK_ENV_SESSION"].includes(message.type)) {
+      // Merge hierarchical link data if present
+
+      if (message.data?.sessions) {
+        store.dispatch(mergeLinkData(message.data));
+      }
+
+      // Handle removal specifically
+      if (message.type === "RM_LINK_ENV_SESSION" && message.auth) {
+        const { session_id, env_id } = message.auth;
+        if (session_id && env_id) {
+          store.dispatch(removeSessionEnv({ sessionId: session_id, envId: env_id }));
+        }
+      }
+
+      if (addConsoleMessage) {
+        if (message.type === "LINK_ENV_SESSION") addConsoleMessage('🔗 Environment linked to session', 'system');
+        else if (message.type === "RM_LINK_ENV_SESSION") addConsoleMessage('🔗 Environment unlinked from session', 'system');
+        else addConsoleMessage('📋 Session environments updated', 'system');
+      }
+
     } else if (message.type === "ENV_DELETED" || message.type === "DEL_ENV") {
       // Handle environment deletion confirmation
       console.log("🗑️ Environment deleted:", message.env_id);
@@ -185,16 +209,17 @@ const _useWebSocket = (
       if (addConsoleMessage) {
         addConsoleMessage(`✅ Injections applied to cluster: ${envId}`, 'system');
       }
-    } else if (message.type === "INJ_LIST_USER" || message.type === "GET_INJ_USER_RESPONSE" || message.type === "GET_INJ_USER") {
+    } else if (message.type === "GET_INJ_USER") {
       // Handle user injection list response
       const injections = message.data?.injections || message.injections || [];
 
-      if (message.status?.state === "success" || !message.status) {
-        console.log("📋 Received user injections:", injections.length);
-        if (addConsoleMessage) {
-          const count = injections.length;
-          addConsoleMessage(`📋 Loaded ${count} injection${count !== 1 ? 's' : ''}`, 'system');
-        }
+      console.log("📋 Received user injections:", injections.length);
+      store.dispatch(setUserInjections(injections));
+
+      if (addConsoleMessage) {
+        const count = injections.length;
+        if (count === 0) addConsoleMessage('ℹ️ No injections found', 'system');
+        else addConsoleMessage(`📋 Loaded ${count} injection${count !== 1 ? 's' : ''}`, 'system');
       }
       // Data is handled by the component's event listener
     } else if (message.type === "SET_INJ") {
@@ -219,6 +244,12 @@ const _useWebSocket = (
 
       if (message.status?.state === "success") {
         console.log("🗑️ Injection deleted:", injId);
+
+        // Remove injection from all sessions
+        if (injId) {
+          store.dispatch(removeInjectionFromAllSessions({ injectionId: injId }));
+        }
+
         if (addConsoleMessage) {
           addConsoleMessage(`🗑️ Injection deleted: ${injId}`, 'system');
         }
@@ -275,6 +306,22 @@ const _useWebSocket = (
           addConsoleMessage(`✅ Session established: ${sid}...`, 'system');
         }
       }
+    } else if (message.type === "ENABLE_SM") {
+      // Handle ENABLE_SM configuration
+      // Expected structure: { session_id: { env_id: { module_id: [field_id, ...] } } }
+      if (message.data) {
+        console.log("📡 Received ENABLE_SM configuration:", message.data);
+
+        // Dispatch to Redux to merge with session config
+        store.dispatch({
+          type: 'sessions/mergeEnableSM',
+          payload: message.data
+        });
+
+        if (addConsoleMessage) {
+          addConsoleMessage('✅ SM configuration received', 'system');
+        }
+      }
     } else if (message.type === "FINISHED") {
       setDeactivate(true);
     } else if (["LIST_USERS_MODULES", "DEL_MODULE", "SET_MODULE"].includes(message.type)) {
@@ -289,25 +336,91 @@ const _useWebSocket = (
       if (addConsoleMessage) {
         if (message.type === "DEL_MODULE") addConsoleMessage('🗑️ Module deleted', 'system');
         else if (message.type === "SET_MODULE") addConsoleMessage('✅ Module saved', 'system');
-        else addConsoleMessage(`📦 User modules loaded: ${safeModules.length}`, 'system');
+        else {
+          if (safeModules.length === 0) addConsoleMessage('ℹ️ No modules found', 'system');
+          else addConsoleMessage(`📦 User modules loaded: ${safeModules.length}`, 'system');
+        }
       }
 
-    } else if (["GET_SESSIONS_MODULES", "LINK_SESSION_MODULE", "RM_LINK_SESSION_MODULE"].includes(message.type)) {
-      // Handle Session Modules List
-      const modules = message.data?.modules || message.data || [];
-      const safeModules = Array.isArray(modules) ? modules : [];
+    } else if (message.type === "LIST_USERS_SESSIONS") {
+      // Handle User Sessions List
+      let safeSessions = [];
 
-      console.log(`🔗 Session Modules update (${message.type}):`, safeModules.length);
-      store.dispatch(setActiveSessionModules(safeModules));
+      // Extract sessions array
+      if (Array.isArray(message.data?.sessions)) {
+        safeSessions = message.data.sessions;
+      } else if (Array.isArray(message.data)) {
+        safeSessions = message.data;
+      } else if (message.data?.sessions && typeof message.data.sessions === 'object') {
+        // If sessions is an object (hierarchical structure), extract session IDs
+        safeSessions = Object.keys(message.data.sessions).map(sessionId => ({ id: sessionId }));
+      }
+
+      console.log(`📋 User Sessions update (${message.type}):`, safeSessions.length);
+      store.dispatch(setSessions(safeSessions));
+
+      // Also merge hierarchical link data if present
+      if (message.data?.sessions && typeof message.data.sessions === 'object') {
+        store.dispatch(mergeLinkData(message.data));
+      }
 
       if (addConsoleMessage) {
-        if (message.type === "LINK_SESSION_MODULE") addConsoleMessage('🔗 Module linked to session', 'system');
-        else if (message.type === "RM_LINK_SESSION_MODULE") addConsoleMessage('🔗 Module unlinked from session', 'system');
-        else addConsoleMessage(`🔗 Session modules loaded: ${safeModules.length}`, 'system');
+        if (safeSessions.length === 0) addConsoleMessage('ℹ️ No sessions found', 'system');
+        else addConsoleMessage(`📋 User sessions loaded: ${safeSessions.length}`, 'system');
+      }
+
+    } else if (["GET_SESSIONS_MODULES", "LINK_ENV_MODULE", "RM_LINK_ENV_MODULE"].includes(message.type)) {
+      // Handle Session Modules List with new hierarchical structure
+      // Expected: { sessions: { session_id: { envs: { env_id: { modules: { module_id: {...} } } } } } }
+
+      let extractedModules = [];
+
+      if (message.data?.sessions) {
+        // New hierarchical structure
+        Object.values(message.data.sessions).forEach(session => {
+          if (session.envs) {
+            Object.values(session.envs).forEach(env => {
+              if (env.modules) {
+                Object.keys(env.modules).forEach(moduleId => {
+                  if (!extractedModules.includes(moduleId)) {
+                    extractedModules.push(moduleId);
+                  }
+                });
+              }
+            });
+          }
+        });
+      } else if (message.data?.modules) {
+        // Fallback to old structure
+        extractedModules = Array.isArray(message.data.modules) ? message.data.modules : [];
+      } else if (Array.isArray(message.data)) {
+        extractedModules = message.data;
+      }
+
+      console.log(`🔗 Session Modules update (${message.type}):`, extractedModules.length);
+      store.dispatch(setActiveSessionModules(extractedModules));
+
+      // Merge hierarchical link data if present
+      if (message.data?.sessions) {
+        store.dispatch(mergeLinkData(message.data));
+      }
+
+      // Handle removal specifically
+      if (message.type === "RM_LINK_ENV_MODULE" && message.auth) {
+        const { session_id, env_id, module_id } = message.auth;
+        if (session_id && env_id && module_id) {
+          store.dispatch(removeSessionModule({ sessionId: session_id, envId: env_id, moduleId: module_id }));
+        }
+      }
+
+      if (addConsoleMessage) {
+        if (message.type === "LINK_ENV_MODULE") addConsoleMessage('🔗 Module linked to session', 'system');
+        else if (message.type === "RM_LINK_ENV_MODULE") addConsoleMessage('🔗 Module unlinked from session', 'system');
+        else addConsoleMessage(`🔗 Session modules loaded: ${extractedModules.length}`, 'system');
       }
     } else if (message.type === "GET_MODULE") {
       // Individual module details - mostly for UI viewing, maybe no global store needed yet, 
-      // but often useful to update the item in the list if it exists.
+      // but often useful to update the item in the list if it existss.
       console.log("📦 Module details received:", message.data);
       // For now, we might not need to store single module in global state if the list is the source of truth,
       // but if we are editing it, potentially good. 
@@ -327,32 +440,124 @@ const _useWebSocket = (
       if (addConsoleMessage) {
         if (message.type === "DEL_FIELD") addConsoleMessage('🗑️ Field deleted', 'system');
         else if (message.type === "SET_FIELD") addConsoleMessage('✅ Field saved', 'system');
-        else addConsoleMessage(`🌾 User fields loaded: ${safeFields.length}`, 'system');
+        else {
+          if (safeFields.length === 0) addConsoleMessage('ℹ️ No fields found', 'system');
+          else addConsoleMessage(`🌾 User fields loaded: ${safeFields.length}`, 'system');
+        }
       }
 
     } else if (["LIST_MODULES_FIELDS", "GET_MODULES_FIELDS", "LINK_MODULE_FIELD", "RM_LINK_MODULE_FIELD"].includes(message.type)) {
-      // Handle Module Fields List
-      const fields = message.data?.fields || message.data || [];
-      const safeFields = Array.isArray(fields) ? fields : [];
+      // Handle Module Fields List with new hierarchical structure
+      // Expected: { sessions: { session_id: { envs: { env_id: { modules: { module_id: { fields: [...] } } } } } } }
 
-      console.log(`🔗 Module Fields update (${message.type}):`, safeFields.length);
-      store.dispatch(setActiveModuleFields(safeFields));
+      let extractedFields = [];
+
+      if (message.data?.sessions) {
+        // New hierarchical structure
+        Object.values(message.data.sessions).forEach(session => {
+          if (session.envs) {
+            Object.values(session.envs).forEach(env => {
+              if (env.modules) {
+                Object.values(env.modules).forEach(module => {
+                  if (module.fields && Array.isArray(module.fields)) {
+                    module.fields.forEach(fieldId => {
+                      if (!extractedFields.includes(fieldId)) {
+                        extractedFields.push(fieldId);
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      } else if (message.data?.fields) {
+        // Fallback to old structure
+        extractedFields = Array.isArray(message.data.fields) ? message.data.fields : [];
+      } else if (Array.isArray(message.data)) {
+        extractedFields = message.data;
+      }
+
+      console.log(`🔗 Module Fields update (${message.type}):`, extractedFields.length);
+      store.dispatch(setActiveModuleFields(extractedFields));
+
+      // Merge hierarchical link data if present
+      if (message.data?.sessions) {
+        store.dispatch(mergeLinkData(message.data));
+      }
+
+      // Handle removal specifically
+      if (message.type === "RM_LINK_MODULE_FIELD" && message.auth) {
+        const { session_id, env_id, module_id, field_id } = message.auth;
+        if (session_id && env_id && module_id && field_id) {
+          store.dispatch(removeSessionField({ sessionId: session_id, envId: env_id, moduleId: module_id, fieldId: field_id }));
+        }
+      }
 
       if (addConsoleMessage) {
         if (message.type === "LINK_MODULE_FIELD") addConsoleMessage('🔗 Field linked to module', 'system');
         else if (message.type === "RM_LINK_MODULE_FIELD") addConsoleMessage('🔗 Field unlinked from module', 'system');
-        else addConsoleMessage(`🔗 Module fields loaded: ${safeFields.length}`, 'system');
+        else addConsoleMessage(`🔗 Module fields loaded: ${extractedFields.length}`, 'system');
       }
 
     } else if (message.type === "SESSIONS_FIELDS") {
-      // Handle Session Fields List
-      const fields = message.data?.fields || message.data || [];
-      const safeFields = Array.isArray(fields) ? fields : [];
+      // Handle Session Fields List with new hierarchical structure
+      // Expected: { sessions: { session_id: { envs: { env_id: { modules: { module_id: { fields: [...] } } } } } } }
 
-      console.log(`🔗 Session Fields update (${message.type}):`, safeFields.length);
-      store.dispatch(setActiveSessionFields(safeFields));
+      let extractedFields = [];
 
-      if (addConsoleMessage) addConsoleMessage(`🔗 Session fields loaded: ${safeFields.length}`, 'system');
+      if (message.data?.sessions) {
+        // New hierarchical structure
+        Object.values(message.data.sessions).forEach(session => {
+          if (session.envs) {
+            Object.values(session.envs).forEach(env => {
+              if (env.modules) {
+                Object.values(env.modules).forEach(module => {
+                  if (module.fields && Array.isArray(module.fields)) {
+                    module.fields.forEach(fieldId => {
+                      if (!extractedFields.includes(fieldId)) {
+                        extractedFields.push(fieldId);
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      } else if (message.data?.fields) {
+        // Fallback to old structure
+        extractedFields = Array.isArray(message.data.fields) ? message.data.fields : [];
+      } else if (Array.isArray(message.data)) {
+        extractedFields = message.data;
+      }
+
+      console.log(`🔗 Session Fields update (${message.type}):`, extractedFields.length);
+      store.dispatch(setActiveSessionFields(extractedFields));
+
+      // Merge hierarchical link data if present
+      if (message.data?.sessions) {
+        store.dispatch(mergeLinkData(message.data));
+      }
+
+      if (addConsoleMessage) addConsoleMessage(`🔗 Session fields loaded: ${extractedFields.length}`, 'system');
+
+    } else if (message.type === "GET_ITEM") {
+      // Handle generic GET_ITEM response
+      const itemData = message.data || {};
+      console.log("📦 Received Item Details:", itemData);
+
+      if (itemData.id) {
+        // Attempt to update across all stores as we might not know the type for sure
+        // 1. Env
+        addEnvs({ [itemData.id]: itemData });
+        // 2. Module
+        store.dispatch(updateModule(itemData));
+        // 3. Field
+        store.dispatch(updateField(itemData));
+      }
+
+      if (addConsoleMessage) addConsoleMessage(`📦 Loaded details for: ${itemData.id || 'Unknown Item'}`, 'system');
 
     } else {
       // Für alle anderen unbekannten Nachrichtentypen
@@ -360,39 +565,52 @@ const _useWebSocket = (
     }
   };
   // Tom
-  useEffect(() => {
-    // Schließe bestehende Verbindung, falls vorhanden
-    // Neue WebSocket-Verbindung aufbauen
+  // Reconnection refs
+  const reconnectTimeout = useRef(null);
+  const isMounted = useRef(true);
+
+  const connect = useCallback(() => {
+    if (ws.current?.readyState === WebSocket.OPEN || ws.current?.readyState === WebSocket.CONNECTING) return;
+
     ws.current = new WebSocket(get_ws_endpoint());
 
-    // Event-Handler
     ws.current.onopen = () => {
       console.log("WebSocket verbunden");
-      setIsConnected(true);
-      setError(null); // Fehler zurücksetzen
-      window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'connected', isConnected: true } }));
-
-      // Flush message queue
-      if (messageQueue.current.length > 0) {
-        console.log(`Flushing ${messageQueue.current.length} queued messages...`);
-        while (messageQueue.current.length > 0) {
-          const msg = messageQueue.current.shift();
-          ws.current.send(JSON.stringify(msg));
-          console.log("Sent queued message:", msg);
-        }
+      if (isMounted.current) {
+        setIsConnected(true);
+        setError(null);
+        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'connected', isConnected: true } }));
       }
+
+      // Flush message queue safely
+      const flushQueue = () => {
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+          if (messageQueue.current.length > 0) {
+            console.log(`Flushing ${messageQueue.current.length} queued messages...`);
+            while (messageQueue.current.length > 0) {
+              const msg = messageQueue.current.shift();
+              try {
+                ws.current.send(JSON.stringify(msg));
+                console.log("Sent queued message:", msg);
+              } catch (err) {
+                console.error("Failed to send queued message:", err);
+                break;
+              }
+            }
+          }
+        } else {
+          setTimeout(flushQueue, 50);
+        }
+      };
+
+      flushQueue();
     };
 
     ws.current.onmessage = (event) => {
       try {
-        const receivedMessage = JSON.parse(event.data); // JSON-Nachricht parsen
-        // console.log("receivedMessage", receivedMessage); // Reduce log noise
-
-        // Dispatch global event for components
+        const receivedMessage = JSON.parse(event.data);
         window.dispatchEvent(new CustomEvent('qdash-ws-message', { detail: receivedMessage }));
-
         handleWebSocketMessage(receivedMessage);
-        //
       } catch (e) {
         console.log("Fehler beim Parsen der WebSocket-Nachricht:", e);
       }
@@ -400,25 +618,40 @@ const _useWebSocket = (
 
     ws.current.onclose = (event) => {
       console.log("WebSocket getrennt", event.code, event.reason);
-      setIsConnected(false);
-      window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'disconnected', isConnected: false, code: event.code } }));
-      // Optional: Logik zum Wiederverbinden hier hinzufügen
+      if (isMounted.current) {
+        setIsConnected(false);
+        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'disconnected', isConnected: false, code: event.code } }));
+
+        // Attempt Reconnect automatically
+        if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = setTimeout(() => {
+          console.log("Attempting WebSocket reconnection...");
+          connect();
+        }, 3000);
+      }
     };
 
     ws.current.onerror = (event) => {
       console.log("WebSocket Fehler:", event);
-      setError(event);
-      setIsConnected(false);
-      window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'error', isConnected: false, error: event } }));
-    };
-
-    // Cleanup-Funktion: Wird ausgeführt, wenn die Komponente unmontiert wird
-    // oder wenn sich die URL ändert (um alte Verbindungen zu schließen)
-    return () => {
-      if (ws.current) {
+      if (isMounted.current) {
+        setError(event);
+        setIsConnected(false);
+        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'error', isConnected: false, error: event } }));
       }
     };
-  }, []); // Abhängigkeit: Verbindet sich neu, wenn sich die URL ändert
+
+  }, []);
+
+  useEffect(() => {
+    isMounted.current = true;
+    connect();
+
+    return () => {
+      isMounted.current = false;
+      if (ws.current) ws.current.close();
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+    };
+  }, [connect]);
 
   return { messages, sendMessage, isConnected, error };
 };

@@ -10,38 +10,7 @@ const MAX_ENERGY = 99; // Adjusted to requested 0-99 range
 const MAX_ITERS = 50;
 const DESKTOP_BREAKPOINT = 1024; // Define the breakpoint constant
 
-// Gauge fields (G_FIELDS) - Bosons
-const G_FIELDS = [
-  'photon',      // A_μ - Elektromagnetismus (U(1)_Y → nach Mischung: Photon)
-  'w_plus',      // W⁺ - Schwache Wechselwirkung (SU(2)_L)
-  'w_minus',     // W⁻ - Schwache Wechselwirkung (SU(2)_L)
-  'z_boson',     // Z⁰ - Schwache Wechselwirkung (SU(2)_L)
-  'gluon',       // G 8x4 array - Starke Wechselwirkung (SU(3)_C)
-];
 
-// Fermions
-const FERMIONS = [
-  // Leptonen
-  'electron',           // ψₑ
-  'muon',               // ψ_μ
-  'tau',                // ψ_τ
-  'electron_neutrino',  // νₑ
-  'muon_neutrino',      // ν_μ
-  'tau_neutrino',       // ν_τ
-  // Quarks
-  'up_quark',           // ψᵤ
-  'down_quark',         // ψ_d
-  'charm_quark',        // ψ_c
-  'strange_quark',      // ψ_s
-  'top_quark',          // ψ_t
-  'bottom_quark',       // ψ_b
-];
-
-// Higgs
-const H = ['higgs'];
-
-// Combined tool options
-const TOOL_OPTIONS = [...G_FIELDS, ...FERMIONS, ...H];
 
 
 
@@ -116,7 +85,6 @@ const EnergyProfileModal = ({
         { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
       ],
       output: [],
-      selectedTools: [],
     }];
   });
 
@@ -134,7 +102,6 @@ const EnergyProfileModal = ({
         { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
       ],
       output: [],
-      selectedTools: [],
     };
     setBlocks(prev => [...prev, newBlock]);
   };
@@ -166,24 +133,8 @@ const EnergyProfileModal = ({
   const outputData = currentBlock ? currentBlock.output : [];
   const selectedTools = currentBlock ? currentBlock.selectedTools : [];
 
-  // --- Dropdown Update Method ---
-  const handleItemToggle = (tool, blockId) => {
-    const block = blocks.find(b => b.id === blockId);
-    if (!block) return;
+  /* Removed handleItemToggle and toggleDropdown */
 
-    const newTools = block.selectedTools.includes(tool)
-      ? block.selectedTools.filter(t => t !== tool)
-      : [...block.selectedTools, tool];
-
-    updateBlock(blockId, { selectedTools: newTools });
-  };
-
-  const toggleDropdown = (blockId) => {
-    setOpenDropdowns(prev => ({
-      ...prev,
-      [blockId]: !prev[blockId]
-    }));
-  };
 
   // Close dropdown if clicked outside
   useEffect(() => {
@@ -465,7 +416,6 @@ const EnergyProfileModal = ({
         id: block.id,
         points: block.points,
         output: block.output,
-        tools: block.selectedTools,
       })),
     });
   };
@@ -634,98 +584,13 @@ const EnergyProfileModal = ({
                   </div>
                 </div>
 
-                {/* Tools Dropdown for each block */}
-                <div className="tool-dropdown-container" style={{ position: 'relative', marginTop: '1rem' }}>
-                  <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem', fontSize: '0.875rem' }}>
-                    Selected Tools ({block.selectedTools.length})
-                  </label>
-                  <button
-                    onClick={() => toggleDropdown(block.id)}
-                    style={{
-                      width: '100%',
-                      padding: '0.75rem 1rem',
-                      fontSize: '0.875rem',
-                      fontWeight: '500',
-                      color: '#374151',
-                      backgroundColor: '#ffffff',
-                      border: '2px solid #d1d5db',
-                      borderRadius: '0.5rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      transition: 'border-color 150ms',
-                    }}
-                    onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
-                    onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
-                  >
-                    {block.selectedTools.length > 0
-                      ? `${block.selectedTools.length} Tool(s) Selected`
-                      : 'Select Tools...'}
-                    <ChevronDown
-                      style={{
-                        width: '1rem',
-                        height: '1rem',
-                        transform: openDropdowns[block.id] ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.2s'
-                      }}
-                    />
-                  </button>
-
-                  {openDropdowns[block.id] && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        marginTop: '0.25rem',
-                        backgroundColor: 'white',
-                        border: '2px solid #d1d5db',
-                        borderRadius: '0.5rem',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                        zIndex: 20,
-                        maxHeight: '300px',
-                        overflowY: 'auto',
-                      }}
-                    >
-                      {TOOL_OPTIONS.map((tool) => {
-                        const isSelected = block.selectedTools.includes(tool);
-                        return (
-                          <div
-                            key={tool}
-                            onClick={() => handleItemToggle(tool, block.id)}
-                            style={{
-                              padding: '0.75rem 1rem',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              backgroundColor: isSelected ? '#ecfdf5' : 'white',
-                              color: isSelected ? '#065f46' : '#374151',
-                              fontWeight: isSelected ? '600' : '400',
-                              borderBottom: '1px solid #f3f4f6',
-                              fontSize: '0.875rem',
-                              transition: 'background-color 100ms',
-                            }}
-                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
-                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
-                          >
-                            <span>{tool}</span>
-                            {isSelected && <Check style={{ width: '0.875rem', height: '0.875rem', color: '#059669' }} />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                {/* Tools Dropdown Removed */}
 
                 {/* Block Summary */}
                 <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#ffffff', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
                   <div style={{ display: 'flex', gap: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
                     <span>Points: <strong style={{ color: '#374151' }}>{block.points.length}</strong></span>
                     <span>Output Segments: <strong style={{ color: '#374151' }}>{block.output.length}</strong></span>
-                    <span>Tools: <strong style={{ color: '#374151' }}>{block.selectedTools.length}</strong></span>
                   </div>
                 </div>
               </div>
@@ -809,82 +674,7 @@ const EnergyProfileModal = ({
             </button>
           </div>
 
-          {/* --- Tool Selection Dropdown --- */}
-          <div className="tool-dropdown-container" style={{ marginBottom: '2rem', position: 'relative', maxWidth: '300px' }}>
-            <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
-              Select Required Tools
-            </label>
-            <button
-              onClick={() => toggleDropdown(selectedBlockId)}
-              style={{
-                width: '100%',
-                padding: '0.75rem 1rem',
-                fontSize: '1rem',
-                fontWeight: '500',
-                color: '#374151',
-                backgroundColor: '#f3f4f6',
-                border: '2px solid #d1d5db',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                transition: 'border-color 150ms',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = '#9ca3af')}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = '#d1d5db')}
-            >
-              {selectedTools.length > 0 ? `${selectedTools.length} Tool(s) Selected` : 'Select Tools...'}
-              <ChevronDown style={{ width: '1.25rem', height: '1.25rem', transform: openDropdowns[selectedBlockId] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
-            </button>
-
-            {openDropdowns[selectedBlockId] && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  width: '100%',
-                  marginTop: '0.25rem',
-                  backgroundColor: 'white',
-                  border: '2px solid #d1d5db',
-                  borderRadius: '0.5rem',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                  zIndex: 20,
-                  maxHeight: '300px',
-                  overflowY: 'auto',
-                }}
-              >
-                {TOOL_OPTIONS.map((tool) => {
-                  const isSelected = selectedTools.includes(tool);
-                  return (
-                    <div
-                      key={tool}
-                      onClick={() => handleItemToggle(tool, selectedBlockId)}
-                      style={{
-                        padding: '0.75rem 1rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        backgroundColor: isSelected ? '#ecfdf5' : 'white',
-                        color: isSelected ? '#065f46' : '#374151',
-                        fontWeight: isSelected ? '600' : '400',
-                        borderBottom: '1px solid #f3f4f6',
-                        fontSize: '0.875rem',
-                        transition: 'background-color 100ms',
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#d1fae5' : '#f9fafb')}
-                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = isSelected ? '#ecfdf5' : 'white')}
-                    >
-                      <span>{tool}</span>
-                      {isSelected && <Check style={{ width: '1rem', height: '1rem', color: '#059669' }} />}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* --- Tool Selection Dropdown Removed --- */}
 
 
           <div
