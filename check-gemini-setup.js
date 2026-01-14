@@ -20,7 +20,7 @@ if (!envExists) {
     console.log('1. Copy .env.example to .env:');
     console.log('   cp .env.example .env');
     console.log('\n2. Edit .env and add your Gemini API key (use ONE of these):');
-    console.log('   REACT_APP_GEMINI_API_KEY=your_actual_api_key_here  (recommended)');
+    console.log('   CLIENT_KEY_GEMINI_API_KEY=your_actual_api_key_here  (recommended)');
     console.log('   OR');
     console.log('   GEMINI_API_KEY=your_actual_api_key_here');
     console.log('\n3. Get your API key from: https://makersuite.google.com/app/apikey');
@@ -41,10 +41,10 @@ let keySource = null;
 
 for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.startsWith('REACT_APP_GEMINI_API_KEY=')) {
+    if (trimmed.startsWith('CLIENT_KEY_GEMINI_API_KEY=')) {
         hasReactAppKey = true;
         keyValue = line.split('=')[1]?.trim();
-        keySource = 'REACT_APP_GEMINI_API_KEY';
+        keySource = 'CLIENT_KEY_GEMINI_API_KEY';
     } else if (trimmed.startsWith('GEMINI_API_KEY=') && !trimmed.startsWith('REACT_APP_')) {
         hasGeminiKey = true;
         if (!keyValue) { // Only use if REACT_APP_ version not found
@@ -58,7 +58,7 @@ if (!hasReactAppKey && !hasGeminiKey) {
     console.error('❌ No Gemini API key found in .env file!');
     console.log('\n📝 To fix this:');
     console.log('1. Add ONE of these lines to your .env file:');
-    console.log('   REACT_APP_GEMINI_API_KEY=your_actual_key  (recommended for Create React App)');
+    console.log('   CLIENT_KEY_GEMINI_API_KEY=your_actual_key  (recommended for Create React App)');
     console.log('   OR');
     console.log('   GEMINI_API_KEY=your_actual_key');
     console.log('\n2. Get your API key from: https://makersuite.google.com/app/apikey');
@@ -89,7 +89,7 @@ if (hasGeminiKey && !hasReactAppKey) {
     console.warn('\n⚠️  WARNING: You are using GEMINI_API_KEY');
     console.warn('   This will NOT work with standard Create React App!');
     console.warn('   Create React App only exposes variables starting with REACT_APP_');
-    console.warn('   Recommended: Change to REACT_APP_GEMINI_API_KEY in your .env file');
+    console.warn('   Recommended: Change to CLIENT_KEY_GEMINI_API_KEY in your .env file');
 }
 
 console.log('\n✨ Configuration looks good!');

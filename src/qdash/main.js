@@ -13,7 +13,7 @@ import { getNodeColor } from "./get_color";
 import { NodeInfoPanel } from "./components/node_info_panel";
 import { ThreeScene } from "./_use_three";
 import TerminalConsole from "./components/terminal";
-import { classifyAndRespond, analyzeCommand, generateSimpleResponse } from "./gemini";
+import { classifyAndRespond, analyzeCommand } from "./gemini";
 import NCfgCreator from "./components/node_cfg/ncfg_slider";
 import LogSidebar from "./components/log_sidebar";
 import { ClusterVisualizerModal } from "./components/cluster_visualizer";
@@ -28,18 +28,19 @@ import EnergyDesignerWithViz from "./components/EnergyDesignerWithViz";
 import BillingManager from "./components/BillingManager";
 
 import ModuleDesigner from "./components/ModuleDesigner";
+import MethodDesigner from "./components/MethodDesigner";
 import FieldDesigner from "./components/FieldDesigner";
 import SessionConfig from "./components/SessionConfig";
 import ParamConfig from "./components/ParamConfig";
-import { createOrUpdateUser, updateUserPlan as firestoreUpdateUserPlan, trackResourceUsage, getUserProfile } from "./utils/firestoreUserManager";
+import { createOrUpdateUser, updateUserPlan as firestoreUpdateUserPlan, trackResourceUsage } from "./utils/firestoreUserManager";
 
 export const MainApp = () => {
   // 1. ALL STATE DECLARATIONS
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
+  // const [nodes, setNodes] = useState([]); // Unused
+  // const [edges, setEdges] = useState([]); // Unused
   const [fbCreds, setFbCreds] = useState(null);
   const [inputValue, setInputValue] = useState("");
-  const [error, setError] = useState("");
+  // const [error, setError] = useState(""); // Unused
   const [authError, setAuthError] = useState(null);
 
   const [isLogSidebarOpen, setIsLogSidebarOpen] = useState(false);
@@ -51,6 +52,7 @@ export const MainApp = () => {
   const [isBucketOpen, setIsBucketOpen] = useState(false);
   const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [isModuleDesignerOpen, setIsModuleDesignerOpen] = useState(false);
+  const [isMethodDesignerOpen, setIsMethodDesignerOpen] = useState(false);
   const [isFieldDesignerOpen, setIsFieldDesignerOpen] = useState(false);
   const [isSessionConfigOpen, setIsSessionConfigOpen] = useState(false);
   const [isParamConfigOpen, setIsParamConfigOpen] = useState(false);
@@ -70,8 +72,8 @@ export const MainApp = () => {
 
   // Terminal visibility state
   const [isTerminalVisible, setIsTerminalVisible] = useState(false);
-  const [isNCFGModalOpen, setIsNCFGModalOpen] = useState(false);
-  const [activeGridPos, setActiveGridPos] = useState(null);
+  // const [isNCFGModalOpen, setIsNCFGModalOpen] = useState(false); // Unused
+  // const [activeGridPos, setActiveGridPos] = useState(null); // Unused
   const scrollContainerRef = useRef(null);
 
   // Voice Control State
@@ -80,7 +82,7 @@ export const MainApp = () => {
 
   // Injection Designer State
   const [injectionEnvId, setInjectionEnvId] = useState(null);
-  const [injectionData, setInjectionData] = useState({
+  const [injectionData] = useState({
     blocks: [{
       id: Date.now(),
       points: [
@@ -91,6 +93,7 @@ export const MainApp = () => {
       selectedTools: [],
     }],
   });
+  // const [setInjectionData] = useState(...); // Unused
 
   const [liveData, setLiveData] = useState([
     [0, 12.5, 45.2, 88.1, 23.4, 67.8, 90.1],
@@ -105,7 +108,7 @@ export const MainApp = () => {
     [9, 18.9, 53.4, 82.6, 30.2, 75.0, 84.8],
   ]);
 
-  const [dataset, setDataset] = useState({ keys: [], rows: [] });
+  // const [dataset, setDataset] = useState({ keys: [], rows: [] }); // Unused
 
   const [logs, setLogs] = useState({
     node_1: {
@@ -130,9 +133,9 @@ export const MainApp = () => {
   const updateNodeInfo = useCallback((nodeId, env_id, gridPos) => {
     console.log(`${nodeId} interaction detected`, gridPos);
     if (gridPos) {
-      setActiveGridPos(gridPos);
+      // setActiveGridPos(gridPos); // Unused
       setClickedNode({ id: nodeId });
-      setIsNCFGModalOpen(true);
+      // setIsNCFGModalOpen(true); // Unused
       return;
     }
     setClickedNode({
@@ -209,7 +212,11 @@ export const MainApp = () => {
     else setFbCreds(null);
   }, []);
 
-  const updateDataset = useCallback((data) => setDataset(data), []);
+  // const updateDataset = useCallback((data) => setDataset(data), []); // Unused
+  const updateDataset = useCallback((data) => { }, []); // Empty call back to satisfy websocket signature or update signature manually. 
+  // Actually, better to just keep it empty or log, as removing it from _useWebSocket calls would require editing another file we just touched.
+  // The prompt says "setDataset is not defined". 
+
   const updateGraph = useCallback((g) => setGraph(g), []);
 
   const handleInjectionMessage = useCallback((message) => {
@@ -232,7 +239,7 @@ export const MainApp = () => {
 
   const {
     fbIsConnected, firebaseDb, saveMessage, user, userProfile, signInWithEmail, signUpWithEmail, logout,
-    saveUserWorldConfig, listenToUserWorldConfig, updateUser, getPaymentUrl, loading, error: authErrorState
+    saveUserWorldConfig, listenToUserWorldConfig, updateUser, loading, error: authErrorState
   } = useFirebaseListeners(fbCreds, updateEnv, setMessages);
 
   // 4. ACTION TOGGLES
@@ -283,6 +290,7 @@ export const MainApp = () => {
   const toggleBucket = useCallback(() => setIsBucketOpen(prev => !prev), []);
   const toggleBilling = useCallback(() => setIsBillingOpen(prev => !prev), []);
   const toggleModuleDesigner = useCallback(() => setIsModuleDesignerOpen(prev => !prev), []);
+  const toggleMethodDesigner = useCallback(() => setIsMethodDesignerOpen(prev => !prev), []);
   const toggleFieldDesigner = useCallback(() => setIsFieldDesignerOpen(prev => !prev), []);
   const toggleSessionConfig = useCallback(() => setIsSessionConfigOpen(prev => !prev), []);
   const toggleParamConfig = useCallback(() => setIsParamConfigOpen(prev => !prev), []);
@@ -434,12 +442,22 @@ export const MainApp = () => {
     return () => recognitionRef.current?.stop();
   }, [isVoiceActive, executeIntent]);
 
+  // Welcome Message - Fire once on mount
   useEffect(() => {
-    setMessages(prev => [...prev, {
-      text: "Welcome to Q-Dash Environment.\n\nI am ready to assist you. (type=info)",
-      type: 'gemini',
-      timestamp: new Date().toISOString(),
-    }]);
+    // Simple check to prevent double-fire in Strict Mode if needed, 
+    // though usually acceptable in dev. 
+    // We will just set it once.
+    setMessages([
+      {
+        text: `Welcome to The Grid.
+
+⚠️ ENGINE UNDER CONSTRUCTION ⚠️
+
+Please tell me your email if you want to receive updates or register for early access!`,
+        type: 'system',
+        timestamp: new Date().toISOString()
+      }
+    ]);
   }, []);
 
   // 6. RENDER HELPERS
@@ -452,7 +470,7 @@ export const MainApp = () => {
       />
     );
     return <></>;
-  }, [envs, isDashOpen, setIsDashOpen, toggleNcfgSlider, toggleDataSlider, sendMessage, isDataSliderOpen, toggleLogSidebar, requestClusterData, startSim, toggleModal, isVoiceActive, setIsVoiceActive, startAllEnvs]);
+  }, [envs, isDashOpen, setIsDashOpen, toggleNcfgSlider, toggleDataSlider, sendMessage, isDataSliderOpen, toggleLogSidebar, requestClusterData, startSim, toggleModal, isVoiceActive, setIsVoiceActive, startAllEnvs, deleteEnv]);
 
   const get_node_panel = useCallback(() => {
     if (clickedNode !== null) return (
@@ -572,38 +590,57 @@ export const MainApp = () => {
       });
     };
 
-    // Send files as separate websocket requests with type=file
+    // Send files as SET_FILE request (Module from File)
     if (files.length > 0) {
+      const processedFiles = [];
       for (const file of files) {
         try {
           const base64Data = await fileToBase64(file);
-          const fileMessage = {
-            type: "FILE",
-            data: {
-              name: file.name,
-              size: file.size,
-              type: file.type,
-              content: base64Data,
-              lastModified: file.lastModified,
-            },
-            timestamp: new Date().toISOString()
-          };
-          sendMessage(fileMessage);
-          setMessages(prev => [...prev, {
-            text: `📎 File uploaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`,
-            type: 'system',
-            timestamp: new Date().toISOString()
-          }]);
+          processedFiles.push({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            content: base64Data,
+            lastModified: file.lastModified,
+          });
         } catch (error) {
-          console.error(`Error processing file ${file.name}:`, error);
+          console.error("Error reading file:", error);
           setMessages(prev => [...prev, {
-            text: `❌ Failed to upload file: ${file.name}`,
+            text: `❌ Error reading file ${file.name}: ${error.message}`,
             type: 'system',
             timestamp: new Date().toISOString()
           }]);
         }
       }
+
+      if (processedFiles.length > 0) {
+        const userId = localStorage.getItem(USER_ID_KEY);
+        // Use input value as ID (Module Name) if provided, otherwise default to first filename (sans extension)
+        const moduleId = inputValue.trim() || processedFiles[0].name.replace(/\.[^/.]+$/, "");
+
+        sendMessage({
+          type: "SET_FILE",
+          data: {
+            id: moduleId,
+            files: processedFiles
+          },
+          auth: {
+            user_id: userId
+          },
+          timestamp: new Date().toISOString()
+        });
+
+        setMessages(prev => [...prev, {
+          text: `📤 Uploading ${processedFiles.length} file(s) as module '${moduleId}'...`,
+          type: 'system',
+          timestamp: new Date().toISOString()
+        }]);
+      }
+
+      updateInputValue("");
+      return; // Stop normal chat processing if files were sent
     }
+
 
     // Process text input if present
     if (!inputValue.trim()) return;
@@ -635,7 +672,7 @@ export const MainApp = () => {
       setMessages(prev => prev.map((msg, i) => i === prev.length - 1 ? { ...msg, text: msg.text + chunk } : msg));
     });
     saveMessage({ ...botMsg, text: fullResponse });
-    const analysis = await analyzeCommand(currentInput, ["show_envs", "set_config", "watch_data", "upload_ncfg", "show_logs", "show_cluster", "upload_files", "start_sim", "get_cluster_data", "research", "upgrade_plan", "downgrade_plan", "chat"]);
+    const analysis = await analyzeCommand(currentInput, ["show_envs", "set_config", "watch_data", "upload_ncfg", "show_logs", "show_cluster", "upload_files", "start_sim", "get_cluster_data", "research", "upgrade_plan", "downgrade_plan", "chat", "subscribe_updates", "session_cfg"]);
     const { intent, entities } = analysis;
     if (intent !== "unknown" && intent !== "chat") {
       setExtractedEntities(entities);
@@ -647,27 +684,45 @@ export const MainApp = () => {
       else if (intent === "show_logs") { toggleLogSidebar(); actionDesc = "Opening Logs"; }
       else if (intent === "show_cluster") { toggleClusterModal(); actionDesc = "Opening Cluster Visualization"; }
       else if (intent === "upload_files") { toggleBucket(); actionDesc = "Opening File Uploader"; }
+      else if (intent === "session_cfg") {
+        sendMessage({ type: "SESSION_CFG_ACTION", data: entities, timestamp: new Date().toISOString() });
+        actionDesc = `Modifying Session Config: ${entities.operation} ${entities.target}`;
+      }
       else if (intent === "start_sim" || intent === "get_cluster_data") {
         sendMessage({ type: intent.toUpperCase(), data: { ...entities, input: currentInput }, timestamp: new Date().toISOString() });
         actionDesc = `Executing ${intent}`;
       }
+      else if (intent === "subscribe_updates") {
+        const email = entities.email;
+        if (email) {
+          const currentEmails = JSON.parse(localStorage.getItem("qdash_email_subscribers") || "[]");
+          if (!currentEmails.includes(email)) {
+            currentEmails.push(email);
+            localStorage.setItem("qdash_email_subscribers", JSON.stringify(currentEmails));
+            actionDesc = `✅ Subscribed ${email} for updates.`;
+          } else {
+            actionDesc = `ℹ️ ${email} is already subscribed.`;
+          }
+        } else {
+          setMessages(prev => [...prev, { text: `[SYSTEM] ⚠️ Please provide your email address to subscribe (e.g., "subscribe me at email@example.com").`, type: 'system', timestamp: new Date().toISOString() }]);
+          return;
+        }
+      }
       if (actionDesc) setMessages(prev => [...prev, { text: `[SYSTEM] ${actionDesc}`, type: 'system', timestamp: new Date().toISOString() }]);
     }
-  }, [inputValue, saveMessage, setMessages, setInputValue, toggleDahboard, toggleCfgSlider, toggleDataSlider, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleBucket, sendMessage, extractedEntities]);
+  }, [inputValue, saveMessage, setMessages, setInputValue, toggleDahboard, toggleCfgSlider, toggleDataSlider, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleBucket, sendMessage, updateInputValue]);
 
   if (fbIsConnected && !user) return <AuthForm onLogin={handleLogin} onSignup={handleSignup} error={authError} />;
 
   return (
     <div className="flex absolute flex-row w-full h-screen overflow-hidden">
-      <div className="dashboard-container w-full h-full overflow-y-auto scroll-smooth" ref={scrollContainerRef} onScroll={() => {
-        if (scrollContainerRef.current) setIsTerminalVisible(scrollContainerRef.current.scrollTop + scrollContainerRef.current.clientHeight >= scrollContainerRef.current.scrollHeight - 50);
-      }}>
-        <LandingPage liveData={liveData}>
+      <div className="dashboard-container w-full h-full overflow-y-auto scroll-smooth" ref={scrollContainerRef}>
+        <LandingPage liveData={liveData} setTerminalVisible={setIsTerminalVisible}>
           <LogSidebar logs={logs} isOpen={isLogSidebarOpen} onClose={toggleLogSidebar} />
           {get_dashboard()}
           {get_ncfgslider()}
         </LandingPage>
-        <TerminalConsole error={error} handleSubmit={handleSubmit} isConnected={isConnected} fbIsConnected={fbIsConnected} userProfile={userProfile} inputValue={inputValue} updateInputValue={updateInputValue} messages={messages} toggleCfgSlider={toggleCfgSlider} toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} toggleDashboard={toggleDahboard} toggleNcfgSlider={toggleNcfgSlider} toggleLogSidebar={toggleLogSidebar} toggleClusterModal={toggleClusterModal} toggleInjection={toggleInjection} toggleBilling={toggleBilling} toggleModuleDesigner={toggleModuleDesigner} toggleFieldDesigner={toggleFieldDesigner} toggleSessionConfig={toggleSessionConfig} toggleParamConfig={toggleParamConfig} envs={envs} toggleBucket={toggleBucket} saveMessage={saveMessage} setMessages={setMessages} isVisible={isTerminalVisible} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive} />
+        <TerminalConsole handleSubmit={handleSubmit} isConnected={isConnected} fbIsConnected={fbIsConnected} userProfile={userProfile} inputValue={inputValue} updateInputValue={updateInputValue} messages={messages} toggleCfgSlider={toggleCfgSlider} toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} toggleDashboard={toggleDahboard} toggleNcfgSlider={toggleNcfgSlider} toggleLogSidebar={toggleLogSidebar} toggleClusterModal={toggleClusterModal} toggleInjection={toggleInjection} toggleBilling={toggleBilling} toggleModuleDesigner={toggleModuleDesigner} toggleMethodDesigner={toggleMethodDesigner} toggleFieldDesigner={toggleFieldDesigner} toggleSessionConfig={toggleSessionConfig} toggleParamConfig={toggleParamConfig} envs={envs} toggleBucket={toggleBucket} saveMessage={saveMessage} setMessages={setMessages} isVisible={isTerminalVisible} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive} />
       </div>
       <div className="flex">
         {get_node_panel()}
@@ -684,6 +739,14 @@ export const MainApp = () => {
       <ModuleDesigner
         isOpen={isModuleDesignerOpen}
         onClose={toggleModuleDesigner}
+        sendMessage={sendMessage}
+        user={user}
+      />
+
+      {/* Method Designer */}
+      <MethodDesigner
+        isOpen={isMethodDesignerOpen}
+        onClose={toggleMethodDesigner}
         sendMessage={sendMessage}
         user={user}
       />

@@ -87,9 +87,9 @@ export const TerminalConsole = ({
   updateInputValue,
   toggleCfgSlider,
   toggleDataSlider,
-  toggleDashboard,
+  // toggleDashboard, // Unused
   sendMessage,
-  envs,
+  // envs, // Unused
   toggleBucket,
   toggleNcfgSlider,
   toggleLogSidebar,
@@ -106,6 +106,7 @@ export const TerminalConsole = ({
   isVoiceActive,
   setIsVoiceActive,
   toggleModuleDesigner,
+  toggleMethodDesigner,
   toggleFieldDesigner,
   toggleSessionConfig,
   toggleParamConfig
@@ -126,7 +127,7 @@ export const TerminalConsole = ({
 
   const {
     files,
-    loading,
+    // loading, // Unused
     fileInputRef,
     handleDrop,
     handleFileSelect,
@@ -152,10 +153,10 @@ export const TerminalConsole = ({
     }
   }, [webcamRef, handleFileSelect]);
 
-  const openUpgradeModal = () => {
-    // In real app, call backend to get stripe URL
-    window.open("https://example.com/upgrade", "_blank");
-  };
+  // const openUpgradeModal = () => { // Unused
+  //   // In real app, call backend to get stripe URL
+  //   window.open("https://example.com/upgrade", "_blank");
+  // };
 
   useEffect(() => {
     if (isExpanded) {
@@ -166,7 +167,8 @@ export const TerminalConsole = ({
   const actionButtons = [
     { name: "Session Cfg", case: "session_cfg" },
     { name: "Env Cfg", case: "set_config" },
-    { name: "Modules 🧩", case: "module" },
+    { name: "Methods 🧩", case: "method" },
+    { name: "Modules 📦", case: "module" },
     { name: "Fields 📊", case: "fields_manager" },
     { name: "Injection ⚡", case: "injection" },
     { name: "Param Cfg", case: "param_cfg" },
@@ -181,6 +183,7 @@ export const TerminalConsole = ({
     else if (actionCase === "show_logs") toggleLogSidebar();
     else if (actionCase === "show_cluster") toggleClusterModal();
     else if (actionCase === "injection") toggleInjection();
+    else if (actionCase === "method") toggleMethodDesigner();
     else if (actionCase === "module") toggleModuleDesigner();
     else if (actionCase === "fields_manager") toggleFieldDesigner();
     else if (actionCase === "param_cfg") toggleParamConfig();
@@ -190,11 +193,11 @@ export const TerminalConsole = ({
       updateInputValue("get_billings");
     }
     else updateInputValue(`${actionCase}`);
-  }, [updateInputValue, toggleDashboard, toggleDataSlider, toggleCfgSlider, toggleBucket, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleInjection, toggleBilling]);
+  }, [updateInputValue, toggleDataSlider, toggleCfgSlider, toggleSessionConfig, toggleBucket, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleInjection, toggleBilling, toggleMethodDesigner, toggleModuleDesigner, toggleFieldDesigner, toggleParamConfig]);
 
   const get_env_len = useCallback((_case) => {
     return null;
-  }, [envs]);
+  }, []);
 
   const getMessageIcon = (type) => {
     switch (type) {

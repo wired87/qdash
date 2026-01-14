@@ -14,6 +14,8 @@ import {
     optimisticUnlinkEnv,
     optimisticLinkModule,
     optimisticUnlinkModule,
+    optimisticLinkMethod,
+    optimisticUnlinkMethod,
     optimisticLinkField,
     optimisticUnlinkField,
     assignInjection,
@@ -71,12 +73,7 @@ const FERMION_FIELDS = [
     "muon_neutrino",  // ν_μ
     "tau_neutrino",  // ν_τ
     // Quarks (3 colors each)
-    "up_quark_1", "up_quark_2", "up_quark_3",  // ψᵤ
-    "down_quark_1", "down_quark_2", "down_quark_3",  // ψ_d
-    "charm_quark_1", "charm_quark_2", "charm_quark_3",  // ψ_c
-    "strange_quark_1", "strange_quark_2", "strange_quark_3",  // ψ_s
-    "top_quark_1", "top_quark_2", "top_quark_3",  // ψ_t
-    "bottom_quark_1", "bottom_quark_2", "bottom_quark_3"  // ψ_b
+    "up_quark_0", "up_quark_1", "up_quark_2", "down_quark_0", "down_quark_1", "down_quark_2", "charm_quark_0", "charm_quark_1", "charm_quark_2", "strange_quark_0", "strange_quark_1", "strange_quark_2", "top_quark_0", "top_quark_1", "top_quark_2", "bottom_quark_0", "bottom_quark_1", "bottom_quark_2"
 ];
 
 // Standard Model Modules with their fields
@@ -156,8 +153,9 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     const { userEnvs, loading: envLoading } = useSelector(state => state.envs);
     const { userModules, loading: moduleLoading } = useSelector(state => state.modules);
-    const { userFields, loading: fieldLoading } = useSelector(state => state.fields);
-    const { userInjections, activeInjection, loading: injectionLoading } = useSelector(state => state.injections);
+    const { userMethods } = useSelector(state => state.methods);
+    const { userFields } = useSelector(state => state.fields);
+    const { userInjections, activeInjection } = useSelector(state => state.injections);
     const isConnected = useSelector(state => state.websocket.isConnected);
 
     // --- Local UI State --- (Must be declared before useMemo hooks that use them)
@@ -216,7 +214,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     // Derived State - Extract from hierarchical config structure
     const activeSessionData = targetSessionId ? sessionData[targetSessionId] : null;
-    const sessionConfigData = activeSessionData?.config?.envs || {};
+    const sessionConfigData = useMemo(() => activeSessionData?.config?.envs || {}, [activeSessionData]);
 
     // Extract linked envs from config
     const activeSessionEnvs = useMemo(() => {
@@ -247,6 +245,19 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             return fullField || fieldId;
         });
     }, [sessionConfigData, activeEnv, activeModule, userFields]);
+
+    // Extract linked methods for active module
+    const activeSessionMethods = useMemo(() => {
+        const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
+        const modId = activeModule ? (typeof activeModule === 'string' ? activeModule : activeModule.id) : null;
+
+        if (!envId || !modId || !sessionConfigData[envId]?.modules[modId]?.methods) return [];
+        return Object.keys(sessionConfigData[envId].modules[modId].methods).map(methodId => {
+            // Find full method object from userMethods if available
+            const fullMethod = userMethods.find(m => (typeof m === 'string' ? m : m.id) === methodId);
+            return fullMethod || methodId;
+        });
+    }, [sessionConfigData, activeEnv, activeModule, userMethods]);
 
     // Helper to check if session config has any data
     const hasSessionConfigData = useCallback(() => {
@@ -301,6 +312,8 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         dispatch(setModuleLoading(true));
         // User Modules
         sendMessage({ type: "LIST_USERS_MODULES", auth: { user_id: userId } });
+        // User Methods (to be pasted into modules)
+        sendMessage({ type: "GET_USERS_METHODS", auth: { user_id: userId } });
         // Session Modules
         sendMessage({ type: "GET_SESSIONS_MODULES", auth: { user_id: userId, session_id: targetSessionId } });
     }, [sendMessage, targetSessionId, dispatch]);
@@ -767,6 +780,71 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                     </div>
                                 </div>
 
+                                {/* Column: Methods (Paste into Modules) */}
+                                <div className={`flex-1 basis-0 flex flex-col border-r border-slate-200 dark:border-slate-800 overflow-hidden transition-opacity ${!activeModule ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <div className="p-3 border-b flex items-center gap-2 bg-white dark:bg-slate-900">
+                                        <Box size={16} className="text-orange-500" />
+                                        <span className="font-bold text-sm">Methods</span>
+                                        <Tooltip content="Paste Method into Module">
+                                            <div className="cursor-help"><div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px]">?</div></div>
+                                        </Tooltip>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto p-2 bg-white">
+                                        {/* Linked Methods */}
+                                        <div className="text-[10px] text-slate-400 mb-2 uppercase font-bold text-indigo-600">Selected (Linked)</div>
+                                        {activeSessionMethods.map(method => {
+                                            const mId = typeof method === 'string' ? method : method.id;
+                                            return (
+                                                <ListItem
+                                                    key={mId}
+                                                    title={mId}
+                                                    actionIcon={<Minus size={14} />}
+                                                    actionColor="danger"
+                                                    onAction={() => {
+                                                        if (activeEnv?.id && activeModule) {
+                                                            dispatch(optimisticUnlinkMethod({
+                                                                sessionId: targetSessionId,
+                                                                envId: activeEnv.id,
+                                                                moduleId: typeof activeModule === 'string' ? activeModule : activeModule.id,
+                                                                methodId: mId
+                                                            }));
+                                                        }
+                                                    }}
+                                                />
+                                            );
+                                        })}
+
+                                        <div className="mt-4 pt-2 border-t text-[10px] text-slate-400 mb-2 uppercase font-bold">Available</div>
+                                        <div className="flex flex-col gap-1">
+                                            {userMethods.filter(um => {
+                                                const umId = typeof um === 'string' ? um : um.id;
+                                                const activeIds = activeSessionMethods.map(m => typeof m === 'string' ? m : m.id);
+                                                return !activeIds.includes(umId);
+                                            }).map(method => {
+                                                const mId = typeof method === 'string' ? method : method.id;
+                                                return (
+                                                    <ListItem
+                                                        key={mId}
+                                                        title={mId}
+                                                        actionIcon={<Plus size={14} />}
+                                                        actionColor="warning"
+                                                        onAction={() => {
+                                                            if (activeEnv?.id && activeModule) {
+                                                                dispatch(optimisticLinkMethod({
+                                                                    sessionId: targetSessionId,
+                                                                    envId: activeEnv.id,
+                                                                    moduleId: typeof activeModule === 'string' ? activeModule : activeModule.id,
+                                                                    methodId: mId
+                                                                }));
+                                                            }
+                                                        }}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Column 3: Fields (Scoped to Active Module) */}
                                 <div className={`flex-1 basis-0 flex flex-col border-r border-slate-200 dark:border-slate-800 overflow-hidden transition-opacity ${!activeModule ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <div className="p-3 border-b flex items-center gap-2 bg-white dark:bg-slate-900">
@@ -1060,8 +1138,8 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

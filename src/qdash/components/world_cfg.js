@@ -1,43 +1,48 @@
-import React, { useState, useEffect } from "react";
-import { useSelector } from 'react-redux';
+import { useState, useEffect } from "react";
+import { useSelector, useDispatch } from 'react-redux';
 import ConfigAccordion from "./accordeon";
-import { Button, Card, CardBody, Avatar, Switch } from "@heroui/react";
-import { User, Trash2, Globe, Server, X, PlusCircle, ZapOff } from "lucide-react";
+import { Button, Switch } from "@heroui/react";
+import { Trash2, Globe, Server, X, PlusCircle, Download, Activity, Box } from "lucide-react";
 import { USER_ID_KEY, getSessionId } from "../auth";
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
+import { updateLogs, updateVisData } from "../store/slices/envSlice";
+import { addModelEnv, removeModelEnv } from "../store/slices/conversationSlice";
 
-
-const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, saveUserWorldConfig, listenToUserWorldConfig, userProfile, toggleModal, startSim, toggleDataSlider, openClusterInjection }) => {
+const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldConfig, listenToUserWorldConfig, userProfile }) => {
   const [environments, setEnvironments] = useState([]);
   const [sessionEnvironments, setSessionEnvironments] = useState([]);
-  const [isLoadingEnvs, setIsLoadingEnvs] = useState(false);
-  const [isLoadingSessionEnvs, setIsLoadingSessionEnvs] = useState(false);
+  // const [isLoadingEnvs, setIsLoadingEnvs] = useState(false); // Unused
+  // const [isLoadingSessionEnvs, setIsLoadingSessionEnvs] = useState(false); // Unused
   const [selectedEnvConfig, setSelectedEnvConfig] = useState(null);
   const [linkedEnvs, setLinkedEnvs] = useState(new Set());
+
+  // New State for Right Panel
+  const [activeTab, setActiveTab] = useState("visual");
+  const [localLiveData, setLocalLiveData] = useState([]); // For bottom table
+
   const isConnected = useSelector(state => state.websocket.isConnected);
+  const logs = useSelector(state => state.envs.logs);
+  const visData = useSelector(state => state.envs.visData);
+  const conversationModels = useSelector(state => state.conversation.models);
 
-  // ... (handlers remain)
+  const dispatch = useDispatch();
+  // const animationRef = useRef(null); // Unused
 
-  function handleCloseConfig() {
-    setSelectedEnvConfig(null);
-  }
+  // function handleCloseConfig() { // Unused
+  //   setSelectedEnvConfig(null);
+  // }
 
   function handleCreateNew() {
     setSelectedEnvConfig({}); // Clear to defaults
   }
 
   function handleSessionLink(envId, isLinked) {
-    // Optimistic UI update
     setLinkedEnvs(prev => {
       const next = new Set(prev);
       if (isLinked) next.add(envId);
       else next.delete(envId);
       return next;
     });
-
-    const sessionId = getSessionId();
-    const userId = localStorage.getItem(USER_ID_KEY);
-
   }
 
   // Request environments when modal opens
@@ -47,7 +52,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
       const sessionId = getSessionId();
 
       if (userId) {
-        setIsLoadingEnvs(true);
+        // setIsLoadingEnvs(true);
         sendMessage({
           type: "GET_USERS_ENVS",
           auth: { user_id: userId },
@@ -55,7 +60,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
         });
 
         if (sessionId) {
-          setIsLoadingSessionEnvs(true);
+          // setIsLoadingSessionEnvs(true);
           sendMessage({
             type: "GET_SESSIONS_ENVS",
             auth: { user_id: userId, session_id: sessionId },
@@ -66,53 +71,56 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
     }
   }, [isOpen, sendMessage, isConnected]);
 
-  // Listen for environment list responses
+  // Listen for environment list and other responses
   useEffect(() => {
     const handleEnvResponse = (event) => {
-      const msg = event?.detail; // Custom event detail
+      const msg = event?.detail;
       if (!msg) return;
 
       if (msg.type === "GET_USERS_ENVS" || msg.type === "LIST_ENVS") {
-        console.log("📋 Received environments:", msg.data.envs);
         setEnvironments(msg.data.envs || []);
-        setIsLoadingEnvs(false);
+        // setIsLoadingEnvs(false);
       } else if (msg.type === "GET_SESSIONS_ENVS") {
-        console.log("📋 Received session environments:", msg.data);
         const data = msg.data.data || msg.data || [];
         setSessionEnvironments(Array.isArray(data) ? data : []);
-        setIsLoadingSessionEnvs(false);
-      } else if (msg.type === "ENV_DELETED") {
-        console.log("🗑️ Environment deleted:", msg.env_id);
-        setEnvironments(prev => prev.filter(env => env.id !== msg.env_id));
-        setSessionEnvironments(prev => prev.filter(env => env.id !== msg.env_id));
-      } else if (msg.type === "DEL_ENV") {
-        // Handle backend response for deletion if it comes this way
-        setEnvironments(prev => prev.filter(env => env.id !== msg.env_id));
-        setSessionEnvironments(prev => prev.filter(env => env.id !== msg.env_id));
+        // setIsLoadingSessionEnvs(false);
+      } else if (msg.type === "ENV_DELETED" || msg.type === "DEL_ENV") {
+        const deletedId = msg.env_id || msg.data?.env_id;
+        if (deletedId) {
+          setEnvironments(prev => prev.filter(env => env.id !== deletedId));
+          setSessionEnvironments(prev => prev.filter(env => env.id !== deletedId));
+        }
+      } else if (msg.type === "RETRIEVE_LOGS_ENV") {
+        // data structure: { env_id: [ {timestamp, message}, ... ] }
+        // Assuming msg.data contains the logs directly or nested
+        // Prompt: data[env_id: ldict(timestamp, message)) -> overwrite redux
+        if (msg.data) {
+          // Handle if data is wrapped or direct
+          const envId = msg.auth?.env_id || msg.env_id; // Try to get env_id context if possible, or parse from data
+          if (envId) {
+            dispatch(updateLogs({ envId, logs: msg.data }));
+          } else {
+            // iterate keys if data is dict[env_id] -> logs
+            Object.entries(msg.data).forEach(([eid, logList]) => {
+              dispatch(updateLogs({ envId: eid, logs: logList }));
+            });
+          }
+        }
+      } else if (msg.type === "GET_ENV_DATA") {
+        // Bottom table data
+        setLocalLiveData(prev => [...prev, ...(Array.isArray(msg.data) ? msg.data : [msg.data])]);
       }
     };
 
-    // Also listen for regular message events if not dispatching custom events
     const handleMessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === "GET_USERS_ENVS" || data.type === "LIST_ENVS") {
-          setEnvironments(data.data?.envs || data.envs || []);
-          setIsLoadingEnvs(false);
-        } else if (data.type === "GET_SESSIONS_ENVS") {
-          const sEnvData = data.data?.data || data.data || [];
-          setSessionEnvironments(Array.isArray(sEnvData) ? sEnvData : []);
-          setIsLoadingSessionEnvs(false);
-        } else if (data.type === "ENV_DELETED" || data.type === "DEL_ENV") {
-          const deletedId = data.env_id || data.data?.env_id;
-          if (deletedId) {
-            setEnvironments(prev => prev.filter(env => env.id !== deletedId));
-            setSessionEnvironments(prev => prev.filter(env => env.id !== deletedId));
-          }
+        // Handle same types as above if needed, but CustomEvent 'qdash-ws-message' is preferred if available
+        if (data.type === "GET_ENV_DATA") {
+          setLocalLiveData(prev => Array.isArray(data.data) ? data.data : [data.data]);
         }
       } catch (e) { }
     }
-
 
     window.addEventListener('qdash-ws-message', handleEnvResponse);
     window.addEventListener('message', handleMessage);
@@ -121,7 +129,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
       window.removeEventListener('qdash-ws-message', handleEnvResponse);
       window.removeEventListener('message', handleMessage);
     }
-  }, []);
+  }, [dispatch]);
 
   function handleDeleteEnv(e, envId) {
     e.stopPropagation();
@@ -132,28 +140,94 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
           auth: { env_id: envId, user_id: localStorage.getItem(USER_ID_KEY) },
           timestamp: new Date().toISOString()
         });
-        // Optimistic update
         setEnvironments(prev => prev.filter(env => env.id !== envId));
       }
     }
   }
 
   function handleSelectEnv(env) {
-    // Map env properties to config values expected by ConfigAccordion
     const config = {
       id: env.id,
       amount_of_nodes: env.amount_of_nodes || env.cluster_dim,
       sim_time: env.sim_time,
       dims: env.dims,
       enable_sm: env.enable_sm,
-      particle: env.particle
+      particle: env.particle,
+      status: env.state || env.status || 'created' // Add status for display
     };
     setSelectedEnvConfig(config);
+    // Reset local view state
+    setLocalLiveData([]);
+    dispatch(updateLogs({ envId: env.id, logs: [] }));
   }
 
+  // --- Visual Tab Logic ---
+  useEffect(() => {
+    if (activeTab === 'visual' && selectedEnvConfig?.id) {
+      const envId = selectedEnvConfig.id;
+      let frameId;
+      const particles = [
+        { x: 0, y: 0, vx: 1, vy: 1, color: '#FF0000' },
+        { x: 50, y: 50, vx: -1, vy: 0.5, color: '#00FF00' },
+        { x: 20, y: 80, vx: 0.5, vy: -1, color: '#0000FF' }
+      ];
+
+      const loop = () => {
+        // Update particles
+        const newData = {};
+        particles.forEach((p, i) => {
+          p.x = (p.x + p.vx) % 100;
+          p.y = (p.y + p.vy) % 100;
+          if (p.x < 0) p.x += 100;
+          if (p.y < 0) p.y += 100;
+          newData[`p${i}`] = { x: p.x, y: p.y, color: p.color };
+        });
+
+        // Sync to Redux (throttled in real app, but complying with prompt "endless loop ... in redux VIS_DATA format")
+        dispatch(updateVisData({ envId, data: newData }));
+        frameId = requestAnimationFrame(loop);
+      };
+
+      loop();
+      return () => cancelAnimationFrame(frameId);
+    }
+  }, [activeTab, selectedEnvConfig, dispatch]);
+
+  // --- Logs Logic ---
+  useEffect(() => {
+    if (activeTab === 'status logs' && selectedEnvConfig?.id) {
+      sendMessage({
+        type: "RETRIEVE_LOGS_ENV",
+        auth: { env_id: selectedEnvConfig.id, user_id: localStorage.getItem(USER_ID_KEY) },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [activeTab, selectedEnvConfig, sendMessage]);
+
+  // --- Bottom Table Data ---
+  useEffect(() => {
+    if (selectedEnvConfig?.id) {
+      // Prompt says: onmount sendMessage(type=GET_ENV_DATA...
+      // We do this when config is selected (which mounts the bottom view)
+      sendMessage({
+        type: "GET_ENV_DATA",
+        auth: { env_id: selectedEnvConfig.id, user_id: localStorage.getItem(USER_ID_KEY) },
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [selectedEnvConfig, sendMessage]);
 
 
   if (!isOpen) return null;
+
+  const getStatusColor = (status) => {
+    if (!status) return "bg-gray-100 text-gray-800";
+    const s = status.toLowerCase();
+    if (s === 'created') return "bg-blue-100 text-blue-800 border-blue-200";
+    if (s === 'in_progress') return "bg-green-100 text-green-800 border-green-200";
+    if (s === 'error') return "bg-red-100 text-red-800 border-red-200";
+    return "bg-gray-100 text-gray-800 border-gray-200";
+  };
 
   const renderEnvItem = (env, i, isSessionEnv = false) => (
     <div
@@ -175,7 +249,9 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
           </span>
         </div>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <span className="text-[10px] text-slate-400 font-medium hidden group-hover:block transition-all">Link</span>
+          <div className={`text-[10px] px-1.5 py-0.5 rounded border uppercase font-bold ${getStatusColor(env.state || env.status)}`}>
+            {env.state || env.status || 'UNK'}
+          </div>
           <Switch
             size="sm"
             isSelected={linkedEnvs.has(env.id) || isSessionEnv}
@@ -195,48 +271,9 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
           {env.dims || 3}D
         </div>
       </div>
-
       {/* Environment Actions */}
       <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-        <button
-          onClick={(e) => { e.stopPropagation(); toggleModal(env.id); }}
-          className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold rounded transition-all"
-          title="Graph"
-        >
-          🌐
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); startSim(env.id); }}
-          className="px-2 py-1 bg-white hover:bg-slate-50 text-black text-[10px] font-bold rounded border border-slate-300 transition-all"
-          title="Start"
-        >
-          ▶️
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleDataSlider();
-            sendMessage({ type: "TOGGLE_DATA_SLIDER", env_id: env.id, timestamp: new Date().toISOString() });
-          }}
-          className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white text-[10px] font-bold rounded transition-all"
-          title="Data"
-        >
-          📊
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); openClusterInjection(env.id, env); }}
-          className="px-2 py-1 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-bold rounded transition-all"
-          title="Apply Injection"
-        >
-          💉
-        </button>
-        <button
-          onClick={(e) => handleDeleteEnv(e, env.id)}
-          className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-[10px] font-bold rounded transition-all border border-red-200 flex items-center justify-center"
-          title="Delete"
-        >
-          <Trash2 size={12} />
-        </button>
+        <button onClick={(e) => handleDeleteEnv(e, env.id)} className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-[10px] font-bold rounded transition-all border border-red-200"><Trash2 size={12} /></button>
       </div>
     </div>
   );
@@ -259,100 +296,198 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, initialValues, s
         </Button>
       </div>
 
-      {/* Disconnected Overlay */}
-      {/* Split View */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Disconnected Overlay */}
         <GlobalConnectionSpinner inline={true} />
-        {/* LEFT SIDE (30%) - Environment List */}
-        <div className="w-[30%] border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
-          {/* User Info / Actions */}
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-            <Button
-              className="w-full font-bold shadow-sm"
-              color="primary"
-              variant="flat"
-              startContent={<PlusCircle size={18} />}
-              onPress={handleCreateNew}
-            >
-              New Environment
-            </Button>
+
+        {/* EXISTING LEFT SIDE (Environment List) - Preserved but maybe condensed or just left as 30%? Prompt says "Split Top 80% into 2 cols (30% and 70%)".
+            If I follow the interpretation of modifying the RIGHT panel (Config Area), then this Left List is fine.
+        */}
+        <div className="w-[20%] border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="p-4 border-b border-slate-200">
+            <Button className="w-full font-bold shadow-sm" color="primary" variant="flat" startContent={<PlusCircle size={18} />} onPress={handleCreateNew}>New</Button>
           </div>
-
-          {/* List */}
-          <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
-
-            {/* Session Environments Section */}
-            <div className="mb-2">
-              <div className="text-xs font-bold text-indigo-500 uppercase tracking-wider px-2 mb-2 mt-2 flex items-center gap-2">
-                Session
-                {isLoadingSessionEnvs && <span className="text-[10px] text-slate-400 animate-pulse ml-2">Syncing...</span>}
-              </div>
-              {!isLoadingSessionEnvs && sessionEnvironments.length === 0 ? (
-                <div className="px-4 py-2 text-[10px] text-slate-400 italic">No linked environments</div>
-              ) : (
-                sessionEnvironments.map((env, i) => renderEnvItem(env, i, true))
-              )}
-            </div>
-
-            <div className="h-px bg-slate-200 dark:bg-slate-700 my-2" />
-
-            {/* Active (User) Environments Section */}
-            <div className="mb-2 relative">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider px-2 mb-2">Active Environments</div>
-              {isLoadingEnvs ? (
-                <div className="h-40 relative flex items-center justify-center">
-                  <span className="text-slate-400 text-xs">Loading Environments...</span>
-                </div>
-              ) : environments.length === 0 ? (
-                <div className="text-center py-8 px-4">
-                  <p className="text-xs text-slate-400">No environments found. Create one to get started.</p>
-                </div>
-              ) : (
-                environments.map((env, i) => renderEnvItem(env, i, false))
-              )}
-            </div>
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2">
+            {/* Compact list */}
+            {sessionEnvironments.map((env, i) => renderEnvItem(env, i, true))}
+            {environments.map((env, i) => renderEnvItem(env, i, false))}
           </div>
         </div>
 
-        {/* RIGHT SIDE (70%) - Config Form */}
-        <div className="w-[70%] flex flex-col bg-white dark:bg-slate-900 overflow-y-auto relative">
+        {/* RIGHT SIDE (80% of total width) - The target of the prompt "env cfg right side" */}
+        <div className="w-[80%] flex flex-col h-full bg-white dark:bg-slate-900">
           {selectedEnvConfig ? (
-            <div className="p-8 max-w-2xl mx-auto w-full relative">
-              <Button
-                isIconOnly
-                variant="light"
-                size="sm"
-                className="absolute top-2 right-2 z-10 text-slate-400 hover:text-slate-600"
-                onPress={handleCloseConfig}
-              >
-                <X size={20} />
-              </Button>
-              <ConfigAccordion
-                sendMessage={sendMessage}
-                initialValues={selectedEnvConfig}
-                shouldShowDefault={Object.keys(selectedEnvConfig).length === 0}
-                user={user}
-                userProfile={userProfile}
-                saveUserWorldConfig={saveUserWorldConfig}
-                listenToUserWorldConfig={listenToUserWorldConfig}
-              />
+            <div className="flex flex-col h-full">
+              {/* TOP 80% */}
+              <div className="h-[80%] flex flex-row border-b border-slate-200 dark:border-slate-800">
+                {/* Left 30% of Right Side: Config Inputs */}
+                <div className="w-[30%] flex flex-col border-r border-slate-200 dark:border-slate-800 overflow-y-auto p-4 bg-slate-50/20">
+                  <div className={`mb-4 px-3 py-2 rounded-lg border text-center font-bold text-sm capitalize ${getStatusColor(selectedEnvConfig.status)}`}>
+                    Status: {selectedEnvConfig.status || 'Created'}
+                  </div>
+                  <ConfigAccordion
+                    sendMessage={sendMessage}
+                    initialValues={selectedEnvConfig}
+                    shouldShowDefault={Object.keys(selectedEnvConfig || {}).length === 0}
+                    user={user}
+                    userProfile={userProfile}
+                    saveUserWorldConfig={saveUserWorldConfig}
+                    listenToUserWorldConfig={listenToUserWorldConfig}
+                  />
+                </div>
+
+                {/* Right 70% of Right Side: Tabs (Visual, Model, Logs) */}
+                <div className="w-[70%] flex flex-col bg-slate-50 dark:bg-slate-900">
+                  {/* Header */}
+                  <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                    {["visual", "model", "status logs"].map(tab => (
+                      <button
+                        key={tab}
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === tab
+                          ? "bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900"
+                          : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 overflow-hidden relative p-4">
+                    {activeTab === 'visual' && (
+                      <div className="h-full w-full flex items-center justify-center bg-black rounded-xl overflow-hidden relative border border-slate-800">
+                        <div className="absolute top-2 left-2 text-xs text-green-500 font-mono z-10">VIS_DATA VIEW</div>
+                        {/* Render Visualization from Redux Data */}
+                        <div className="relative w-full h-full">
+                          {/* We iterate over keys in redux visData for this env */}
+                          {visData[selectedEnvConfig.id] && Object.entries(visData[selectedEnvConfig.id]).map(([key, val]) => (
+                            <div
+                              key={key}
+                              className="absolute w-4 h-4 rounded-full shadow-lg transition-all duration-75 border border-white/20"
+                              style={{
+                                left: `${val.x}%`,
+                                top: `${val.y}%`,
+                                backgroundColor: val.color,
+                                transform: 'translate(-50%, -50%)'
+                              }}
+                            >
+                              <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] text-white/50">{key}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'model' && (
+                      <div className="flex flex-col gap-4 h-full">
+                        <div className="flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <Button
+                            size="sm"
+                            color="secondary"
+                            startContent={<Download size={16} />}
+                            onPress={() => sendMessage({
+                              type: "DOWNLOAD_MODEL",
+                              auth: { env_id: selectedEnvConfig.id, user_id: localStorage.getItem(USER_ID_KEY) }
+                            })}
+                          >
+                            Download Model
+                          </Button>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">Add to Conversation</span>
+                            <Switch
+                              size="sm"
+                              isSelected={conversationModels.includes(selectedEnvConfig.id)}
+                              onValueChange={(val) => {
+                                if (val) dispatch(addModelEnv(selectedEnvConfig.id));
+                                else dispatch(removeModelEnv(selectedEnvConfig.id));
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex-1 bg-slate-900 rounded-xl p-4 font-mono text-xs overflow-y-auto border border-slate-800">
+                          <div className="text-slate-500 mb-2 border-b border-slate-700 pb-1">CONVERSATION.models</div>
+                          {conversationModels.map(id => (
+                            <div key={id} className="flex items-center justify-between py-1 px-2 hover:bg-slate-800 rounded text-green-400">
+                              <span>{id}</span>
+                              <button onClick={() => dispatch(removeModelEnv(id))} className="text-slate-500 hover:text-red-500"><X size={12} /></button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'status logs' && (
+                      <div className="h-full flex flex-col gap-2">
+                        {(!selectedEnvConfig.status || selectedEnvConfig.status.toUpperCase() !== 'FINISHED') && (
+                          <div className="p-2 bg-yellow-100 text-yellow-800 border border-yellow-200 text-xs rounded">
+                            Note: The environment state needs to be FINISHED to view complete logs.
+                          </div>
+                        )}
+                        <div className="flex-1 bg-black text-slate-300 font-mono text-xs p-4 rounded-xl overflow-y-auto">
+                          {(logs[selectedEnvConfig.id] || []).map((log, i) => (
+                            <div key={i} className={`py-0.5 border-b border-white/5 ${log.message?.toLowerCase().includes('err') || log.type === 'error' ? 'bg-red-900/50 text-red-200' : ''}`}>
+                              <span className="text-slate-500 mr-2">[{log.timestamp}]</span>
+                              <span>{log.message}</span>
+                            </div>
+                          ))}
+                          {(!logs[selectedEnvConfig.id] || logs[selectedEnvConfig.id].length === 0) && (
+                            <div className="text-slate-600 italic">No logs available...</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* BOTTOM 20% - Scrollable Live Table Data */}
+              <div className="h-[20%] border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} className="text-blue-500" />
+                    <span className="text-xs font-bold uppercase">Live Data Viewer</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="light"
+                    isIconOnly
+                    onPress={() => sendMessage({ type: "GET_ENV_DATA", auth: { env_id: selectedEnvConfig.id, user_id: localStorage.getItem(USER_ID_KEY) } })}
+                  >
+                    <Download size={14} />
+                  </Button>
+                </div>
+                <div className="flex-1 overflow-auto p-0">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 sticky top-0">
+                      <tr>
+                        {localLiveData.length > 0 && Object.keys(localLiveData[0]).map(key => (
+                          <th key={key} className="px-4 py-2 font-medium border-b dark:border-slate-700">{key}</th>
+                        ))}
+                        {localLiveData.length === 0 && <th className="px-4 py-2">Data</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {localLiveData.map((row, i) => (
+                        <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          {Object.values(row).map((val, j) => (
+                            <td key={j} className="px-4 py-1.5 truncate max-w-[200px]">{typeof val === 'object' ? JSON.stringify(val) : val}</td>
+                          ))}
+                        </tr>
+                      ))}
+                      {localLiveData.length === 0 && (
+                        <tr><td className="px-4 py-8 text-center text-slate-400 italic">No live data available</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center animate-fade-in">
-              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
-                <PlusCircle size={32} className="text-slate-300 dark:text-slate-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-600 dark:text-slate-300 mb-2">Configure Environment</h3>
-              <p className="text-sm max-w-xs">Select an environment from the list to view details, or create a new one to get started.</p>
-              <Button
-                color="primary"
-                variant="flat"
-                className="mt-6 font-semibold"
-                onPress={handleCreateNew}
-              >
-                Create New Environment
-              </Button>
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <Box size={48} className="mb-4 opacity-50" />
+              <p>Select an environment to configure</p>
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Input, Select, SelectItem, Textarea, Spinner } from "@heroui/react";
+import { Button, Input, Select, SelectItem, Textarea, Spinner, Switch } from "@heroui/react";
 import { Plus, Trash2, Database, Save, X, Loader2 } from "lucide-react";
 import { USER_ID_KEY } from "../auth";
 import { useSelector } from 'react-redux';
@@ -46,7 +46,8 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
         setCurrentParam({
             id: "",
             type: "int",
-            description: ""
+            description: "",
+            is_constant: false
         });
         setOriginalId(null);
     }
@@ -59,7 +60,8 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
             setCurrentParam({
                 id: param.id,
                 type: param.type || "int",
-                description: param.description || ""
+                description: param.description || "",
+                is_constant: !!param.is_constant
             });
             setOriginalId(param.id);
         }
@@ -102,6 +104,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
             id: finalId,
             type: currentParam.type,
             description: currentParam.description || "",
+            is_constant: currentParam.is_constant,
             user_id: userId
         };
 
@@ -241,6 +244,21 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                     </Select>
                                 </div>
 
+                                {/* Constant Toggle */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Constant Parameter</span>
+                                            <span className="text-xs text-slate-500">Enable to make this parameter immutable during runtime</span>
+                                        </div>
+                                        <Switch
+                                            isSelected={currentParam.is_constant}
+                                            onValueChange={(val) => setCurrentParam({ ...currentParam, is_constant: val })}
+                                            color="secondary"
+                                        />
+                                    </div>
+                                </div>
+
                                 {/* Description Input */}
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
@@ -268,6 +286,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                             {JSON.stringify({
                                                 id: currentParam.id || "auto_generated",
                                                 type: currentParam.type,
+                                                is_constant: currentParam.is_constant,
                                                 description: currentParam.description
                                             }, null, 2)}
                                         </pre>

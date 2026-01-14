@@ -26,6 +26,41 @@ const filteredCfg = {
     },
 };
 
+const G_FIELDS = [
+    "photon",
+    "w_plus",
+    "w_minus",
+    "z_boson",
+    ...Array.from({ length: 8 }, (_, i) => `gluon_${i}`)
+];
+
+const H = ["higgs"];
+
+const FERMIONS = [
+    "electron", "muon", "tau",
+    "electron_neutrino", "muon_neutrino", "tau_neutrino",
+    ...Array.from({ length: 3 }, (_, i) => `up_quark_${i + 1}`),
+    ...Array.from({ length: 3 }, (_, i) => `down_quark_${i + 1}`),
+    ...Array.from({ length: 3 }, (_, i) => `charm_quark_${i + 1}`),
+    ...Array.from({ length: 3 }, (_, i) => `strange_quark_${i + 1}`),
+    ...Array.from({ length: 3 }, (_, i) => `top_quark_${i + 1}`),
+    ...Array.from({ length: 3 }, (_, i) => `bottom_quark_${i + 1}`)
+];
+
+const RESERVED_BASES = new Set(
+    [...G_FIELDS, ...H, ...FERMIONS].map(name =>
+        name.toLowerCase()
+            .replace(/[\s\-_]/g, '')
+            .replace(/\d+$/, '')
+    )
+);
+
+const isReserved = (val) => {
+    if (!val) return false;
+    const cleanVal = val.toString().toLowerCase().replace(/[\s\-_]/g, '').replace(/\d+$/, '');
+    return RESERVED_BASES.has(cleanVal);
+};
+
 const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig, listenToUserWorldConfig, userProfile, shouldShowDefault }) => {
     const [completed, setCompleted] = useState(false);
     const [cfg, setCfg] = useState(filteredCfg);
@@ -105,6 +140,12 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             alert("Free tier: cfg file is not editable. Upgrade to Magician.");
             return;
         }
+
+        let error = null;
+        if (sid === 'id' && isReserved(newValue)) {
+            error = "Name is reserved (restricted particle logic).";
+        }
+
         setCfg((prevCfg) => {
             let updatedCfg = { ...prevCfg };
             if (updatedCfg[sid]) {
@@ -115,6 +156,7 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                         value: isNaN(parseFloat(newValue)) && sid !== 'email' && sid !== 'particle'
                             ? newValue
                             : parseFloat(newValue),
+                        error: error
                     },
                 };
             }
@@ -134,8 +176,8 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             Object.entries(cfg).map(([key, val]) => [key, val.value])
         );
         maxValues.id = crypto.randomUUID().replace(/-/g, '');
-        maxValues.amount_of_nodes = maxValues.amount_of_nodes;
-        maxValues.sim_time = maxValues.sim_time;
+        // maxValues.amount_of_nodes = maxValues.amount_of_nodes;
+        // maxValues.sim_time = maxValues.sim_time;
         return maxValues;
     };
 
@@ -170,8 +212,8 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             const configValues = Object.fromEntries(
                 Object.entries(cfg).map(([key, val]) => [key, val.value])
             );
-            configValues.amount_of_nodes = configValues.amount_of_nodes;
-            configValues.sim_time = configValues.sim_time;
+            // configValues.amount_of_nodes = configValues.amount_of_nodes;
+            // configValues.sim_time = configValues.sim_time;
             configValues.env = env_id;
             saveUserWorldConfig(user.uid, configValues);
         }
@@ -211,11 +253,13 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
         if (key !== "particle") {
             return (
                 <Input
-                    disabled={false} // handle_disabled(key)
+                    isDisabled={key === 'dims'}
                     value={cfg[key]?.value || ''}
                     onValueChange={(val) => handleValueChange(key, val)}
                     size="sm"
                     variant="bordered"
+                    isInvalid={!!cfg[key]?.error}
+                    errorMessage={cfg[key]?.error}
                     classNames={{
                         input: "text-slate-800 dark:text-slate-200",
                         inputWrapper: "bg-white dark:bg-slate-800",
@@ -230,7 +274,7 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                 isDropdownOpen={isDropdownOpen}
             />
         )
-    }, [cfg, updateIsDropdownOpen, isDropdownOpen, handleValueChange, userProfile])
+    }, [cfg, updateIsDropdownOpen, isDropdownOpen, handleValueChange])
 
     const get_input = (sid, attrs) => {
         return (

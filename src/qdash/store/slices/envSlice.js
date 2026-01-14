@@ -4,6 +4,8 @@ const initialState = {
     userEnvs: [],
     loading: false,
     error: null,
+    logs: {}, // env_id -> list of log objects
+    visData: {}, // env_id -> dict of values
 };
 
 const envSlice = createSlice({
@@ -28,9 +30,19 @@ const envSlice = createSlice({
         },
         setLoading: (state, action) => {
             state.loading = action.payload;
+        },
+        updateLogs: (state, action) => {
+            // payload: { envId, logs: [] }
+            const { envId, logs } = action.payload;
+            state.logs[envId] = logs;
+        },
+        updateVisData: (state, action) => {
+            // payload: { envId, data: {} }
+            const { envId, data } = action.payload;
+            state.visData[envId] = data;
         }
     },
 });
 
-export const { setUserEnvs, addEnv, removeEnv, setLoading } = envSlice.actions;
+export const { setUserEnvs, addEnv, removeEnv, setLoading, updateLogs, updateVisData } = envSlice.actions;
 export default envSlice.reducer;

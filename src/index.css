@@ -1,33 +1,59 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%; /* White */
-    --foreground: 240 10% 3.9%; /* Almost Black */
-    --primary: 240 5.9% 10%; /* Black */
-    --primary-foreground: 0 0% 98%; /* Almost White */
-    --secondary: 240 4.8% 95.9%; /* Light Gray */
-    --secondary-foreground: 240 5.9% 10%; /* Black */
+    --background: 0 0% 100%;
+    /* White */
+    --foreground: 240 10% 3.9%;
+    /* Almost Black */
+    --primary: 240 5.9% 10%;
+    /* Black */
+    --primary-foreground: 0 0% 98%;
+    /* Almost White */
+    --secondary: 240 4.8% 95.9%;
+    /* Light Gray */
+    --secondary-foreground: 240 5.9% 10%;
+    /* Black */
+
+    /* Fundamental Colors */
+    --fundamental-red: #ef4444;
+    --fundamental-green: #22c55e;
+    --fundamental-blue: #3b82f6;
+    --fundamental-orange: #f97316;
+    --fundamental-yellow: #eab308;
+    --fundamental-violet: #8b5cf6;
   }
 
   .dark {
-    --background: 240 10% 3.9%; /* Almost Black */
-    --foreground: 0 0% 98%; /* Almost White */
-    --primary: 0 0% 98%; /* Almost White */
-    --primary-foreground: 240 5.9% 10%; /* Black */
-    --secondary: 240 3.7% 15.9%; /* Dark Gray */
-    --secondary-foreground: 0 0% 98%; /* Almost White */
+    --background: 240 10% 3.9%;
+    /* Almost Black */
+    --foreground: 0 0% 98%;
+    /* Almost White */
+    --primary: 0 0% 98%;
+    /* Almost White */
+    --primary-foreground: 240 5.9% 10%;
+    /* Black */
+    --secondary: 240 3.7% 15.9%;
+    /* Dark Gray */
+    --secondary-foreground: 0 0% 98%;
+    /* Almost White */
   }
 }
 
 @layer base {
   body {
     @apply bg-background text-foreground;
+    font-family: 'Space Grotesk', sans-serif;
   }
 
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     transition: background-color 0.3s, border-color 0.3s, color 0.3s;
   }
 }

@@ -12,7 +12,12 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     const [currentField, setCurrentField] = useState(null);
     const [paramPairs, setParamPairs] = useState([]); // Array of { id, paramId, value }
     const [originalId, setOriginalId] = useState(null); // Track original field ID for edits
+    const [linkedFields, setLinkedFields] = useState(new Set());
+    const [selectedModuleId, setSelectedModuleId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+
+    const userFields = useSelector(state => state.fields.userFields);
+    const userModules = useSelector(state => state.modules.userModules);
 
     const isConnected = useSelector(state => state.websocket.isConnected);
 
@@ -51,6 +56,11 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 type: "LIST_USERS_PARAMS",
                 auth: { user_id: userId }
             });
+
+            sendMessage({
+                type: "LIST_USERS_MODULES",
+                auth: { user_id: userId }
+            });
         }
     }, [isOpen, sendMessage]);
 
@@ -60,6 +70,8 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             description: ""
         });
         setParamPairs([]);
+        setLinkedFields(new Set());
+        setSelectedModuleId(null);
         setOriginalId(null); // No original ID for new fields
     }
 
@@ -67,6 +79,8 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
         if (typeof field === 'string') {
             setCurrentField({ id: field, description: "" });
             setParamPairs([]);
+            setLinkedFields(new Set());
+            setSelectedModuleId(null);
             setOriginalId(field); // Capture original ID
         } else {
             const fieldId = field.id;
@@ -74,6 +88,13 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 id: fieldId,
                 description: field.comment || field.description || ""
             });
+
+            // Extract linked fields
+            if (field.linked_fields && Array.isArray(field.linked_fields)) {
+                setLinkedFields(new Set(field.linked_fields));
+            } else {
+                setLinkedFields(new Set());
+            }
 
             // Extract param pairs from field.params
             const pairs = [];
@@ -130,9 +151,9 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     if (type === 'int') defaultValue = 0;
                     else if (type === 'float') defaultValue = 0.0;
                     else if (type === 'bool') defaultValue = false;
-                    else if (type === 'list') defaultValue = [];
-                    else if (type === 'complex') defaultValue = [0, 0];
-                    else if (type === 'complex_list') defaultValue = [];
+                    else if (type === 'list') defaultValue = ""; // Shape specification
+                    else if (type === 'complex') defaultValue = ""; // Shape specification
+                    else if (type === 'complex_list') defaultValue = ""; // Shape specification
                 }
 
                 return { ...p, paramId, value: defaultValue };
@@ -154,18 +175,23 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
         const finalId = currentField.id?.trim() ||
             `fld_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        // Build params structure: { param_id: value, ... }
-        const finalParams = {};
+        // Build separate keys and values arrays
+        const keys = [];
+        const values = [];
+
         paramPairs.forEach(pair => {
             if (pair.paramId) {
-                finalParams[pair.paramId] = pair.value;
+                keys.push(pair.paramId);
+                values.push(pair.value);
             }
         });
 
         const fieldData = {
             id: finalId,
-            params: finalParams,
+            keys: keys,
+            values: values,
             comment: currentField.description || "",
+            linked_fields: Array.from(linkedFields),
             user_id: userId
         };
 
@@ -176,8 +202,8 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             },
             auth: {
                 field_id: finalId,
-                original_id: originalId, // Include original ID for tracking edits
-                user_id: userId
+                original_id: originalId,
+                user_id: userId,
             }
         });
     }
@@ -201,99 +227,37 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 />
             );
         } else if (type === 'list') {
-            const listValue = Array.isArray(value) ? value : [];
             return (
-                <div className="flex flex-col gap-2">
-                    {listValue.map((item, idx) => (
-                        <div key={idx} className="flex gap-1">
-                            <Input
-                                size="sm"
-                                value={item}
-                                onChange={e => {
-                                    const newList = [...listValue];
-                                    newList[idx] = e.target.value;
-                                    handleValueChange(pair.id, newList);
-                                }}
-                                classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                            />
-                            <Button isIconOnly size="sm" color="danger" variant="light" onPress={() => {
-                                const newList = [...listValue];
-                                newList.splice(idx, 1);
-                                handleValueChange(pair.id, newList);
-                            }}><X size={14} /></Button>
-                        </div>
-                    ))}
-                    <Button size="sm" variant="flat" className="h-6 text-xs" onPress={() => {
-                        handleValueChange(pair.id, [...listValue, ""]);
-                    }}>+ Add Item</Button>
-                </div>
+                <Input
+                    size="sm"
+                    placeholder="e.g., 10 or 2,3,4"
+                    value={value || ""}
+                    onChange={e => handleValueChange(pair.id, e.target.value)}
+                    classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
+                    description={<span className="text-[9px] text-slate-400">Specify shape: single number or comma-separated dimensions</span>}
+                />
             );
         } else if (type === 'complex') {
-            const complexVal = Array.isArray(value) ? value : [0, 0];
             return (
-                <div className="flex gap-2 items-center">
-                    <Input
-                        size="sm"
-                        type="number"
-                        label="Re"
-                        labelPlacement="outside-left"
-                        value={complexVal[0]}
-                        onChange={e => handleValueChange(pair.id, [parseFloat(e.target.value), complexVal[1]])}
-                        classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                    />
-                    <span className="text-slate-400 text-xs">+</span>
-                    <Input
-                        size="sm"
-                        type="number"
-                        label="Im"
-                        labelPlacement="outside-left"
-                        value={complexVal[1]}
-                        onChange={e => handleValueChange(pair.id, [complexVal[0], parseFloat(e.target.value)])}
-                        classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                    />
-                    <span className="text-slate-400 text-xs italic">i</span>
-                </div>
+                <Input
+                    size="sm"
+                    placeholder="e.g., 2 (default for [Re, Im])"
+                    value={value || ""}
+                    onChange={e => handleValueChange(pair.id, e.target.value)}
+                    classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
+                    description={<span className="text-[9px] text-slate-400">Specify dimensions (typically 2 for real and imaginary)</span>}
+                />
             );
         } else if (type === 'complex_list') {
-            const complexList = Array.isArray(value) ? value : [];
             return (
-                <div className="flex flex-col gap-2">
-                    {complexList.map((cVal, idx) => (
-                        <div key={idx} className="flex gap-2 items-center">
-                            <span className="text-xs text-slate-400 font-mono w-4">{idx}:</span>
-                            <Input
-                                size="sm" type="number" placeholder="Re"
-                                value={(Array.isArray(cVal) ? cVal[0] : 0)}
-                                onChange={e => {
-                                    const newList = [...complexList];
-                                    newList[idx] = [parseFloat(e.target.value), (Array.isArray(cVal) ? cVal[1] : 0)];
-                                    handleValueChange(pair.id, newList);
-                                }}
-                                classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                            />
-                            <span className="text-slate-400 text-xs">+</span>
-                            <Input
-                                size="sm" type="number" placeholder="Im"
-                                value={(Array.isArray(cVal) ? cVal[1] : 0)}
-                                onChange={e => {
-                                    const newList = [...complexList];
-                                    newList[idx] = [(Array.isArray(cVal) ? cVal[0] : 0), parseFloat(e.target.value)];
-                                    handleValueChange(pair.id, newList);
-                                }}
-                                classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                            />
-                            <span className="text-slate-400 text-xs italic">i</span>
-                            <Button isIconOnly size="sm" color="danger" variant="light" onPress={() => {
-                                const newList = [...complexList];
-                                newList.splice(idx, 1);
-                                handleValueChange(pair.id, newList);
-                            }}><X size={14} /></Button>
-                        </div>
-                    ))}
-                    <Button size="sm" variant="flat" className="h-6 text-xs" onPress={() => {
-                        handleValueChange(pair.id, [...complexList, [0, 0]]);
-                    }}>+ Add Complex</Button>
-                </div>
+                <Input
+                    size="sm"
+                    placeholder="e.g., 5 (for 5 complex numbers)"
+                    value={value || ""}
+                    onChange={e => handleValueChange(pair.id, e.target.value)}
+                    classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
+                    description={<span className="text-[9px] text-slate-400">Specify array length for complex numbers</span>}
+                />
             );
         } else {
             // Default: int, float
@@ -402,6 +366,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                 </div>
 
                                 {/* Description Input */}
+                                {/* Description Input */}
                                 <div className="space-y-2">
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
                                     <Textarea
@@ -413,6 +378,37 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                         classNames={{ input: "bg-slate-50 dark:bg-slate-800" }}
                                     />
                                 </div>
+
+                                {/* Linked Fields Dropdown */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Linked Fields</label>
+                                    <Select
+                                        selectionMode="multiple"
+                                        placeholder="Select fields to link"
+                                        selectedKeys={linkedFields}
+                                        onSelectionChange={setLinkedFields}
+                                        className="max-w-full"
+                                        variant="bordered"
+                                        classNames={{ trigger: "bg-slate-50 dark:bg-slate-800" }}
+                                    >
+                                        {userFields
+                                            .filter(f => (typeof f === 'string' ? f : f.id) !== currentField.id) // Exclude self
+                                            .map(field => {
+                                                const fId = typeof field === 'string' ? field : field.id;
+                                                const fParams = typeof field === 'object' && field.params ? Object.keys(field.params).join(', ') : 'No parameters';
+
+                                                return (
+                                                    <SelectItem key={fId} value={fId} textValue={fId}>
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="font-semibold text-small">{fId}</span>
+                                                            <span className="text-tiny text-slate-400">Params: {fParams}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                );
+                                            })}
+                                    </Select>
+                                </div>
+
 
                                 {/* Parameter Pairs */}
                                 <div className="flex-1 space-y-4 flex flex-col">
@@ -502,16 +498,21 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                         </div>
                                         <pre className="p-4 text-xs font-mono text-emerald-400 leading-relaxed overflow-x-auto">
                                             {(() => {
-                                                const previewParams = {};
+                                                const keys = [];
+                                                const values = [];
+
                                                 paramPairs.forEach(pair => {
                                                     if (pair.paramId) {
-                                                        previewParams[pair.paramId] = pair.value;
+                                                        keys.push(pair.paramId);
+                                                        values.push(pair.value);
                                                     }
                                                 });
 
                                                 const fieldObj = {
                                                     id: currentField.id || "auto_generated",
-                                                    params: previewParams,
+                                                    keys: keys,
+                                                    values: values,
+                                                    linked_fields: Array.from(linkedFields),
                                                     comment: currentField.description
                                                 };
                                                 return JSON.stringify(fieldObj, null, 2);
@@ -553,7 +554,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
                 }
             `}</style>
-        </div>
+        </div >
     );
 };
 

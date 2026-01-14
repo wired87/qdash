@@ -269,6 +269,29 @@ const sessionSlice = createSlice({
                 delete state.sessionData[sessionId].config.envs[envId].modules[moduleId];
             }
         },
+        // Optimistic Link Method to Module (instant UI update)
+        optimisticLinkMethod: (state, action) => {
+            const { sessionId, envId, moduleId, methodId } = action.payload;
+            if (!state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]) return;
+            // Method is sibling to fields in module structure? 
+            // "collect methods and fields within the modules item dimension"
+            // So module = { fields: {}, methods: {} }
+
+            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods) {
+                state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods = {};
+            }
+            // Add method (value could be config/params override, but empty obj for now)
+            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId]) {
+                state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId] = {};
+            }
+        },
+        // Optimistic Unlink Method from Module
+        optimisticUnlinkMethod: (state, action) => {
+            const { sessionId, envId, moduleId, methodId } = action.payload;
+            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]?.methods) {
+                delete state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId];
+            }
+        },
         // Optimistic Link Field to Module (instant UI update)
         optimisticLinkField: (state, action) => {
             const { sessionId, envId, moduleId, fieldId } = action.payload;
@@ -373,6 +396,7 @@ export const {
     mergeEnableSM, mergeLinkData,
     optimisticLinkEnv, optimisticUnlinkEnv,
     optimisticLinkModule, optimisticUnlinkModule,
+    optimisticLinkMethod, optimisticUnlinkMethod,
     optimisticLinkField, optimisticUnlinkField,
     removeSessionEnv, removeSessionModule, removeSessionField, removeSessionInjection, removeInjectionFromAllSessions,
     assignInjection, unassignInjection,

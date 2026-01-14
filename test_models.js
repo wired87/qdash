@@ -13,7 +13,7 @@ const envContent = fs.readFileSync(envPath, 'utf-8');
 let apiKey = null;
 envContent.split('\n').forEach(line => {
     const trimmed = line.trim();
-    if (trimmed.startsWith('REACT_APP_GEMINI_API_KEY=')) {
+    if (trimmed.startsWith('CLIENT_KEY_GEMINI_API_KEY=')) {
         apiKey = trimmed.split('=')[1].trim();
     } else if (trimmed.startsWith('GEMINI_API_KEY=') && !apiKey) {
         apiKey = trimmed.split('=')[1].trim();

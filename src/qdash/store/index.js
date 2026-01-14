@@ -5,6 +5,8 @@ import moduleReducer from './slices/moduleSlice';
 import fieldReducer from './slices/fieldSlice';
 import injectionReducer from './slices/injectionSlice';
 import websocketReducer from './slices/websocketSlice';
+import conversationReducer from './slices/conversationSlice';
+import methodReducer from './slices/methodSlice';
 
 export const store = configureStore({
     reducer: {
@@ -13,6 +15,9 @@ export const store = configureStore({
         modules: moduleReducer,
         fields: fieldReducer,
         injections: injectionReducer,
-        websocket: websocketReducer
+
+        websocket: websocketReducer,
+        conversation: conversationReducer,
+        methods: methodReducer
     },
 });

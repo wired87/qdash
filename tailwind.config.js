@@ -62,8 +62,18 @@ module.exports = {
         "stamp-text": "#737376",
         "operator-message-bg": "#f2f2f2",
         "header-body-text": "#f8f8f8",
+
+        // Fundamental Minimalistic Colors
+        "fundamental-red": "var(--fundamental-red)",
+        "fundamental-green": "var(--fundamental-green)",
+        "fundamental-blue": "var(--fundamental-blue)",
+        "fundamental-orange": "var(--fundamental-orange)",
+        "fundamental-yellow": "var(--fundamental-yellow)",
+        "fundamental-violet": "var(--fundamental-violet)",
       },
       fontFamily: {
+        sans: ['"Space Grotesk"', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
         "body-regular-paragraph-small": "Roboto",
         h5: "Montserrat",
         poppins: "Poppins",

@@ -1,18 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Get API key from environment variable
-// Try both REACT_APP_GEMINI_API_KEY (for CRA) and GEMINI_API_KEY (custom setup)
-const API_KEY = process.env.REACT_APP_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+// Try both CLIENT_KEY_GEMINI_API_KEY (for CRA) and GEMINI_API_KEY (custom setup)
+const API_KEY = process.env.CLIENT_KEY_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
 console.log("🔍 Checking Gemini API configuration...");
-console.log("   REACT_APP_GEMINI_API_KEY:", process.env.REACT_APP_GEMINI_API_KEY ? "✅ Found" : "❌ Not found");
+console.log("   CLIENT_KEY_GEMINI_API_KEY:", process.env.CLIENT_KEY_GEMINI_API_KEY ? "✅ Found" : "❌ Not found");
 
 if (!API_KEY) {
   console.error("❌ No Gemini API key found!");
   console.error("📝 To fix this:");
   console.error("   1. Edit .env file in project root");
   console.error("   2. Add ONE of these lines:");
-  console.error("      REACT_APP_GEMINI_API_KEY=your_actual_key  (recommended for Create React App)");
+  console.error("      CLIENT_KEY_GEMINI_API_KEY=your_actual_key  (recommended for Create React App)");
   console.error("      OR");
   console.error("      GEMINI_API_KEY=your_actual_key  (if using custom webpack config)");
   console.error("   3. Get key from: https://makersuite.google.com/app/apikey");
@@ -21,7 +21,7 @@ if (!API_KEY) {
 } else {
   console.log("✅ Gemini API key loaded successfully");
   console.log(`   Key length: ${API_KEY.length} characters`);
-  console.log(`   Source: ${process.env.REACT_APP_GEMINI_API_KEY ? 'REACT_APP_GEMINI_API_KEY' : 'GEMINI_API_KEY'}`);
+  console.log(`   Source: ${process.env.CLIENT_KEY_GEMINI_API_KEY ? 'CLIENT_KEY_GEMINI_API_KEY' : 'GEMINI_API_KEY'}`);
 }
 
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
@@ -32,7 +32,7 @@ let chat = null;
 
 const initializeChat = () => {
   if (!genAI) {
-    throw new Error("Gemini API is not initialized. Please set REACT_APP_GEMINI_API_KEY in your .env file.");
+    throw new Error("Gemini API is not initialized. Please set CLIENT_KEY_GEMINI_API_KEY in your .env file.");
   }
 
   if (!model) {
@@ -45,7 +45,7 @@ const initializeChat = () => {
         {
           role: "user",
           parts: [{
-            text: `You are an expert assistant for the Q-Dash Environment, an Advanced Simulation & Data Visualization Platform.
+            text: `You are an expert assistant for The Grid, an Advanced Simulation & Data Visualization Platform.
 Your name is 'Q'. You respond concisely and professionally.
 
 KNOWLEDGE BASE:
@@ -79,7 +79,7 @@ Use this knowledge to answer user questions about the website and its features.`
         },
         {
           role: "model",
-          parts: [{ text: "Understood. I am Q, your expert assistant for the Q-Dash Environment. I have access to the knowledge base and am ready to assist you with simulations, visualization, configuration, and any questions about the platform." }],
+          parts: [{ text: "Understood. I am Q, your expert assistant for The Grid. I have access to the knowledge base and am ready to assist you with simulations, visualization, configuration, and any questions about the platform." }],
         },
       ],
       generationConfig: {
@@ -93,7 +93,7 @@ Use this knowledge to answer user questions about the website and its features.`
 
 const getModel = () => {
   if (!genAI) {
-    throw new Error("Gemini API is not initialized. Please set REACT_APP_GEMINI_API_KEY in your .env file.");
+    throw new Error("Gemini API is not initialized. Please set CLIENT_KEY_GEMINI_API_KEY in your .env file.");
   }
 
   if (!model) {
@@ -124,7 +124,7 @@ export const classifyAndRespond = async (message, onChunkReceived) => {
     }
   } catch (error) {
     console.error("Error communicating with Gemini API:", error);
-    onChunkReceived("I'm sorry, but I'm having trouble connecting to my core functions right now. Please ensure REACT_APP_GEMINI_API_KEY is set in your .env file.");
+    onChunkReceived("I'm sorry, but I'm having trouble connecting to my core functions right now. Please ensure CLIENT_KEY_GEMINI_API_KEY is set in your .env file.");
   }
 };
 
@@ -163,11 +163,19 @@ export const analyzeCommand = async (message, categories) => {
          - "upgrade_plan": User wants to upgrade their plan or subscription.
          - "downgrade_plan": User wants to downgrade their plan or subscription.
          - "open_camera": User wants to open the camera or take a photo.
+         - "subscribe_updates": User wants to receive email updates about the engine construction. Entities: "email" (string).
+         - "session_cfg": Modify session configuration (add/remove items).
+            - Entities needed:
+              - "operation": "add" (for link/add/include) or "remove" (for unlink/delete/remove).
+              - "type": "env" or "module" (infer from context e.g. "grid"->env, "script"->module).
+              - "target": Name/ID of the item (e.g. "Abc", "HeatModule").
+              - "session_target": "latest" (default if not specified) or specific session ID.
          - "chat": General conversation that doesn't fit a specific command.
 
       3. Extract any relevant "entities" mentioned in the request.
          - Example: "set cpu to 4 and gpu to 2" -> entities: { "cpu": 4, "gpu": 2 }
          - Example: "start sim for env 1" -> entities: { "env_id": "1" }
+         - Example: "add env Abc to the session" -> entities: { "operation": "add", "type": "env", "target": "Abc", "session_target": "latest" }
 
       4. Return the result as a strictly valid JSON object. Do not include markdown formatting (like \`\`\`json).
       

@@ -3,7 +3,7 @@ import { USER_ID_KEY } from "./auth";
 import { useEnvStore } from "./env_store";
 import { store } from "./store";
 import { setUserModules, setActiveModuleFields, updateModule } from "./store/slices/moduleSlice";
-import { setActiveSessionModules, setActiveSessionFields, setSessions, setActiveSessionEnvs, mergeLinkData, removeSessionEnv, removeSessionModule, removeSessionField, removeInjectionFromAllSessions } from "./store/slices/sessionSlice";
+import { setActiveSessionModules, setActiveSessionFields, setSessions, mergeLinkData, removeSessionEnv, removeSessionModule, removeSessionField, removeInjectionFromAllSessions } from "./store/slices/sessionSlice";
 import { setUserFields, updateField } from "./store/slices/fieldSlice";
 import { setUserInjections } from "./store/slices/injectionSlice";
 
@@ -33,10 +33,10 @@ const _useWebSocket = (
   handleInjectionMessage, // Callback for injection messages
   addConsoleMessage // New callback for general console messages
 ) => {
-  const [messages, setMessages] = useState([]);
+  const [messages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
-  const [deactivate, setDeactivate] = useState(false);
+  // const [deactivate, setDeactivate] = useState(false); // unused
 
   // useRef for message queue when offline
   const messageQueue = useRef([]);
@@ -47,7 +47,7 @@ const _useWebSocket = (
     const userId = localStorage.getItem(USER_ID_KEY)
     const quey_str = `?user_id=${userId}&mode=demo`;
 
-    const backendEndpoint = process.env.REACT_APP_BACKEND_ENDPOINT || process.env.BACKEND_ENDPOINT;
+    // const backendEndpoint = process.env.REACT_APP_BACKEND_ENDPOINT || process.env.BACKEND_ENDPOINT; // unused
 
     /*
     if (backendEndpoint) {
@@ -57,10 +57,14 @@ const _useWebSocket = (
     }
     */
 
-    const WS_URL = `wss://www.bestbrain.tech/run/${quey_str}`;
+    const WS_URL_PROD = `wss://www.bestbrain.tech/run/${quey_str}`;
     const WS_URL_LOCAL = `ws://127.0.0.1:8000/run/${quey_str}`;
-    console.log("WS_URL_LOCAL", WS_URL_LOCAL)
-    return WS_URL_LOCAL
+
+    const isProd = process.env.NODE_ENV === 'production';
+    const targetUrl = isProd ? WS_URL_PROD : WS_URL_LOCAL;
+
+    console.log("WebSocket Target URL:", targetUrl);
+    return targetUrl;
   }
 
 
@@ -323,7 +327,7 @@ const _useWebSocket = (
         }
       }
     } else if (message.type === "FINISHED") {
-      setDeactivate(true);
+      // setDeactivate(true); // Unused, state removed
     } else if (["LIST_USERS_MODULES", "DEL_MODULE", "SET_MODULE"].includes(message.type)) {
       // Handle User Modules List
       const modules = message.data?.modules || message.data || [];
