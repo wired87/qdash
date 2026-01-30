@@ -167,8 +167,8 @@ export const TerminalConsole = ({
   const actionButtons = [
     { name: "Session Cfg", case: "session_cfg" },
     { name: "Env Cfg", case: "set_config" },
-    { name: "Methods 🧩", case: "method" },
     { name: "Modules 📦", case: "module" },
+    { name: "Methods 🧩", case: "method" },
     { name: "Fields 📊", case: "fields_manager" },
     { name: "Injection ⚡", case: "injection" },
     { name: "Param Cfg", case: "param_cfg" },

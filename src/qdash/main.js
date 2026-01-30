@@ -717,7 +717,12 @@ Please tell me your email if you want to receive updates or register for early a
   return (
     <div className="flex absolute flex-row w-full h-screen overflow-hidden">
       <div className="dashboard-container w-full h-full overflow-y-auto scroll-smooth" ref={scrollContainerRef}>
-        <LandingPage liveData={liveData} setTerminalVisible={setIsTerminalVisible}>
+        <LandingPage
+          liveData={liveData}
+          setTerminalVisible={setIsTerminalVisible}
+          isSimRunning={Object.values(envs).some(e => e.status === 'running')}
+          isCfgOpen={isCfgSliderOpen}
+        >
           <LogSidebar logs={logs} isOpen={isLogSidebarOpen} onClose={toggleLogSidebar} />
           {get_dashboard()}
           {get_ncfgslider()}

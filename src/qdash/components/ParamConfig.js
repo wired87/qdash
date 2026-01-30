@@ -43,25 +43,31 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
     }, []);
 
     function handleCreateNew() {
+        // Auto-generate ID for new parameter
+        const newId = `param_${Date.now()}`;
         setCurrentParam({
-            id: "",
+            id: newId,
+            name: "", // New name field
             type: "int",
             description: "",
-            is_constant: false
+            is_constant: false,
+            value: ""
         });
         setOriginalId(null);
     }
 
     function handleSelectParam(param) {
         if (typeof param === 'string') {
-            setCurrentParam({ id: param, type: "int", description: "" });
+            setCurrentParam({ id: param, name: param, type: "int", description: "", value: "" });
             setOriginalId(param);
         } else {
             setCurrentParam({
                 id: param.id,
+                name: param.name || param.id, // Use name if available, else fallback to ID
                 type: param.type || "int",
                 description: param.description || "",
-                is_constant: !!param.is_constant
+                is_constant: !!param.is_constant,
+                value: param.value || ""
             });
             setOriginalId(param.id);
         }
@@ -96,15 +102,16 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
         if (!currentParam) return;
         const userId = localStorage.getItem(USER_ID_KEY);
 
-        // Generate param ID if empty
-        const finalId = currentParam.id?.trim() ||
-            `param_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Ensure ID exists
+        const finalId = currentParam.id || `param_${Date.now()}`;
 
         const paramData = {
             id: finalId,
+            name: currentParam.name, // Send name
             type: currentParam.type,
             description: currentParam.description || "",
             is_constant: currentParam.is_constant,
+            value: currentParam.is_constant ? currentParam.value : undefined,
             user_id: userId
         };
 
@@ -212,38 +219,6 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                     <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
                         {currentParam ? (
                             <>
-                                {/* Param ID Input */}
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parameter ID</label>
-                                    <Input
-                                        placeholder="Enter Parameter ID (auto-generated if empty)"
-                                        value={currentParam.id || ''}
-                                        onChange={(e) => setCurrentParam({ ...currentParam, id: e.target.value })}
-                                        isDisabled={originalId !== null}
-                                        variant="bordered"
-                                        classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
-                                    />
-                                </div>
-
-                                {/* Type Selector */}
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type</label>
-                                    <Select
-                                        placeholder="Select parameter type"
-                                        selectedKeys={[currentParam.type]}
-                                        onChange={(e) => setCurrentParam({ ...currentParam, type: e.target.value })}
-                                        variant="bordered"
-                                        classNames={{ trigger: "bg-slate-50 dark:bg-slate-800" }}
-                                    >
-                                        <SelectItem key="int" value="int">Integer</SelectItem>
-                                        <SelectItem key="float" value="float">Float</SelectItem>
-                                        <SelectItem key="bool" value="bool">Boolean</SelectItem>
-                                        <SelectItem key="list" value="list">List (Array)</SelectItem>
-                                        <SelectItem key="complex" value="complex">Complex</SelectItem>
-                                        <SelectItem key="complex_list" value="complex_list">Complex Array</SelectItem>
-                                    </Select>
-                                </div>
-
                                 {/* Constant Toggle */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
@@ -259,18 +234,102 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                     </div>
                                 </div>
 
-                                {/* Description Input */}
-                                <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
-                                    <Textarea
-                                        placeholder="Describe this parameter..."
-                                        value={currentParam.description || ''}
-                                        onValueChange={(val) => setCurrentParam({ ...currentParam, description: val })}
-                                        minRows={3}
-                                        variant="bordered"
-                                        classNames={{ input: "bg-slate-50 dark:bg-slate-800" }}
-                                    />
-                                </div>
+                                {/* Conditional Rendering based on is_constant */}
+                                {currentParam.is_constant ? (
+                                    // Render ONLY Value and Type if constant
+                                    <>
+                                        {/* Type Selector */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type</label>
+                                            <Select
+                                                placeholder="Select parameter type"
+                                                selectedKeys={[currentParam.type]}
+                                                onChange={(e) => setCurrentParam({ ...currentParam, type: e.target.value })}
+                                                variant="bordered"
+                                                classNames={{ trigger: "bg-slate-50 dark:bg-slate-800" }}
+                                            >
+                                                <SelectItem key="int" value="int">Integer</SelectItem>
+                                                <SelectItem key="float" value="float">Float</SelectItem>
+                                                <SelectItem key="bool" value="bool">Boolean</SelectItem>
+                                                <SelectItem key="list" value="list">List (Array)</SelectItem>
+                                                <SelectItem key="complex" value="complex">Complex</SelectItem>
+                                                <SelectItem key="complex_list" value="complex_list">Complex Array</SelectItem>
+                                            </Select>
+                                        </div>
+
+                                        {/* Constant Value Input */}
+                                        <div className="space-y-2 animate-slide-down">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Constant Value</label>
+                                            <Input
+                                                placeholder="Enter constant value"
+                                                value={currentParam.value || ''}
+                                                onChange={(e) => setCurrentParam({ ...currentParam, value: e.target.value })}
+                                                variant="bordered"
+                                                classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                            />
+                                        </div>
+                                    </>
+                                ) : (
+                                    // Render Full Config (Name, Description, Type) if NOT constant
+                                    <>
+                                        {/* Param ID - Hidden */}
+                                        <div className="space-y-2 hidden">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parameter ID</label>
+                                            <Input
+                                                placeholder="Enter Parameter ID"
+                                                value={currentParam.id || ''}
+                                                onChange={(e) => setCurrentParam({ ...currentParam, id: e.target.value })}
+                                                isDisabled={true}
+                                                variant="bordered"
+                                                classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                            />
+                                        </div>
+
+                                        {/* Param Name */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parameter Name</label>
+                                            <Input
+                                                placeholder="Enter Parameter Name"
+                                                value={currentParam.name || ''}
+                                                onChange={(e) => setCurrentParam({ ...currentParam, name: e.target.value })}
+                                                variant="bordered"
+                                                classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                            />
+                                        </div>
+
+                                        {/* Type Selector */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type</label>
+                                            <Select
+                                                placeholder="Select parameter type"
+                                                selectedKeys={[currentParam.type]}
+                                                onChange={(e) => setCurrentParam({ ...currentParam, type: e.target.value })}
+                                                variant="bordered"
+                                                classNames={{ trigger: "bg-slate-50 dark:bg-slate-800" }}
+                                            >
+                                                <SelectItem key="int" value="int">Integer</SelectItem>
+                                                <SelectItem key="float" value="float">Float</SelectItem>
+                                                <SelectItem key="bool" value="bool">Boolean</SelectItem>
+                                                <SelectItem key="list" value="list">List (Array)</SelectItem>
+                                                <SelectItem key="complex" value="complex">Complex</SelectItem>
+                                                <SelectItem key="complex_list" value="complex_list">Complex Array</SelectItem>
+                                            </Select>
+                                        </div>
+
+                                        {/* Description Input */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
+                                            <Textarea
+                                                placeholder="Describe this parameter..."
+                                                value={currentParam.description || ''}
+                                                onValueChange={(val) => setCurrentParam({ ...currentParam, description: val })}
+                                                minRows={3}
+                                                variant="bordered"
+                                                classNames={{ input: "bg-slate-50 dark:bg-slate-800" }}
+                                            />
+                                        </div>
+                                    </>
+                                )}
 
                                 {/* Live Preview */}
                                 <div className="flex-1 space-y-2 pt-4 border-t border-slate-200 dark:border-slate-800">
@@ -285,8 +344,10 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                         <pre className="p-4 text-xs font-mono text-purple-400 leading-relaxed overflow-x-auto">
                                             {JSON.stringify({
                                                 id: currentParam.id || "auto_generated",
+                                                name: currentParam.name,
                                                 type: currentParam.type,
                                                 is_constant: currentParam.is_constant,
+                                                value: currentParam.is_constant ? currentParam.value : undefined,
                                                 description: currentParam.description
                                             }, null, 2)}
                                         </pre>
@@ -323,6 +384,13 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                 }
                 .animate-slide-up {
                     animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                @keyframes slide-down {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-slide-down {
+                    animation: slide-down 0.2s ease-out forwards;
                 }
             `}</style>
         </div>

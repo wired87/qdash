@@ -144,8 +144,11 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     }, [currentModule?.methods, currentModule?.fields, methods, fields]);
 
     function handleCreateNew() {
+        // Auto-generate ID for new module
+        const newId = `module_${Date.now()}`;
         setCurrentModule({
-            id: "",
+            id: newId,
+            name: "", // New name field
             description: "",
             methods: [],
             fields: []
@@ -156,11 +159,12 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
     function handleSelectModule(mod) {
         if (typeof mod === 'string') {
-            setCurrentModule({ id: mod, description: "", methods: [], fields: [] });
+            setCurrentModule({ id: mod, name: mod, description: "", methods: [], fields: [] });
             setOriginalId(mod);
         } else {
             setCurrentModule({
                 id: mod.id,
+                name: mod.name || mod.id, // Use name if available, else fallback to ID
                 description: mod.description || "",
                 methods: mod.methods || [],
                 fields: mod.fields || []
@@ -185,9 +189,13 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     }
 
     function handleSave() {
-        if (!currentModule || !currentModule.id) {
-            alert("Please define a Module ID.");
+        if (!currentModule) {
+            alert("No module selected.");
             return;
+        }
+        // Ensure ID exists (auto-generate if somehow missing)
+        if (!currentModule.id) {
+            currentModule.id = `module_${Date.now()}`;
         }
         const userId = localStorage.getItem(USER_ID_KEY);
 
@@ -201,6 +209,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             type: "SET_MODULE",
             data: {
                 id: currentModule.id,
+                name: currentModule.name, // Send name
                 description: currentModule.description,
                 methods: currentModule.methods,
                 fields: currentModule.fields,
@@ -293,14 +302,26 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
                         {currentModule ? (
                             <>
-                                {/* Module ID */}
-                                <div className="space-y-2">
+                                {/* Module ID - Hidden */}
+                                <div className="space-y-2 hidden">
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Module ID</label>
                                     <Input
                                         placeholder="Enter Module ID"
                                         value={currentModule.id || ''}
                                         onChange={(e) => setCurrentModule({ ...currentModule, id: e.target.value })}
-                                        isDisabled={originalId !== null}
+                                        isDisabled={true}
+                                        variant="bordered"
+                                        classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                    />
+                                </div>
+
+                                {/* Module Name */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Module Name</label>
+                                    <Input
+                                        placeholder="Enter Module Name"
+                                        value={currentModule.name || ''}
+                                        onChange={(e) => setCurrentModule({ ...currentModule, name: e.target.value })}
                                         variant="bordered"
                                         classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
                                     />

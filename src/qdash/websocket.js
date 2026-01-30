@@ -6,6 +6,7 @@ import { setUserModules, setActiveModuleFields, updateModule } from "./store/sli
 import { setActiveSessionModules, setActiveSessionFields, setSessions, mergeLinkData, removeSessionEnv, removeSessionModule, removeSessionField, removeInjectionFromAllSessions } from "./store/slices/sessionSlice";
 import { setUserFields, updateField } from "./store/slices/fieldSlice";
 import { setUserInjections } from "./store/slices/injectionSlice";
+import {setUserMethods} from "./store/slices/methodSlice";
 
 
 
@@ -81,7 +82,7 @@ const _useWebSocket = (
 
   const handleWebSocketMessage = (message) => {
     // Check for errors as requested: attr includes "error" or type includes "error"
-    console.log("received data", message?.data);
+    console.log("received data", message);
     const hasErrorAttr = Object.keys(message).some(key => key.toLowerCase().includes("error"));
     const isErrorType = message.type && typeof message.type === 'string' && message.type.toLowerCase().includes("error");
 
@@ -226,6 +227,21 @@ const _useWebSocket = (
         else addConsoleMessage(`📋 Loaded ${count} injection${count !== 1 ? 's' : ''}`, 'system');
       }
       // Data is handled by the component's event listener
+
+    } else if (message.type === "LIST_USERS_METHODS") {
+      // Handle user injection list response
+      const methods = message.data?.methods || message.methods || [];
+
+      console.log("📋 Received user Methods:", methods.length);
+      store.dispatch(setUserMethods(methods));
+
+      if (addConsoleMessage) {
+        const count = methods.length;
+        if (count === 0) addConsoleMessage('ℹ️ No injections found', 'system');
+        else addConsoleMessage(`📋 Loaded ${count} methods${count !== 1 ? 's' : ''}`, 'system');
+      }
+      // Data is handled by the component's event listener
+
     } else if (message.type === "SET_INJ") {
       // Handle injection save response (check status.state)
       const injId = message.data?.id || message.id;
@@ -567,7 +583,7 @@ const _useWebSocket = (
       // Für alle anderen unbekannten Nachrichtentypen
       console.log("Unbekannte WebSocket-Nachricht:", message);
     }
-  };
+  }
   // Tom
   // Reconnection refs
   const reconnectTimeout = useRef(null);
@@ -656,8 +672,9 @@ const _useWebSocket = (
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
     };
   }, [connect]);
-
+   // new
   return { messages, sendMessage, isConnected, error };
 };
 
-export default _useWebSocket;
+
+export default _useWebSocket

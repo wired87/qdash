@@ -11,6 +11,7 @@ import { setUserEnvs, removeEnv, addEnv, setLoading as setEnvLoading } from './s
 import { setUserModules, setLoading as setModuleLoading } from './slices/moduleSlice';
 import { setLoading as setFieldLoading } from './slices/fieldSlice';
 import { setUserInjections, updateInjectionDetail, setLoading as setInjectionLoading } from './slices/injectionSlice';
+import { setUserMethods, setLoading as setMethodLoading } from './slices/methodSlice';
 
 import { setConnectionStatus } from './slices/websocketSlice';
 
@@ -73,6 +74,13 @@ const ReduxWebSocketBridge = () => {
                     break;
                 case 'GET_INJECTION':
                     dispatch(updateInjectionDetail(data));
+                    break;
+
+                // --- Methods ---
+                case 'GET_USERS_METHODS':
+                case 'LIST_USERS_METHODS':
+                    dispatch(setUserMethods(data.methods || []));
+                    dispatch(setMethodLoading(false));
                     break;
 
                 default:

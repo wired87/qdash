@@ -101,9 +101,11 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
             dispatch(updateLogs({ envId, logs: msg.data }));
           } else {
             // iterate keys if data is dict[env_id] -> logs
-            Object.entries(msg.data).forEach(([eid, logList]) => {
-              dispatch(updateLogs({ envId: eid, logs: logList }));
-            });
+            if (msg.data && typeof msg.data === 'object') {
+              Object.entries(msg.data).forEach(([eid, logList]) => {
+                dispatch(updateLogs({ envId: eid, logs: logList }));
+              });
+            }
           }
         }
       } else if (msg.type === "GET_ENV_DATA") {
@@ -462,7 +464,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 sticky top-0">
                       <tr>
-                        {localLiveData.length > 0 && Object.keys(localLiveData[0]).map(key => (
+                        {localLiveData.length > 0 && localLiveData[0] && typeof localLiveData[0] === 'object' && Object.keys(localLiveData[0]).map(key => (
                           <th key={key} className="px-4 py-2 font-medium border-b dark:border-slate-700">{key}</th>
                         ))}
                         {localLiveData.length === 0 && <th className="px-4 py-2">Data</th>}
@@ -471,7 +473,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {localLiveData.map((row, i) => (
                         <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          {Object.values(row).map((val, j) => (
+                          {row && typeof row === 'object' && Object.values(row).map((val, j) => (
                             <td key={j} className="px-4 py-1.5 truncate max-w-[200px]">{typeof val === 'object' ? JSON.stringify(val) : val}</td>
                           ))}
                         </tr>

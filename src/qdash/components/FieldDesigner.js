@@ -65,8 +65,11 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     }, [isOpen, sendMessage]);
 
     function handleCreateNew() {
+        // Auto-generate ID for new field
+        const newId = `fld_${Date.now()}`;
         setCurrentField({
-            id: "",
+            id: newId,
+            name: "", // New name field
             description: ""
         });
         setParamPairs([]);
@@ -77,7 +80,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
     function handleSelectField(field) {
         if (typeof field === 'string') {
-            setCurrentField({ id: field, description: "" });
+            setCurrentField({ id: field, name: field, description: "" });
             setParamPairs([]);
             setLinkedFields(new Set());
             setSelectedModuleId(null);
@@ -86,6 +89,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             const fieldId = field.id;
             setCurrentField({
                 id: fieldId,
+                name: field.name || fieldId, // Use name if available, else fallback to ID
                 description: field.comment || field.description || ""
             });
 
@@ -188,6 +192,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
         const fieldData = {
             id: finalId,
+            name: currentField.name, // Send name
             keys: keys,
             values: values,
             comment: currentField.description || "",
@@ -353,13 +358,25 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
                         {currentField ? (
                             <>
-                                <div className="space-y-2">
+                                <div className="space-y-2 hidden">
                                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Field ID</label>
                                     <Input
                                         placeholder="Enter Field ID (auto-generated if empty)"
                                         value={currentField.id || ''}
                                         onChange={(e) => setCurrentField({ ...currentField, id: e.target.value })}
-                                        isDisabled={originalId !== null}
+                                        isDisabled={true}
+                                        variant="bordered"
+                                        classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                    />
+                                </div>
+
+                                {/* Field Name */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Field Name</label>
+                                    <Input
+                                        placeholder="Enter Field Name"
+                                        value={currentField.name || ''}
+                                        onChange={(e) => setCurrentField({ ...currentField, name: e.target.value })}
                                         variant="bordered"
                                         classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
                                     />
