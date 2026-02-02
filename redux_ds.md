@@ -163,3 +163,11 @@ Manages the live WebSocket connection state and health.
   }
 }
 ```
+
+
+prompts
+Adapt the injections section within the session cfg to set injecitons for a selected environment (not for a selected field as it is implemnted currently).
+Adapt the view of the selected injeciton item (where pos is set) with a drop down input field (single selection). To render choices sendMessage(type=GET_ENVS_FIELDS", auth=env_id, user_id, session_id). create a receive function withthe same type=GET_ENVS_FIELDS and paste all data.env_fields to a Redux store object an make it accessible as  drop down choices from the electend injection item
+
+
+  

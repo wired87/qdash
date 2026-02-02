@@ -222,6 +222,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
         const type = selectedParam.type;
         const value = pair.value;
+        const isDisabled = pair.paramId.startsWith('prev');
 
         if (type === 'bool') {
             return (
@@ -229,6 +230,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     size="sm"
                     isSelected={!!value}
                     onValueChange={v => handleValueChange(pair.id, v)}
+                    isDisabled={isDisabled}
                 />
             );
         } else if (type === 'list') {
@@ -240,6 +242,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     onChange={e => handleValueChange(pair.id, e.target.value)}
                     classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
                     description={<span className="text-[9px] text-slate-400">Specify shape: single number or comma-separated dimensions</span>}
+                    isDisabled={isDisabled}
                 />
             );
         } else if (type === 'complex') {
@@ -251,6 +254,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     onChange={e => handleValueChange(pair.id, e.target.value)}
                     classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
                     description={<span className="text-[9px] text-slate-400">Specify dimensions (typically 2 for real and imaginary)</span>}
+                    isDisabled={isDisabled}
                 />
             );
         } else if (type === 'complex_list') {
@@ -262,6 +266,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     onChange={e => handleValueChange(pair.id, e.target.value)}
                     classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
                     description={<span className="text-[9px] text-slate-400">Specify array length for complex numbers</span>}
+                    isDisabled={isDisabled}
                 />
             );
         } else {
@@ -276,6 +281,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     value={value ?? ''}
                     onChange={e => handleValueChange(pair.id, inputType === 'number' ? parseFloat(e.target.value) : e.target.value)}
                     classNames={{ inputWrapper: "bg-white dark:bg-slate-900 shadow-sm" }}
+                    isDisabled={isDisabled}
                 />
             );
         }

@@ -1,18 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // Get API key from environment variable
-// Try both CLIENT_KEY_GEMINI_API_KEY (for CRA) and GEMINI_API_KEY (custom setup)
-const API_KEY = process.env.CLIENT_KEY_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+// Try both REACT_APP_CLIENT_KEY_GEMINI_API_KEY (for CRA) and GEMINI_API_KEY (custom setup)
+const API_KEY = process.env.REACT_APP_CLIENT_KEY_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
 console.log("🔍 Checking Gemini API configuration...");
-console.log("   CLIENT_KEY_GEMINI_API_KEY:", process.env.CLIENT_KEY_GEMINI_API_KEY ? "✅ Found" : "❌ Not found");
+console.log("   REACT_APP_CLIENT_KEY_GEMINI_API_KEY:", process.env.REACT_APP_CLIENT_KEY_GEMINI_API_KEY ? "✅ Found" : "❌ Not found");
 
 if (!API_KEY) {
   console.error("❌ No Gemini API key found!");
   console.error("📝 To fix this:");
   console.error("   1. Edit .env file in project root");
   console.error("   2. Add ONE of these lines:");
-  console.error("      CLIENT_KEY_GEMINI_API_KEY=your_actual_key  (recommended for Create React App)");
+  console.error("      REACT_APP_CLIENT_KEY_GEMINI_API_KEY=your_actual_key  (recommended for Create React App)");
   console.error("      OR");
   console.error("      GEMINI_API_KEY=your_actual_key  (if using custom webpack config)");
   console.error("   3. Get key from: https://makersuite.google.com/app/apikey");
@@ -21,7 +21,7 @@ if (!API_KEY) {
 } else {
   console.log("✅ Gemini API key loaded successfully");
   console.log(`   Key length: ${API_KEY.length} characters`);
-  console.log(`   Source: ${process.env.CLIENT_KEY_GEMINI_API_KEY ? 'CLIENT_KEY_GEMINI_API_KEY' : 'GEMINI_API_KEY'}`);
+  console.log(`   Source: ${process.env.REACT_APP_CLIENT_KEY_GEMINI_API_KEY ? 'REACT_APP_CLIENT_KEY_GEMINI_API_KEY' : 'GEMINI_API_KEY'}`);
 }
 
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
@@ -32,7 +32,7 @@ let chat = null;
 
 const initializeChat = () => {
   if (!genAI) {
-    throw new Error("Gemini API is not initialized. Please set CLIENT_KEY_GEMINI_API_KEY in your .env file.");
+    throw new Error("Gemini API is not initialized. Please set REACT_APP_CLIENT_KEY_GEMINI_API_KEY in your .env file.");
   }
 
   if (!model) {
@@ -93,7 +93,7 @@ Use this knowledge to answer user questions about the website and its features.`
 
 const getModel = () => {
   if (!genAI) {
-    throw new Error("Gemini API is not initialized. Please set CLIENT_KEY_GEMINI_API_KEY in your .env file.");
+    throw new Error("Gemini API is not initialized. Please set REACT_APP_CLIENT_KEY_GEMINI_API_KEY in your .env file.");
   }
 
   if (!model) {
@@ -124,7 +124,7 @@ export const classifyAndRespond = async (message, onChunkReceived) => {
     }
   } catch (error) {
     console.error("Error communicating with Gemini API:", error);
-    onChunkReceived("I'm sorry, but I'm having trouble connecting to my core functions right now. Please ensure CLIENT_KEY_GEMINI_API_KEY is set in your .env file.");
+    onChunkReceived("I'm sorry, but I'm having trouble connecting to my core functions right now. Please ensure REACT_APP_CLIENT_KEY_GEMINI_API_KEY is set in your .env file.");
   }
 };
 

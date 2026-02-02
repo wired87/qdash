@@ -14,8 +14,6 @@ import {
     optimisticUnlinkEnv,
     optimisticLinkModule,
     optimisticUnlinkModule,
-    optimisticLinkMethod,
-    optimisticUnlinkMethod,
     optimisticLinkField,
     optimisticUnlinkField,
     assignInjection,
@@ -23,8 +21,8 @@ import {
 } from '../store/slices/sessionSlice';
 import { setLoading as setEnvLoading } from '../store/slices/envSlice';
 import { setLoading as setModuleLoading } from '../store/slices/moduleSlice';
-import { setLoading as setFieldLoading } from '../store/slices/fieldSlice';
 import { setLoading as setInjectionLoading } from '../store/slices/injectionSlice';
+import { setUserFields, setLoading as setFieldLoading } from '../store/slices/fieldSlice';
 
 // Color generation function for hierarchical items
 const getHierarchicalColor = (index) => {
@@ -153,8 +151,8 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     const { userEnvs, loading: envLoading } = useSelector(state => state.envs);
     const { userModules, loading: moduleLoading } = useSelector(state => state.modules);
-    const { userMethods } = useSelector(state => state.methods);
     const { userFields } = useSelector(state => state.fields);
+    const { userMethods } = useSelector(state => state.methods);
     const { userInjections, activeInjection } = useSelector(state => state.injections);
     const isConnected = useSelector(state => state.websocket.isConnected);
 
@@ -162,8 +160,8 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     const [currentSessionId] = useState(getSessionId());
     const [activeEnv, setActiveEnv] = useState(null);
     const [activeModule, setActiveModule] = useState(null);
-    const [activeField, setActiveField] = useState(null);
     const [selectedInjection, setSelectedInjection] = useState(null);
+    const [selectedField, setSelectedField] = useState('photon');
     const [detailItem, setDetailItem] = useState(null);
 
     // Live Workspace State
@@ -171,19 +169,14 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     const [isCenterMode, setIsCenterMode] = useState(false);
     const [itemLoading, setItemLoading] = useState(false);
 
-    // Memoized selected item (Env, Module, or Field)
+    // Memoized selected item (Env or Module)
     const selectedItem = useMemo(() => {
-        if (activeField) {
-            return userFields.find(f => (typeof f === 'string' ? f : f.id) === (typeof activeField === 'string' ? activeField : activeField.id)) || activeField;
-        }
         if (activeModule) {
             return userModules.find(m => (typeof m === 'string' ? m : m.id) === (typeof activeModule === 'string' ? activeModule : activeModule.id)) || activeModule;
         }
-        if (activeEnv) {
-            return userEnvs.find(e => (typeof e === 'string' ? e : e.id) === (typeof activeEnv === 'string' ? activeEnv : activeEnv.id)) || activeEnv;
-        }
+        // Do not show details for just an environment to prevent layout break
         return null;
-    }, [activeEnv, activeModule, activeField, userEnvs, userModules, userFields]);
+    }, [activeEnv, activeModule, userEnvs, userModules]);
 
     // Fetch Item Details on Selection
     useEffect(() => {
@@ -203,9 +196,6 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     }, [selectedItem, selectedInjection, sendMessage]);
 
     // Config State for Deep Nested Structure
-    const [sessionConfig, setSessionConfig] = useState({
-        envs: {} // { envId: { modules: { modId: { fields: { fieldId: { injections: { pos: inj } } } } } } }
-    });
     const [envEnableSM, setEnvEnableSM] = useState({}); // Track enable_sm per environment
     const [clusterKey, setClusterKey] = useState(0); // Key to force remount of ClusterPreview
 
@@ -233,19 +223,6 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         return Object.keys(sessionConfigData[envId].modules);
     }, [sessionConfigData, activeEnv]);
 
-    // Extract linked fields for active module
-    const activeSessionFields = useMemo(() => {
-        const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
-        const modId = activeModule ? (typeof activeModule === 'string' ? activeModule : activeModule.id) : null;
-
-        if (!envId || !modId || !sessionConfigData[envId]?.modules[modId]?.fields) return [];
-        return Object.keys(sessionConfigData[envId].modules[modId].fields).map(fieldId => {
-            // Find full field object from userFields if available
-            const fullField = userFields.find(f => (typeof f === 'string' ? f : f.id) === fieldId);
-            return fullField || fieldId;
-        });
-    }, [sessionConfigData, activeEnv, activeModule, userFields]);
-
     // Helper to check if session config has any data
     const hasSessionConfigData = useCallback(() => {
         // Only check if modal is open
@@ -263,14 +240,15 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             return false;
         }
 
-        // Check if any environment has modules
-        const hasModules = Object.values(envs).some(env => {
+        // Check if any environment has modules or injections
+        const hasData = Object.values(envs).some(env => {
             const modules = env?.modules;
-            return modules && Object.keys(modules).length > 0;
+            const injections = env?.injections;
+            return (modules && Object.keys(modules).length > 0) || (injections && Object.keys(injections).length > 0);
         });
 
-        console.log('[SessionConfig] Has unsaved config:', hasModules);
-        return hasModules;
+        console.log('[SessionConfig] Has unsaved config:', hasData);
+        return hasData;
     }, [isOpen, activeSession, sessionData]);
 
 
@@ -305,18 +283,14 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         sendMessage({ type: "GET_SESSIONS_MODULES", auth: { user_id: userId, session_id: targetSessionId } });
     }, [sendMessage, targetSessionId, dispatch]);
 
-    const fetchFields = useCallback(() => {
-        const userId = localStorage.getItem(USER_ID_KEY);
-        dispatch(setFieldLoading(true));
-        // User Fields
-        sendMessage({ type: "LIST_USERS_FIELDS", auth: { user_id: userId } });
-        // Session Fields
-        sendMessage({ type: "SESSIONS_FIELDS", auth: { user_id: userId, session_id: targetSessionId } });
-    }, [sendMessage, targetSessionId, dispatch]);
-
     const fetchInjections = useCallback(() => {
         dispatch(setInjectionLoading(true));
         sendMessage({ type: "GET_INJ_USER", auth: { user_id: localStorage.getItem(USER_ID_KEY) } });
+    }, [sendMessage, dispatch]);
+
+    const fetchFields = useCallback(() => {
+        dispatch(setFieldLoading(true));
+        sendMessage({ type: "LIST_USERS_FIELDS", auth: { user_id: localStorage.getItem(USER_ID_KEY) } });
     }, [sendMessage, dispatch]);
 
 
@@ -324,8 +298,11 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     useEffect(() => {
         if (isOpen && isConnected) {
             fetchSessions();
+            if (!userFields || userFields.length === 0) {
+                fetchFields();
+            }
         }
-    }, [isOpen, isConnected, fetchSessions]);
+    }, [isOpen, isConnected, fetchSessions, fetchFields, userFields]);
 
     // Re-fetch active session details if connection restores while a session is active
     useEffect(() => {
@@ -333,10 +310,9 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             // Re-fetch all dependent resources
             fetchEnvs();
             fetchModules();
-            fetchFields();
             fetchInjections();
         }
-    }, [isConnected, isOpen, activeSession, fetchEnvs, fetchModules, fetchFields, fetchInjections]);
+    }, [isConnected, isOpen, activeSession, fetchEnvs, fetchModules, fetchInjections]);
 
     // Auto-select session matching currentSessionId
     useEffect(() => {
@@ -352,20 +328,17 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     // Fetch resources when session is selected
     useEffect(() => {
         if (activeSession) {
-            setSessionConfig({ envs: {} }); // Reset local draft
             fetchEnvs();
             fetchModules();
-            fetchFields();
             fetchInjections();
 
             // Reset Selections
             setActiveEnv(null);
             setActiveModule(null);
-            setActiveField(null);
             setSelectedInjection(null);
             setDetailItem(null);
         }
-    }, [activeSession, fetchEnvs, fetchModules, fetchFields, fetchInjections]);
+    }, [activeSession, fetchEnvs, fetchModules, fetchInjections]);
 
     // Update detailItem when activeInjection changes in Redux (via WebSocket update)
     useEffect(() => {
@@ -525,23 +498,22 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         }
     };
 
-    const handleUnassignInList = (posKey, injectionId) => {
-        if (!activeEnv || !activeModule || !activeField) return;
+    const handleUnassignInList = (posKey) => {
+        if (!activeEnv) return;
 
         dispatch(unassignInjection({
             sessionId: targetSessionId,
             envId: activeEnv.id,
-            moduleId: typeof activeModule === 'string' ? activeModule : activeModule.id,
-            fieldId: typeof activeField === 'string' ? activeField : activeField.id,
-            posKey
+            posKey,
+            fieldId: selectedField
         }));
         setClusterKey(prev => prev + 1);
     };
 
-    // Called when user clicks a node in 3D view
+    // Called when user clicks a node in 3D view or assignment button
     const handleNodeAssignment = (pos) => {
-        if (!activeEnv || !activeModule || !activeField) {
-            alert("Please complete the selection chain: Env -> Module -> Field.");
+        if (!activeEnv) {
+            alert("Please select an Environment first.");
             return;
         }
         if (!selectedInjection) {
@@ -550,31 +522,27 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         }
 
         const envId = activeEnv.id;
-        const modId = typeof activeModule === 'string' ? activeModule : activeModule.id;
-        const fieldId = typeof activeField === 'string' ? activeField : activeField.id;
         const posKey = JSON.stringify(pos);
 
         // Check if currently assigned
-        const currentInjection = sessionConfig.envs?.[envId]?.modules?.[modId]?.fields?.[fieldId]?.injections?.[posKey];
+        const currentInjection = sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey];
 
         if (currentInjection === selectedInjection.id) {
             // Unassign
             dispatch(unassignInjection({
                 sessionId: targetSessionId,
                 envId,
-                moduleId: modId,
-                fieldId,
-                posKey
+                posKey,
+                fieldId: selectedField
             }));
         } else {
             // Assign
             dispatch(assignInjection({
                 sessionId: targetSessionId,
                 envId,
-                moduleId: modId,
-                fieldId,
                 posKey,
-                injectionId: selectedInjection.id
+                injectionId: selectedInjection.id,
+                fieldId: selectedField
             }));
 
             // Close the live preview after assignment as requested
@@ -689,7 +657,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                     {activeSession ? (
                         <div className="flex-1 flex flex-col bg-slate-50 dark:bg-black/20">
 
-                            {/* Top Pane: 3 Columns (Methods removed) */}
+                            {/* Top Pane: 3 Columns */}
                             <div className="h-1/2 flex border-b border-slate-200 dark:border-slate-800">
 
                                 {/* Column 1: Environments */}
@@ -705,7 +673,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                 key={env.id}
                                                 title={env.id}
                                                 isActive={activeEnv?.id === env.id}
-                                                onClick={() => { setActiveEnv(env); setActiveModule(null); setActiveField(null); }}
+                                                onClick={() => { setActiveEnv(env); setActiveModule(null); }}
                                                 actionIcon={processingEnvs[env.id] ? <Spinner size="sm" color="danger" /> : <Minus size={14} />}
                                                 actionColor="danger"
                                                 onAction={() => handleUnlinkEnv(env.id)}
@@ -753,7 +721,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                     key={modId}
                                                     title={modId}
                                                     isActive={activeModule === modId}
-                                                    onClick={() => { setActiveModule(modId); setActiveField(null); }}
+                                                    onClick={() => { setActiveModule(modId); }}
                                                     actionIcon={<Minus size={14} />}
                                                     actionColor="danger"
                                                     onAction={() => handleUnlinkModule(modId)}
@@ -780,105 +748,22 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                     </div>
                                 </div>
 
-                                {/* Column 3: Fields (Scoped to Active Module) */}
-                                <div className={`flex-1 basis-0 flex flex-col border-r border-slate-200 dark:border-slate-800 overflow-hidden transition-opacity ${!activeModule ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <div className="p-3 border-b flex items-center gap-2 bg-white dark:bg-slate-900">
-                                        <Database size={16} className="text-emerald-500" />
-                                        <span className="font-bold text-sm">Fields</span>
-                                        {activeModule && <Chip size="sm" variant="flat" color="secondary">{activeModule}</Chip>}
-                                    </div>
-                                    <div className="flex-1 overflow-y-auto p-2 bg-white">
-                                        {/* Show Session Fields first */}
-                                        <div className="text-[10px] text-slate-400 mb-2 uppercase font-bold text-indigo-600">Selected (Linked)</div>
-                                        {activeSessionFields
-                                            .map(field => {
-                                                const fId = typeof field === 'string' ? field : field.id;
-                                                return (
-                                                    <ListItem
-                                                        key={fId}
-                                                        title={fId}
-                                                        isActive={activeField === fId || activeField?.id === fId}
-                                                        onClick={() => setActiveField(field)}
-                                                        actionIcon={<Minus size={14} />}
-                                                        actionColor="danger"
-                                                        onAction={() => {
-                                                            const fId = typeof field === 'string' ? field : field.id;
 
-                                                            // Optimistic update - instant UI feedback
-                                                            if (activeEnv?.id && activeModule) {
-                                                                dispatch(optimisticUnlinkField({
-                                                                    sessionId: targetSessionId,
-                                                                    envId: activeEnv.id,
-                                                                    moduleId: activeModule,
-                                                                    fieldId: fId
-                                                                }));
-                                                            }
-                                                            // WebSocket disabled - config sent at simulation start
-                                                        }}
-                                                    />
-                                                );
-                                            })}
-
-                                        {/* Show Available User Fields */}
-                                        <div className="mt-4 pt-2 border-t text-[10px] text-slate-400 mb-2 uppercase font-bold">Available</div>
-                                        {userFields
-                                            .filter(uf => {
-                                                const fId = typeof uf === 'string' ? uf : uf.id;
-                                                const linkedIds = activeSessionFields.map(sf => typeof sf === 'string' ? sf : sf.id);
-                                                if (linkedIds.includes(fId)) return false;
-
-                                                // Filter by module if property exists on field
-                                                const fMod = uf.module || uf.module_id;
-                                                if (fMod && activeModule && fMod !== activeModule) return false;
-
-                                                return true;
-                                            })
-                                            .map(field => {
-                                                const fId = typeof field === 'string' ? field : field.id;
-                                                return (
-                                                    <ListItem
-                                                        key={fId}
-                                                        title={fId}
-                                                        // isActive={activeField === fId || activeField?.id === fId}
-                                                        onClick={() => setActiveField(field)} // Allow selecting unlinked too?
-                                                        actionIcon={<Plus size={14} />}
-                                                        onAction={() => {
-                                                            // Handle Link Field to Module/Session logic
-                                                            const fId = typeof field === 'string' ? field : field.id;
-
-                                                            // Optimistic update - instant UI feedback
-                                                            if (activeEnv?.id && activeModule) {
-                                                                dispatch(optimisticLinkField({
-                                                                    sessionId: targetSessionId,
-                                                                    envId: activeEnv.id,
-                                                                    moduleId: activeModule,
-                                                                    fieldId: fId
-                                                                }));
-                                                            }
-                                                            // WebSocket disabled - config sent at simulation start
-                                                        }}
-                                                    />
-                                                );
-                                            })}
-                                    </div>
-                                </div>
-
-                                {/* Column 4: Injections (Global Pool) */}
-                                <div className={`flex-1 basis-0 flex flex-col overflow-hidden transition-opacity ${!activeField ? 'opacity-50 pointer-events-none' : ''}`}>
+                                {/* Column 3: Injections (Scoped to Active Env) */}
+                                <div className={`flex-1 basis-0 flex flex-col overflow-hidden transition-opacity ${!activeEnv ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <div className="p-3 border-b flex items-center gap-2 bg-white dark:bg-slate-900">
                                         <Zap size={16} className="text-amber-500" />
                                         <span className="font-bold text-sm">Injections</span>
+                                        {activeEnv && <Chip size="sm" variant="flat" color="primary">{activeEnv.id}</Chip>}
                                     </div>
                                     <div className="flex-1 overflow-y-auto p-2 bg-white">
                                         {/* Assigned Injections Section */}
                                         <div className="text-[10px] text-slate-400 mb-2 uppercase font-bold text-indigo-600">Selected (Linked)</div>
                                         {(() => {
-                                            if (!activeEnv || !activeModule || !activeField) return <div className="text-[10px] text-slate-300 italic mb-4">Select a Field...</div>;
+                                            if (!activeEnv) return <div className="text-[10px] text-slate-300 italic mb-4">Select an Environment...</div>;
                                             const envId = activeEnv.id;
-                                            const modId = typeof activeModule === 'string' ? activeModule : activeModule.id;
-                                            const fieldId = typeof activeField === 'string' ? activeField : activeField.id;
 
-                                            const injections = sessionConfig.envs?.[envId]?.modules?.[modId]?.fields?.[fieldId]?.injections || {};
+                                            const injections = sessionConfigData?.[envId]?.injections?.[selectedField] || {};
                                             const entries = Object.entries(injections);
 
                                             if (entries.length === 0) return <div className="text-[10px] text-slate-300 italic mb-4">No injections assigned</div>;
@@ -892,7 +777,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                             subtitle={posKey}
                                                             actionIcon={<Minus size={14} />}
                                                             actionColor="danger"
-                                                            onAction={() => handleUnassignInList(posKey, injId)}
+                                                            onAction={() => handleUnassignInList(posKey)}
                                                         />
                                                     ))}
                                                 </div>
@@ -917,13 +802,12 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                             <div className="flex-1 bg-slate-100 dark:bg-slate-900 p-4 overflow-hidden flex flex-col">
                                 <div className="text-xs font-bold text-slate-500 uppercase mb-2 flex justify-between">
                                     <span>Live Workspace</span>
-                                    {activeField && <span className="text-emerald-600">Active Field: {typeof activeField === 'string' ? activeField : activeField.id}</span>}
                                 </div>
 
                                 <div className="flex-1 flex gap-4 overflow-hidden">
                                     {/* LEFT SIDE */}
                                     <div className="w-1/2 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                                        {selectedInjection && detailItem && activeField && activeEnv ? (
+                                        {selectedInjection && detailItem && activeEnv ? (
                                             <div className="flex flex-col h-full">
                                                 <div className="p-2 border-b text-[10px] font-bold text-slate-400 uppercase bg-slate-50 flex justify-between items-center">
                                                     <span>Target Position</span>
@@ -945,6 +829,19 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                     </div>
                                                 </div>
                                                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+                                                    <div className="flex flex-col gap-1">
+                                                        <label className="text-xs font-bold text-slate-500 uppercase">Target Field</label>
+                                                        <select
+                                                            className="p-2 rounded border border-slate-200 text-sm"
+                                                            value={selectedField}
+                                                            onChange={(e) => setSelectedField(e.target.value)}
+                                                        >
+                                                            {userFields.map(field => {
+                                                                const fieldId = typeof field === 'string' ? field : field.id;
+                                                                return <option key={fieldId} value={fieldId}>{fieldId}</option>
+                                                            })}
+                                                        </select>
+                                                    </div>
                                                     {(() => {
                                                         const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
                                                         const dimLabels = ['X', 'Y', 'Z', 'W', 'V', 'U'];
@@ -980,27 +877,21 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                             size="sm"
                                                             color={(() => {
                                                                 const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
-                                                                const modId = activeModule ? (typeof activeModule === 'string' ? activeModule : activeModule.id) : null;
-                                                                const fieldId = activeField ? (typeof activeField === 'string' ? activeField : activeField.id) : null;
                                                                 const posKey = JSON.stringify(highlightedPos);
-                                                                return sessionConfigData?.[envId]?.modules?.[modId]?.fields?.[fieldId]?.injections?.[posKey] ? "danger" : "primary";
+                                                                return sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey] ? "danger" : "primary";
                                                             })()}
                                                             className="w-full font-bold shadow-sm"
                                                             startContent={(() => {
                                                                 const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
-                                                                const modId = activeModule ? (typeof activeModule === 'string' ? activeModule : activeModule.id) : null;
-                                                                const fieldId = activeField ? (typeof activeField === 'string' ? activeField : activeField.id) : null;
                                                                 const posKey = JSON.stringify(highlightedPos);
-                                                                return sessionConfigData?.[envId]?.modules?.[modId]?.fields?.[fieldId]?.injections?.[posKey] ? <Minus size={16} /> : <Plus size={16} />;
+                                                                return sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey] ? <Minus size={16} /> : <Plus size={16} />;
                                                             })()}
                                                             onPress={() => handleNodeAssignment(highlightedPos)}
                                                         >
                                                             {(() => {
                                                                 const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
-                                                                const modId = activeModule ? (typeof activeModule === 'string' ? activeModule : activeModule.id) : null;
-                                                                const fieldId = activeField ? (typeof activeField === 'string' ? activeField : activeField.id) : null;
                                                                 const posKey = JSON.stringify(highlightedPos);
-                                                                return sessionConfigData?.[envId]?.modules?.[modId]?.fields?.[fieldId]?.injections?.[posKey] ? "Unassign Injection" : "Assign Injection";
+                                                                return sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey] ? "Unassign Injection" : "Assign Injection";
                                                             })()}
                                                         </Button>
                                                     </div>
@@ -1008,15 +899,14 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                             </div>
                                         ) : (
                                             <div className="flex items-center justify-center h-full text-slate-400 text-xs text-center p-4">
-                                                {/* Render nothing as requested for non-injection left side, or maybe a placeholder? 
-                                                   Prompt says "render nothing". But keeping container for layout symmetry.*/}
+                                                Select an environment and an injection to begin assignment.
                                             </div>
                                         )}
                                     </div>
 
                                     {/* RIGHT SIDE */}
                                     <div className="w-1/2 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden relative">
-                                        {selectedInjection && detailItem && activeField ? (
+                                        {selectedInjection && detailItem && activeEnv ? (
                                             <SessionClusterPreview
                                                 key={clusterKey}
                                                 injection={detailItem}
@@ -1026,9 +916,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                 assignedConfig={
                                                     (() => {
                                                         const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
-                                                        const modId = activeModule ? (typeof activeModule === 'string' ? activeModule : activeModule.id) : null;
-                                                        const fieldId = activeField ? (typeof activeField === 'string' ? activeField : activeField.id) : null;
-                                                        return sessionConfigData?.[envId]?.modules?.[modId]?.fields?.[fieldId]?.injections || {};
+                                                        return sessionConfigData?.[envId]?.injections?.[selectedField] || {};
                                                     })()
                                                 }
                                             />

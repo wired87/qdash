@@ -78,10 +78,10 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
       if (!msg) return;
 
       if (msg.type === "GET_USERS_ENVS" || msg.type === "LIST_ENVS") {
-        setEnvironments(msg.data.envs || []);
+        setEnvironments(msg.data?.envs || []);
         // setIsLoadingEnvs(false);
       } else if (msg.type === "GET_SESSIONS_ENVS") {
-        const data = msg.data.data || msg.data || [];
+        const data = msg.data?.data || msg.data || [];
         setSessionEnvironments(Array.isArray(data) ? data : []);
         // setIsLoadingSessionEnvs(false);
       } else if (msg.type === "ENV_DELETED" || msg.type === "DEL_ENV") {

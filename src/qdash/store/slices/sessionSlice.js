@@ -144,7 +144,7 @@ const sessionSlice = createSlice({
                             Object.entries(sessionData.envs).forEach(([envId, envData]) => {
                                 // Initialize env if not exists
                                 if (!state.sessionData[sessionId].config.envs[envId]) {
-                                    state.sessionData[sessionId].config.envs[envId] = { modules: {} };
+                                    state.sessionData[sessionId].config.envs[envId] = { modules: {}, injections: {} };
                                 }
 
                                 // Merge modules
@@ -178,18 +178,14 @@ const sessionSlice = createSlice({
                                                     if (Array.isArray(moduleData.fields)) {
                                                         moduleData.fields.forEach(fieldId => {
                                                             if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId]) {
-                                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {
-                                                                    injections: {}
-                                                                };
+                                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {};
                                                             }
                                                         });
                                                     } else if (typeof moduleData.fields === 'object') {
                                                         // If fields is already an object, merge it
                                                         Object.entries(moduleData.fields).forEach(([fieldId, fieldData]) => {
                                                             if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId]) {
-                                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {
-                                                                    injections: {}
-                                                                };
+                                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {};
                                                             }
                                                             // Merge any existing field data
                                                             if (fieldData && typeof fieldData === 'object') {
@@ -205,6 +201,16 @@ const sessionSlice = createSlice({
                                         });
                                     }
                                 }
+                                // Merge injections
+                                if (envData.injections !== undefined) {
+                                    if (!state.sessionData[sessionId].config.envs[envId].injections) {
+                                        state.sessionData[sessionId].config.envs[envId].injections = {};
+                                    }
+                                    state.sessionData[sessionId].config.envs[envId].injections = {
+                                        ...state.sessionData[sessionId].config.envs[envId].injections,
+                                        ...envData.injections
+                                    };
+                                }
                             });
                         }
                     }
@@ -212,7 +218,6 @@ const sessionSlice = createSlice({
             }
         },
         // Optimistic Link Env to Session (instant UI update)
-        // TODO: when receive ws response for session cfg items: just check the existence and include an error message to specific items within the session_cfg struct (if not done jet, design each session dimesnion as list[dict] where each dict entry represents a session item)
         optimisticLinkEnv: (state, action) => {
             const { sessionId, envId } = action.payload;
             if (!state.sessionData[sessionId]) {
@@ -224,9 +229,9 @@ const sessionSlice = createSlice({
             if (!state.sessionData[sessionId].config.envs) {
                 state.sessionData[sessionId].config.envs = {};
             }
-            // Add env with empty modules structure
+            // Add env with empty modules and injections structure
             if (!state.sessionData[sessionId].config.envs[envId]) {
-                state.sessionData[sessionId].config.envs[envId] = { modules: {} };
+                state.sessionData[sessionId].config.envs[envId] = { modules: {}, injections: {} };
             }
         },
         // Optimistic Unlink Env from Session (instant UI update)
@@ -273,14 +278,9 @@ const sessionSlice = createSlice({
         optimisticLinkMethod: (state, action) => {
             const { sessionId, envId, moduleId, methodId } = action.payload;
             if (!state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]) return;
-            // Method is sibling to fields in module structure? 
-            // "collect methods and fields within the modules item dimension"
-            // So module = { fields: {}, methods: {} }
-
             if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods) {
                 state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods = {};
             }
-            // Add method (value could be config/params override, but empty obj for now)
             if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId]) {
                 state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId] = {};
             }
@@ -299,9 +299,8 @@ const sessionSlice = createSlice({
             if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields) {
                 state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields = {};
             }
-            // Add field with empty injections structure
             if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId]) {
-                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = { injections: {} };
+                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {};
             }
         },
         // Optimistic Unlink Field from Module (instant UI update)
@@ -318,36 +317,23 @@ const sessionSlice = createSlice({
                 delete state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId];
             }
         },
-        // Remove Injection from Field in Session
-        removeSessionInjection: (state, action) => {
-            const { sessionId, envId, moduleId, fieldId, injectionId } = action.payload;
-            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]?.fields?.[fieldId]?.injections) {
-                // Remove all instances of this injection from the field
-                const injections = state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId].injections;
-                Object.keys(injections).forEach(key => {
-                    if (injections[key] === injectionId) {
-                        delete injections[key];
-                    }
-                });
-            }
-        },
-        // Assign Injection to Field Position
+        // Assign Injection to Environment Position
         assignInjection: (state, action) => {
-            const { sessionId, envId, moduleId, fieldId, posKey, injectionId } = action.payload;
+            const { sessionId, envId, fieldId, posKey, injectionId } = action.payload;
             // Ensure path exists
             if (!state.sessionData[sessionId]) state.sessionData[sessionId] = { envs: [], modules: [], fields: [], config: { envs: {} } };
-            if (!state.sessionData[sessionId].config.envs[envId]) state.sessionData[sessionId].config.envs[envId] = { modules: {} };
-            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId]) state.sessionData[sessionId].config.envs[envId].modules[moduleId] = { fields: {} };
-            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId]) state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = { injections: {} };
+            if (!state.sessionData[sessionId].config.envs[envId]) state.sessionData[sessionId].config.envs[envId] = { modules: {}, injections: {} };
+            if (!state.sessionData[sessionId].config.envs[envId].injections) state.sessionData[sessionId].config.envs[envId].injections = {};
+            if (!state.sessionData[sessionId].config.envs[envId].injections[fieldId]) state.sessionData[sessionId].config.envs[envId].injections[fieldId] = {};
 
             // Assign
-            state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId].injections[posKey] = injectionId;
+            state.sessionData[sessionId].config.envs[envId].injections[fieldId][posKey] = injectionId;
         },
-        // Unassign Injection from Field Position
+        // Unassign Injection from Environment Position
         unassignInjection: (state, action) => {
-            const { sessionId, envId, moduleId, fieldId, posKey } = action.payload;
-            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]?.fields?.[fieldId]?.injections) {
-                delete state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId].injections[posKey];
+            const { sessionId, envId, fieldId, posKey } = action.payload;
+            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.injections?.[fieldId]) {
+                delete state.sessionData[sessionId].config.envs[envId].injections[fieldId][posKey];
             }
         },
         // Remove Injection from all Sessions (when injection is deleted globally)
@@ -358,19 +344,14 @@ const sessionSlice = createSlice({
                 const envs = state.sessionData[sessionId]?.config?.envs;
                 if (envs) {
                     Object.keys(envs).forEach(envId => {
-                        const modules = envs[envId]?.modules;
-                        if (modules) {
-                            Object.keys(modules).forEach(moduleId => {
-                                const fields = modules[moduleId]?.fields;
-                                if (fields) {
-                                    Object.keys(fields).forEach(fieldId => {
-                                        const injections = fields[fieldId]?.injections;
-                                        if (injections) {
-                                            Object.keys(injections).forEach(key => {
-                                                if (injections[key] === injectionId) {
-                                                    delete injections[key];
-                                                }
-                                            });
+                        const injections = envs[envId]?.injections;
+                        if (injections) {
+                            Object.keys(injections).forEach(fieldId => {
+                                const fieldInjections = injections[fieldId];
+                                if (fieldInjections) {
+                                    Object.keys(fieldInjections).forEach(key => {
+                                        if (fieldInjections[key] === injectionId) {
+                                            delete fieldInjections[key];
                                         }
                                     });
                                 }
@@ -398,7 +379,8 @@ export const {
     optimisticLinkModule, optimisticUnlinkModule,
     optimisticLinkMethod, optimisticUnlinkMethod,
     optimisticLinkField, optimisticUnlinkField,
-    removeSessionEnv, removeSessionModule, removeSessionField, removeSessionInjection, removeInjectionFromAllSessions,
+    removeSessionEnv, removeSessionModule, removeSessionField,
+    removeInjectionFromAllSessions,
     assignInjection, unassignInjection,
     setLoading, setError
 } = sessionSlice.actions;

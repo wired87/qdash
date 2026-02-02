@@ -162,12 +162,28 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             setCurrentModule({ id: mod, name: mod, description: "", methods: [], fields: [] });
             setOriginalId(mod);
         } else {
+            // Normalize methods to be an array of strings (IDs)
+            let methodsArray = [];
+            if (Array.isArray(mod.methods)) {
+                methodsArray = mod.methods;
+            } else if (mod.methods && typeof mod.methods === 'object') {
+                methodsArray = Object.keys(mod.methods);
+            }
+
+            // Normalize fields as well, just in case
+            let fieldsArray = [];
+            if (Array.isArray(mod.fields)) {
+                fieldsArray = mod.fields;
+            } else if (mod.fields && typeof mod.fields === 'object') {
+                fieldsArray = Object.keys(mod.fields);
+            }
+
             setCurrentModule({
                 id: mod.id,
-                name: mod.name || mod.id, // Use name if available, else fallback to ID
+                name: mod.name || mod.id,
                 description: mod.description || "",
-                methods: mod.methods || [],
-                fields: mod.fields || []
+                methods: methodsArray,
+                fields: fieldsArray
             });
             setOriginalId(mod.id);
         }
@@ -364,6 +380,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
                                     {/* Removable Selected Items List */}
                                     <div className="flex flex-col gap-2 mt-2">
+
                                         {(currentModule.methods || []).map(methodId => {
                                             const methodData = methods.find(m => (typeof m === 'string' ? m : m.id) === methodId);
                                             // Fallback if method details not found (e.g. deleted or ID-only)

@@ -81,15 +81,13 @@ const CustomInput = ({ placeholder, value, onValueChange, className = "" }) => {
 
 export const TerminalConsole = ({
   error,
-  handleSubmit,
+  handleSubmit: originalHandleSubmit,
   isConnected,
   inputValue,
   updateInputValue,
   toggleCfgSlider,
   toggleDataSlider,
-  // toggleDashboard, // Unused
   sendMessage,
-  // envs, // Unused
   toggleBucket,
   toggleNcfgSlider,
   toggleLogSidebar,
@@ -98,7 +96,7 @@ export const TerminalConsole = ({
   toggleBilling,
   saveMessage,
   setMessages,
-  fbIsConnected = true, // Default to true to avoid flashing if not passed
+  fbIsConnected = true,
   messages,
   options = [],
   isVisible = true,
@@ -117,6 +115,58 @@ export const TerminalConsole = ({
   const webcamRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  const commandMap = [
+    { keywords: ['session cfg', 'session config', 'sess cfg', 'sess'], action: toggleSessionConfig, name: 'Session Config' },
+    { keywords: ['env cfg', 'env config', 'environment', 'world', 'envs'], action: toggleCfgSlider, name: 'Environment Config' },
+    { keywords: ['module', 'modules'], action: toggleModuleDesigner, name: 'Module Designer' },
+    { keywords: ['method', 'methods'], action: toggleMethodDesigner, name: 'Method Designer' },
+    { keywords: ['field', 'fields'], action: toggleFieldDesigner, name: 'Field Designer' },
+    { keywords: ['injection', 'injections'], action: toggleInjection, name: 'Injection Config' },
+    { keywords: ['param', 'params', 'parameter'], action: toggleParamConfig, name: 'Parameter Config' },
+    { keywords: ['billing', 'plan', 'upgrade', 'downgrade'], action: toggleBilling, name: 'Billing' },
+    { keywords: ['log', 'logs'], action: toggleLogSidebar, name: 'Logs' },
+    { keywords: ['cluster', 'network'], action: toggleClusterModal, name: 'Cluster View' },
+    { keywords: ['data'], action: toggleDataSlider, name: 'Data View' },
+    { keywords: ['file', 'files', 'bucket'], action: toggleBucket, name: 'File Bucket' },
+    { keywords: ['ncfg', 'node config'], action: toggleNcfgSlider, name: 'Node Config' },
+  ];
+
+  const handleSubmit = (files) => {
+    const command = inputValue.trim().toLowerCase();
+    if (!command) return;
+
+    // Save user message first
+    if (saveMessage) {
+      saveMessage({
+        type: 'user',
+        text: inputValue,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Local command classification
+    for (const item of commandMap) {
+      for (const keyword of item.keywords) {
+        if (command.includes(keyword)) {
+          item.action();
+          if (saveMessage) {
+            saveMessage({
+              type: 'system',
+              text: `[SYSTEM] Opening ${item.name}`,
+              timestamp: new Date().toISOString(),
+            });
+          }
+          updateInputValue("");
+          return;
+        }
+      }
+    }
+
+    // If no local command, fallback to AI
+    originalHandleSubmit(files);
+    updateInputValue(""); // Also clear input here
+  };
+
   // Listen for external camera trigger
   useEffect(() => {
     if (window.externalAction === "open_camera") {
@@ -127,7 +177,6 @@ export const TerminalConsole = ({
 
   const {
     files,
-    // loading, // Unused
     fileInputRef,
     handleDrop,
     handleFileSelect,
@@ -136,12 +185,9 @@ export const TerminalConsole = ({
     clearFiles,
   } = useFile();
 
-  // Better approach: MainApp passes a prop. But for now let's add a manual trigger button.
-
   const capturePhoto = useCallback(() => {
     const imageSrc = webcamRef.current.getScreenshot();
     if (imageSrc) {
-      // Convert data URL to File object
       fetch(imageSrc)
         .then(res => res.blob())
         .then(blob => {
@@ -152,11 +198,6 @@ export const TerminalConsole = ({
         });
     }
   }, [webcamRef, handleFileSelect]);
-
-  // const openUpgradeModal = () => { // Unused
-  //   // In real app, call backend to get stripe URL
-  //   window.open("https://example.com/upgrade", "_blank");
-  // };
 
   useEffect(() => {
     if (isExpanded) {
@@ -189,7 +230,6 @@ export const TerminalConsole = ({
     else if (actionCase === "param_cfg") toggleParamConfig();
     else if (actionCase === "change_plan" || actionCase === "view_billing" || actionCase === "upgrade_plan") toggleBilling();
     else if (actionCase === "get_billings") {
-      // Fetch billing history via terminal command
       updateInputValue("get_billings");
     }
     else updateInputValue(`${actionCase}`);
@@ -229,19 +269,12 @@ export const TerminalConsole = ({
         setIsDragging(false);
       }}
     >
-      {/* Drag & Drop Overlay Layer - Explicitly covering everything if dragging, though the container handles it */}
       {isDragging && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/90 rounded-lg pointer-events-none backdrop-blur-sm border-2 border-dashed border-blue-400">
           <p className="text-2xl font-bold text-blue-600 animate-pulse">Drop files here</p>
         </div>
       )}
 
-      {/* WebSocket Connection Loading Overlay */}
-      {/* WebSocket Connection Loading Overlay - Removed per request */}
-      {/* {!isConnected && null} - removed entirely */}
-
-      {/* Camera Modal Overlay */}
-      {/* Small Floating Camera Preview */}
       {isCameraOpen && (
         <div className="absolute bottom-20 right-6 z-[60] w-64 bg-black rounded-xl border border-slate-600 shadow-2xl overflow-hidden">
           <div className="relative">
@@ -251,8 +284,6 @@ export const TerminalConsole = ({
               screenshotFormat="image/jpeg"
               className="w-full h-auto object-cover"
             />
-
-            {/* Overlay Controls */}
             <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-4 p-2 bg-gradient-to-t from-black/80 to-transparent">
               <button
                 onClick={capturePhoto}
@@ -343,7 +374,6 @@ export const TerminalConsole = ({
 
         <form onSubmit={(e) => { e.preventDefault(); handleSubmit(files); clearFiles(); }} className="flex items-center gap-3">
           <div className="flex items-center gap-3 flex-shrink-0">
-            {/* WS Status */}
             <div className="flex items-center gap-1.5" title="WebSocket Connection">
               <div
                 className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
@@ -353,7 +383,6 @@ export const TerminalConsole = ({
               </span>
             </div>
 
-            {/* System Status */}
             <div className="flex items-center gap-1.5" title="System Connection">
               {!fbIsConnected ? (
                 <>
@@ -368,7 +397,6 @@ export const TerminalConsole = ({
               )}
             </div>
 
-            {/* Voice Status */}
             <div
               className={`flex items-center gap-1.5 cursor-pointer transition-all px-2 py-0.5 rounded ${isVoiceActive ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'hover:bg-slate-100 text-slate-500'}`}
               title="Toggle Voice Control (Natural Language Shortcuts)"
@@ -389,7 +417,6 @@ export const TerminalConsole = ({
               onValueChange={updateInputValue}
               className="flex-grow text-slate-900 placeholder-slate-400"
             />
-            {/* Camera Button inside input container */}
             <button
               type="button"
               onClick={() => setIsCameraOpen(true)}
@@ -398,7 +425,6 @@ export const TerminalConsole = ({
             >
               <Camera size={18} />
             </button>
-            {/* File Upload Button */}
             <input
               type="file"
               multiple
@@ -476,4 +502,3 @@ export const TerminalConsole = ({
 };
 
 export default TerminalConsole;
-

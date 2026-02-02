@@ -29,18 +29,18 @@ const ReduxWebSocketBridge = () => {
                 // --- Sessions ---
                 case 'USERS_SESSIONS':
                 case 'LIST_USERS_SESSIONS':
-                    dispatch(setSessions(data.sessions || []));
+                    dispatch(setSessions(data?.sessions || []));
                     dispatch(setSessionLoading(false));
                     break;
 
                 // --- Environments ---
                 case 'GET_USERS_ENVS':
                 case 'LIST_ENVS':
-                    dispatch(setUserEnvs(data.envs || []));
+                    dispatch(setUserEnvs(data?.envs || []));
                     dispatch(setEnvLoading(false));
                     break;
                 case 'GET_SESSIONS_ENVS':
-                    dispatch(setActiveSessionEnvs(data.envs || []));
+                    dispatch(setActiveSessionEnvs(data?.envs || []));
                     dispatch(setEnvLoading(false)); // Maybe unrelated loading status now?
                     // Or keep session loading?
                     break;
@@ -51,35 +51,37 @@ const ReduxWebSocketBridge = () => {
 
                 // --- Modules ---
                 case 'LIST_USERS_MODULES':
-                    dispatch(setUserModules(data.modules || []));
+                    dispatch(setUserModules(data?.modules || []));
                     dispatch(setModuleLoading(false));
                     break;
                 case 'GET_SESSIONS_MODULES':
-                    dispatch(setActiveSessionModules(data.modules || []));
+                    dispatch(setActiveSessionModules(data?.modules || []));
                     dispatch(setModuleLoading(false));
                     break;
 
                 // --- Fields ---
                 case 'SESSIONS_FIELDS':
                 case 'GET_MODULES_FIELDS':
-                    dispatch(setActiveSessionFields(data.fields || []));
+                    dispatch(setActiveSessionFields(data?.fields || []));
                     dispatch(setFieldLoading(false));
                     break;
 
                 // --- Injections ---
                 case 'GET_INJ_USER':
                 case 'INJ_LIST_USER':
-                    dispatch(setUserInjections(data.injections || data.data?.injections || []));
+                    dispatch(setUserInjections(data?.injections || data?.data?.injections || []));
                     dispatch(setInjectionLoading(false));
                     break;
                 case 'GET_INJECTION':
-                    dispatch(updateInjectionDetail(data));
+                    if (data) {
+                        dispatch(updateInjectionDetail(data));
+                    }
                     break;
 
                 // --- Methods ---
                 case 'GET_USERS_METHODS':
                 case 'LIST_USERS_METHODS':
-                    dispatch(setUserMethods(data.methods || []));
+                    dispatch(setUserMethods(data?.methods || []));
                     dispatch(setMethodLoading(false));
                     break;
 
