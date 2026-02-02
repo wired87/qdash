@@ -1,4 +1,4 @@
-# The Grid 
+# QDash
 
 > Advanced Simulation & Data Visualization Platform
 
