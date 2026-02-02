@@ -449,7 +449,7 @@ export const MainApp = () => {
     // We will just set it once.
     setMessages([
       {
-        text: `Welcome to The Grid.
+        text: `Welcome to core.
 
 ⚠️ ENGINE UNDER CONSTRUCTION ⚠️
 

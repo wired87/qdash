@@ -1,8 +1,9 @@
-# The Grid 
+# QDash 
 
 > Advanced Simulation & Data Visualization Platform
 
-**The Grid** is a modular, high-performance simulation engine designed to coordinate complex logic across distributed nodes. It enables users to define custom execution modules, link them to nD spatial environments, and visualize the resulting data streams in real-time.
+**core** is a modular, high-performance simulation engine designed to coordinate complex logic across distributed nodes. It enables users to define custom execution modules, link them to nD spatial environments, and visualize the resulting data streams in real-time.
+
 
 ## ⚠️ IMPORTANT: First-Time Setup
 
@@ -14,6 +15,18 @@
 Without this, the terminal chat will show connection errors. See **[SETUP_GEMINI.md](SETUP_GEMINI.md)** for detailed instructions.
 
 ---
+
+
+ToDo:
+- agent capabilities: 
+- User self handling of API key 
+- connect to "QBrain" project
+- Visualization in screen of the engine. 
+choose all modules params classified for type to suitable visualizaton techniques. use matplot. retro n-Dimention (nD)
+- 
+- 
+
+
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -31,7 +44,7 @@ Without this, the terminal chat will show connection errors. See **[SETUP_GEMINI
 
 ## 🌟 Overview
 
-The Grid provides a "God Mode" interface for managing distributed computational graphs. Users don't just run static scripts; they build living, breathing environments where logic (Modules) flows through data carriers (Fields) across a spatial manifold (Environments).
+core provides a "God Mode" interface for managing distributed computational graphs. Users don't just run static scripts; they build living, breathing environments where logic (Modules) flows through data carriers (Fields) across a spatial manifold (Environments).
 
 ### Key Objectives
 
@@ -42,10 +55,10 @@ The Grid provides a "God Mode" interface for managing distributed computational 
 
 ## 🧩 Core Concepts
 
-1.  **Environments (Envs)**: The spatial containers for your simulation. An Env defines the grid dimensions, physics constants, and active nodes.
+1.  **Environments (Envs)**: The spatial containers for your simulation. An Env defines core dimensions, physics constants, and active nodes.
 2.  **Modules**: Self-contained units of logic (Python classes) that perform calculations. Example: `HeatDiffusion`, `AgentBehavior`, `QuantumOscillator`.
 3.  **Fields**: Data layers managed by Modules. A Module might read a `Temperature` Field and update a `pressure` Field.
-4.  **Injections**: External stimuli applied to the Grid. You "inject" energy or data patterns into specific coordinates to kickstart simulations.
+4.  **Injections**: External stimuli applied to core. You "inject" energy or data patterns into specific coordinates to kickstart simulations.
 
 ## ✨ Features
 
@@ -55,12 +68,13 @@ The Grid provides a "God Mode" interface for managing distributed computational 
 - **Real-time Feedback**: See system logs, errors, and confirmations instantly.
 
 ### Visual Builders
-- **Node Cfg Slider**: Fine-tune the properties of individual nodes within the Grid.
+- **Node Cfg Slider**: Fine-tune the properties of individual nodes within core.
 - **Module Designer**: Upload, edit, and manage your Python simulation code.
-- **Energy Injection Designer**: Draw patterns of energy injection on a canvas and apply them to the Grid.
+- **Energy Injection Designer**: Draw patterns of energy injection on a canvas and apply them to core.
 
 ### 3D/4D Visualization
 - **Live View**: Watch the state of your Fields evolve in real-time.
+- **Oscilloscope View**: Retro n-D waveform display—module params as rolling phosphor-style traces (green/amber grid, multi-channel) when the simulation is running.
 - **Cluster Viz**: Inspect the topology of your simulation cluster.
 
 ## 🏗️ Architecture
@@ -72,7 +86,7 @@ The Grid provides a "God Mode" interface for managing distributed computational 
 ├─────────────────────────────────────────────────────────┤
 │                  WebSocket Gateway                      │
 ├─────────────────────────────────────────────────────────┤
-│                   The Grid Engine (Python)              │
+│                   core Engine (Python)              │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │
 │  │  Graph      │  │  Module     │  │  Injection  │      │
 │  │  Manager    │  │  Executor   │  │  Controller │      │
@@ -130,7 +144,7 @@ Connect your Module to the active Session.
 > "Start simulation"
 
 ### 4. Inject
-Use the **Injection ⚡** tool to add heat sources to the grid and watch it spread.
+Use the **Injection ⚡** tool to add heat sources to core and watch it spread.
 
 ## 🤝 Contributing
 

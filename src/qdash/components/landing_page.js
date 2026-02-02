@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { LiveView } from './LiveView';
+import { OscilloscopeView } from './OscilloscopeView';
 import { FuturisticBackground } from './FuturisticBackground';
 
 
@@ -61,7 +62,7 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
 
     const slides = [
         {
-            headline: "The Grid",
+            headline: "core",
             subtext: "Advanced Simulation & Data Visualization Platform."
         },
         {
@@ -82,7 +83,7 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
         },
         {
             headline: "Open Source",
-            subtext: "Explore & contribute to The Grid on GitHub.",
+            subtext: "Explore & contribute to core on GitHub.",
             button: { text: "View Code", url: "https://github.com/wired87/qdash" }
         }
     ];
@@ -151,7 +152,7 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
                 <div className="max-w-7xl w-full mx-auto relative z-10 flex flex-col h-full justify-center">
                     <header className="text-center mb-16">
                         <h1 className="text-6xl font-black mb-4 tracking-tighter text-black uppercase">
-                            The Grid
+                            core
                         </h1>
                         <p className="text-sm font-mono text-slate-500 tracking-[0.3em] uppercase">
                             Advanced Simulation Platform <span className="ml-2 text-[9px] border border-black px-1 py-0.5 bg-black text-white">BETA 2.0</span>
@@ -275,6 +276,21 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
                                 data={liveData}
                                 isDarkMode={false}
                                 onToggleDarkMode={() => { }}
+                            />
+                        </div>
+                    )}
+
+                    {/* Oscilloscope-style visualization (retro n-D params) - when sim running */}
+                    {(isSimRunning && !isCfgOpen) && liveData && liveData.length > 0 && (
+                        <div className="absolute bottom-4 left-4 right-4 z-20 max-w-4xl mx-auto">
+                            <OscilloscopeView
+                                data={liveData}
+                                isDarkMode={true}
+                                maxSamples={120}
+                                showGrid={true}
+                                showGlow={true}
+                                height={200}
+                                className="bg-slate-950/90 shadow-2xl"
                             />
                         </div>
                     )}

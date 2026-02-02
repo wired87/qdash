@@ -45,7 +45,7 @@ const initializeChat = () => {
         {
           role: "user",
           parts: [{
-            text: `You are an expert assistant for The Grid, an Advanced Simulation & Data Visualization Platform.
+            text: `You are an expert assistant for core, an Advanced Simulation & Data Visualization Platform.
 Your name is 'Q'. You respond concisely and professionally.
 
 KNOWLEDGE BASE:
@@ -79,7 +79,7 @@ Use this knowledge to answer user questions about the website and its features.`
         },
         {
           role: "model",
-          parts: [{ text: "Understood. I am Q, your expert assistant for The Grid. I have access to the knowledge base and am ready to assist you with simulations, visualization, configuration, and any questions about the platform." }],
+          parts: [{ text: "Understood. I am Q, your expert assistant for core. I have access to the knowledge base and am ready to assist you with simulations, visualization, configuration, and any questions about the platform." }],
         },
       ],
       generationConfig: {
