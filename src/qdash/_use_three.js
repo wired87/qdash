@@ -66,12 +66,14 @@ export const ThreeScene = ({ nodes, edges, onNodeClick, env_id }) => {
         renderer.setSize(canvas.clientWidth, canvas.clientHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
 
-        // Controls
+        // Controls (zoom into 3D grid)
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.maxDistance = 200;
-        controls.minDistance = 5;
+        controls.maxDistance = 400;
+        controls.minDistance = 2;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 1.2;
 
         // Lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
@@ -85,29 +87,53 @@ export const ThreeScene = ({ nodes, edges, onNodeClick, env_id }) => {
         dirLight.position.set(-10, 20, -10);
         scene.add(dirLight);
 
-        // Grid / Manifold Floor
-        const planeGeometry = new THREE.PlaneGeometry(200, 200, 40, 40);
-        // Deform plane to look like a manifold (wavy)
+        // 3D Grid background (floor + walls) — user can zoom into it
+        const gridSize = 300;
+        const gridDivisions = 80;
+        const gridColorCenter = 0x334155;
+        const gridColorLine = 0x1e293b;
+
+        const gridFloor = new THREE.GridHelper(gridSize, gridDivisions, gridColorCenter, gridColorLine);
+        gridFloor.position.y = -15;
+        gridFloor.material.transparent = true;
+        gridFloor.material.opacity = 0.4;
+        scene.add(gridFloor);
+
+        const gridBack = new THREE.GridHelper(gridSize, gridDivisions, gridColorCenter, gridColorLine);
+        gridBack.rotation.x = Math.PI / 2;
+        gridBack.position.set(0, gridSize / 2 - 15, -gridSize / 2);
+        gridBack.material.transparent = true;
+        gridBack.material.opacity = 0.25;
+        scene.add(gridBack);
+
+        const gridSide = new THREE.GridHelper(gridSize, gridDivisions, gridColorCenter, gridColorLine);
+        gridSide.rotation.x = -Math.PI / 2;
+        gridSide.rotation.y = Math.PI / 2;
+        gridSide.position.set(-gridSize / 2, gridSize / 2 - 15, 0);
+        gridSide.material.transparent = true;
+        gridSide.material.opacity = 0.25;
+        scene.add(gridSide);
+
+        // Optional: subtle wavy manifold overlay (kept for visual interest)
+        const planeGeometry = new THREE.PlaneGeometry(120, 120, 24, 24);
         const positionAttribute = planeGeometry.attributes.position;
         for (let i = 0; i < positionAttribute.count; i++) {
             const x = positionAttribute.getX(i);
             const y = positionAttribute.getY(i);
             const z = positionAttribute.getZ(i);
-            // Simple wave function
-            const wave = Math.sin(x * 0.1) * 2 + Math.cos(y * 0.1) * 2;
+            const wave = Math.sin(x * 0.08) * 1.5 + Math.cos(y * 0.08) * 1.5;
             positionAttribute.setZ(i, z + wave);
         }
         planeGeometry.computeVertexNormals();
-
         const gridMaterial = new THREE.MeshBasicMaterial({
             color: 0x1e293b,
             wireframe: true,
             transparent: true,
-            opacity: 0.15
+            opacity: 0.12
         });
         const gridMesh = new THREE.Mesh(planeGeometry, gridMaterial);
-        gridMesh.rotation.x = -Math.PI / 2; // Rotate to be flat
-        gridMesh.position.y = -10; // Place below nodes
+        gridMesh.rotation.x = -Math.PI / 2;
+        gridMesh.position.y = -10;
         scene.add(gridMesh);
 
 

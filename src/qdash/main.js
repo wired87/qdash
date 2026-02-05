@@ -615,14 +615,16 @@ Please tell me your email if you want to receive updates or register for early a
 
       if (processedFiles.length > 0) {
         const userId = localStorage.getItem(USER_ID_KEY);
+        const messageText = inputValue.trim() || null;
         // Use input value as ID (Module Name) if provided, otherwise default to first filename (sans extension)
-        const moduleId = inputValue.trim() || processedFiles[0].name.replace(/\.[^/.]+$/, "");
+        const moduleId = messageText || processedFiles[0].name.replace(/\.[^/.]+$/, "");
 
         sendMessage({
           type: "SET_FILE",
           data: {
             id: moduleId,
-            files: processedFiles
+            files: processedFiles,
+            message: messageText
           },
           auth: {
             user_id: userId
@@ -631,14 +633,14 @@ Please tell me your email if you want to receive updates or register for early a
         });
 
         setMessages(prev => [...prev, {
-          text: `📤 Uploading ${processedFiles.length} file(s) as module '${moduleId}'...`,
+          text: `📤 Uploading ${processedFiles.length} file(s) as module '${moduleId}'${messageText ? ` with message` : ''}...`,
           type: 'system',
           timestamp: new Date().toISOString()
         }]);
       }
 
       updateInputValue("");
-      return; // Stop normal chat processing if files were sent
+      return;
     }
 
 
@@ -722,6 +724,7 @@ Please tell me your email if you want to receive updates or register for early a
           setTerminalVisible={setIsTerminalVisible}
           isSimRunning={Object.values(envs).some(e => e.status === 'running')}
           isCfgOpen={isCfgSliderOpen}
+          sendMessage={sendMessage}
         >
           <LogSidebar logs={logs} isOpen={isLogSidebarOpen} onClose={toggleLogSidebar} />
           {get_dashboard()}

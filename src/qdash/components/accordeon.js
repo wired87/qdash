@@ -1,5 +1,6 @@
 import { Accordion, AccordionItem, Button, Input, Select, SelectItem, Switch } from "@heroui/react";
 import { useCallback, useState, useEffect } from "react";
+import { useSelector } from "react-redux";
 import { useEnvStore } from "../env_store";
 import { USER_ID_KEY } from "../auth";
 import ParticleChoice from "./node_cfg/particle_choice_dd";
@@ -62,13 +63,17 @@ const isReserved = (val) => {
 };
 
 const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig, listenToUserWorldConfig, userProfile, shouldShowDefault }) => {
+    const userFields = useSelector((state) => state.fields.userFields) || [];
     const [completed, setCompleted] = useState(false);
     const [cfg, setCfg] = useState(filteredCfg);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [selectedFieldId, setSelectedFieldId] = useState("");
 
     // Initialize from props
     useEffect(() => {
         if (initialValues) {
+            const fieldId = initialValues.field_id ?? initialValues.field ?? "";
+            setSelectedFieldId(fieldId);
             if (Object.keys(initialValues).length > 0) {
                 setCfg((prevCfg) => {
                     const updatedCfg = { ...prevCfg };
@@ -192,15 +197,17 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
         // Clear local environments as requested
         useEnvStore.getState().clearEnvs();
 
+        const dataPayload = {
+            env: {
+                ...filteredConfig,
+                id: env_id // Ensure ID is consistent
+            },
+            field: selectedFieldId || undefined
+        };
         sendMessage({
             type: "SET_ENV",
-            // Payload structure: data={env: ...}, auth={user_id: ...}
-            data: {
-                env: {
-                    ...filteredConfig,
-                    id: env_id // Ensure ID is consistent
-                }
-            },
+            // Payload structure: data={env: ..., field?: field_id}, auth={user_id: ...}
+            data: dataPayload,
             auth: {
                 user_id: userId
             },
@@ -329,6 +336,33 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                 }
             >
                 <div className="flex flex-col gap-4 py-2">
+                    {/* Field dropdown: user fields from Redux (include store) */}
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 uppercase tracking-wider">
+                            Field
+                        </label>
+                        <Select
+                            placeholder="Select field"
+                            selectedKeys={selectedFieldId ? [selectedFieldId] : []}
+                            onSelectionChange={(keys) => {
+                                const key = Array.from(keys)[0];
+                                setSelectedFieldId(key ?? "");
+                            }}
+                            className="max-w-full"
+                            size="sm"
+                            variant="bordered"
+                            classNames={{
+                                trigger: "bg-white dark:bg-slate-800",
+                                value: "text-slate-800 dark:text-slate-200"
+                            }}
+                        >
+                            {userFields.map((f) => {
+                                const id = typeof f === "string" ? f : f?.id;
+                                const label = typeof f === "string" ? f : (f?.name ?? f?.id ?? id);
+                                return id ? <SelectItem key={id} textValue={String(label)}>{String(label)}</SelectItem> : null;
+                            })}
+                        </Select>
+                    </div>
                     {Object.entries(cfg).map(([sid, attrs]) => get_input(sid, attrs))}
                 </div>
                 <Button

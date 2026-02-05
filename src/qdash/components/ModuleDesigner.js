@@ -4,7 +4,7 @@ import { Plus, Trash2, Box, Save, X, Grip, Layers } from "lucide-react";
 import { USER_ID_KEY } from "../auth";
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 
-const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
+const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }) => {
     const [modules, setModules] = useState([]);
     const [methods, setMethods] = useState([]);
     const [fields, setFields] = useState([]);
@@ -33,9 +33,9 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
         return () => window.removeEventListener('qdash-ws-message', handleMessage);
     }, []);
 
-    // Initial Load
+    // Initial Load (when modal opens or when embedded in env cfg)
     useEffect(() => {
-        if (isOpen && sendMessage) {
+        if ((isOpen || embedded) && sendMessage) {
             setIsLoading(true);
             const userId = localStorage.getItem(USER_ID_KEY);
             sendMessage({
@@ -51,7 +51,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 auth: { user_id: userId }
             });
         }
-    }, [isOpen, sendMessage]);
+    }, [isOpen, embedded, sendMessage]);
 
     // Auto-merge params from selected methods and fields with suggestions
     useEffect(() => {
@@ -241,28 +241,10 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
         });
     }
 
-    if (!isOpen) return null;
+    if (!embedded && !isOpen) return null;
 
-    return (
-        <div className="fixed bottom-0 left-0 right-0 h-[85vh] bg-white dark:bg-slate-900 shadow-2xl rounded-t-3xl z-[100] flex flex-col border-t border-slate-200 dark:border-slate-800 animate-slide-up">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-3xl">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
-                        <Box size={20} />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Module Manager</h2>
-                        <p className="text-xs text-slate-500">Group methods into reusable modules</p>
-                    </div>
-                </div>
-                <Button isIconOnly variant="light" onPress={onClose}>
-                    <X size={24} />
-                </Button>
-            </div>
-
-            {/* Split View */}
-            <div className="flex flex-1 overflow-hidden relative md:flex-row flex-col">
+    const innerContent = (
+            <div className="flex flex-1 overflow-hidden relative md:flex-row flex-col min-h-0">
                 <GlobalConnectionSpinner inline={true} />
 
                 {/* LEFT SIDE (30%) */}
@@ -568,8 +550,35 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                         )}
                     </div>
                 </div>
-            </div >
-            <style jsx>{`
+            </div>
+    );
+
+    if (embedded) {
+        return (
+            <div className="h-full min-h-0 flex flex-col overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                {innerContent}
+            </div>
+        );
+    }
+
+    return (
+        <div className="fixed bottom-0 left-0 right-0 h-[85vh] bg-white dark:bg-slate-900 shadow-2xl rounded-t-3xl z-[100] flex flex-col border-t border-slate-200 dark:border-slate-800 animate-slide-up">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 rounded-t-3xl">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                        <Box size={20} />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Module Manager</h2>
+                        <p className="text-xs text-slate-500">Group methods into reusable modules</p>
+                    </div>
+                </div>
+                <Button isIconOnly variant="light" onPress={onClose}>
+                    <X size={24} />
+                </Button>
+            </div>
+            {innerContent}
+            <style>{`
                 @keyframes slide-up {
                     from { transform: translateY(100%); }
                     to { transform: translateY(0); }
@@ -585,7 +594,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                     animation: fadeIn 0.2s ease-out forwards;
                 }
             `}</style>
-        </div >
+        </div>
     );
 };
 

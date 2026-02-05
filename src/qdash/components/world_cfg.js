@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from 'react-redux';
 import ConfigAccordion from "./accordeon";
+import ModuleDesigner from "./ModuleDesigner";
 import { Button, Switch } from "@heroui/react";
 import { Trash2, Globe, Server, X, PlusCircle, Download, Activity, Box } from "lucide-react";
 import { USER_ID_KEY, getSessionId } from "../auth";
@@ -45,22 +46,25 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
     });
   }
 
-  // Request environments when modal opens
+  // Request environments and user fields when modal opens (fields feed the Field dropdown in World Config)
   useEffect(() => {
     if (isOpen && sendMessage && isConnected) {
       const userId = localStorage.getItem(USER_ID_KEY);
       const sessionId = getSessionId();
 
       if (userId) {
-        // setIsLoadingEnvs(true);
         sendMessage({
           type: "GET_USERS_ENVS",
           auth: { user_id: userId },
           timestamp: new Date().toISOString()
         });
+        sendMessage({
+          type: "LIST_USERS_FIELDS",
+          auth: { user_id: userId },
+          timestamp: new Date().toISOString()
+        });
 
         if (sessionId) {
-          // setIsLoadingSessionEnvs(true);
           sendMessage({
             type: "GET_SESSIONS_ENVS",
             auth: { user_id: userId, session_id: sessionId },
@@ -155,7 +159,8 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
       dims: env.dims,
       enable_sm: env.enable_sm,
       particle: env.particle,
-      status: env.state || env.status || 'created' // Add status for display
+      status: env.state || env.status || 'created',
+      field_id: env.field_id ?? env.field
     };
     setSelectedEnvConfig(config);
     // Reset local view state
@@ -341,7 +346,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
                 <div className="w-[70%] flex flex-col bg-slate-50 dark:bg-slate-900">
                   {/* Header */}
                   <div className="flex items-center gap-2 p-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                    {["visual", "model", "status logs"].map(tab => (
+                    {["visual", "model", "modules", "status logs"].map(tab => (
                       <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -378,6 +383,16 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
                             </div>
                           ))}
                         </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'modules' && (
+                      <div className="h-full min-h-0 flex flex-col">
+                        <ModuleDesigner
+                          embedded
+                          sendMessage={sendMessage}
+                          user={user}
+                        />
                       </div>
                     )}
 

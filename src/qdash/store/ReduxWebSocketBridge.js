@@ -35,7 +35,9 @@ const ReduxWebSocketBridge = () => {
 
                 // --- Environments ---
                 case 'GET_USERS_ENVS':
+                case 'LIST_USERS_ENVS':
                 case 'LIST_ENVS':
+                    // Preserve field_id on each env from received data
                     dispatch(setUserEnvs(data?.envs || []));
                     dispatch(setEnvLoading(false));
                     break;

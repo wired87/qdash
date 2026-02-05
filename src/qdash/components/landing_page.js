@@ -1,8 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { motion, useInView } from 'framer-motion';
+import { Select, SelectItem } from '@heroui/react';
 import { LiveView } from './LiveView';
 import { OscilloscopeView } from './OscilloscopeView';
 import { FuturisticBackground } from './FuturisticBackground';
+import { ParticleGridEngine } from './ParticleGridEngine';
+import { USER_ID_KEY, SESSION_ID_KEY, getSessionId } from '../auth';
+import { setActiveSession } from '../store/slices/sessionSlice';
 
 
 const ColorizedText = ({ text }) => {
@@ -40,16 +45,47 @@ const ColorizedText = ({ text }) => {
     );
 };
 
-export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgOpen, children }) => {
+export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgOpen, children, sendMessage }) => {
     const heroRef = useRef(null);
     const instructionsSectionRef = useRef(null); // Rename to avoid conflict with instructionsRef used for InView
     const engineRef = useRef(null);
 
+    const dispatch = useDispatch();
+    const sessions = useSelector((state) => state.sessions.sessions) || [];
+    const activeSession = useSelector((state) => state.sessions.activeSession);
     const isInstructionsInView = useInView(instructionsSectionRef, { amount: 0.3 });
     const isEngineInView = useInView(engineRef, { amount: 0.3 });
 
+    // Request user sessions when Engine Control Center is in view (initial load)
+    useEffect(() => {
+        if (isEngineInView && sendMessage) {
+            const userId = localStorage.getItem(USER_ID_KEY);
+            if (userId) {
+                sendMessage({
+                    type: 'LIST_USERS_SESSIONS',
+                    auth: { user_id: userId },
+                    timestamp: new Date().toISOString()
+                });
+            }
+        }
+    }, [isEngineInView, sendMessage]);
+
+    const requestSessionsList = () => {
+        if (!sendMessage) return;
+        const userId = localStorage.getItem(USER_ID_KEY);
+        if (userId) {
+            sendMessage({
+                type: 'LIST_USERS_SESSIONS',
+                auth: { user_id: userId },
+                timestamp: new Date().toISOString()
+            });
+        }
+    };
+
     const [showSpinner, setShowSpinner] = useState(false);
     const [hasVisitedEngine, setHasVisitedEngine] = useState(false);
+    const FIRST_VISIT_KEY = 'qdash_welcome_shown';
+    const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(FIRST_VISIT_KEY));
     // const [showArrow, setShowArrow] = useState(true); // Removed floating arrow logic as we have full sections now
     const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -101,6 +137,11 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
             setHasVisitedEngine(true);
         }
     }, [isEngineInView, hasVisitedEngine]);
+
+    const dismissWelcome = () => {
+        setShowWelcome(false);
+        localStorage.setItem(FIRST_VISIT_KEY, '1');
+    };
 
     React.useEffect(() => {
         if (showSpinner) {
@@ -267,11 +308,88 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
                     initial={{ opacity: 0 }}
                     animate={isEngineInView ? { opacity: 1 } : { opacity: 0 }}
                     transition={{ duration: 0.8 }}
-                    className="w-full h-full relative"
+                    className="w-full h-full flex flex-col min-h-0 relative"
                 >
+                    {/* Full-screen particle grid (entire control center) */}
+                    <div className="absolute inset-0 z-0 w-full h-full min-h-0">
+                        <ParticleGridEngine className="w-full h-full" />
+                    </div>
+
+                    {/* Top bar overlay – responsive */}
+                    <header className="relative z-10 flex-shrink-0 flex items-center justify-between border-b border-black/20 px-4 sm:px-6 py-3 sm:py-4 gap-3 sm:gap-4 flex-wrap bg-white/90 backdrop-blur-sm">
+                        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                            <div className="flex-shrink-0 flex flex-col gap-0.5 sm:gap-1">
+                                <span className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest text-black/70">Session</span>
+                                <Select
+                                    size="sm"
+                                    placeholder="Select session"
+                                    selectedKeys={activeSession?.id ? [activeSession.id] : (getSessionId() ? [getSessionId()] : [])}
+                                    onOpenChange={(open) => {
+                                        if (open) requestSessionsList();
+                                    }}
+                                    onSelectionChange={(keys) => {
+                                        const id = Array.from(keys)[0];
+                                        if (id) {
+                                            const sess = sessions.find(s => (typeof s === 'string' ? s : s.id) === id);
+                                            if (sess) {
+                                                const sessionObj = typeof sess === 'string' ? { id: sess } : sess;
+                                                dispatch(setActiveSession(sessionObj));
+                                                sessionStorage.setItem(SESSION_ID_KEY, id);
+                                            }
+                                        }
+                                    }}
+                                    className="max-w-[140px] sm:max-w-[200px]"
+                                    classNames={{
+                                        trigger: 'bg-white border border-black/20 font-mono text-xs',
+                                        value: 'text-black'
+                                    }}
+                                >
+                                    {sessions.map((s) => {
+                                        const id = typeof s === 'string' ? s : s.id;
+                                        const label = typeof s === 'string' ? s : (s.name || s.id || id);
+                                        return <SelectItem key={id} textValue={String(label)}>{String(label)}</SelectItem>;
+                                    })}
+                                </Select>
+                            </div>
+                            <h2 className="text-lg sm:text-2xl font-black text-black tracking-tighter uppercase flex items-center gap-2 sm:gap-3 truncate">
+                                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-black flex-shrink-0"></span>
+                                <span className="truncate">Engine Control Center</span>
+                            </h2>
+                        </div>
+                        <div className="flex gap-2 sm:gap-3 flex-shrink-0">
+                            <span className="px-2 py-1 border border-black text-black text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest flex items-center gap-1.5 sm:gap-2">
+                                <span className="w-1 h-1 bg-black"></span>
+                                ONLINE
+                            </span>
+                            <span className="px-2 py-1 bg-black text-white text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest flex items-center gap-1.5 sm:gap-2">
+                                <span className="w-1 h-1 bg-white animate-pulse"></span>
+                                TERMINAL
+                            </span>
+                        </div>
+                    </header>
+
+                    {/* Content overlay – scrollable, responsive */}
+                    <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent bg-white/80 sm:bg-white/85 backdrop-blur-[1px]">
+                        <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
+                            {showWelcome && isEngineInView && (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-black text-white border-2 border-black shadow-lg animate-fadeIn">
+                                    <p className="text-base sm:text-lg font-bold tracking-tight">Welcome to the grid</p>
+                                    <button
+                                        type="button"
+                                        onClick={dismissWelcome}
+                                        className="flex-shrink-0 px-3 py-1.5 text-xs font-mono font-bold uppercase tracking-widest border border-white/50 rounded hover:bg-white/10 transition-colors"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            )}
+                            {children}
+                        </div>
+                    </div>
+
                     {/* Background LiveView - Active only when Sim Running and NOT in Config */}
                     {(isSimRunning && !isCfgOpen) && (
-                        <div className="absolute inset-0 z-0 opacity-10 pointer-events-none grayscale">
+                        <div className="absolute inset-0 z-0 opacity-10 pointer-events-none grayscale" aria-hidden>
                             <LiveView
                                 data={liveData}
                                 isDarkMode={false}
@@ -282,7 +400,7 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
 
                     {/* Oscilloscope-style visualization (retro n-D params) - when sim running */}
                     {(isSimRunning && !isCfgOpen) && liveData && liveData.length > 0 && (
-                        <div className="absolute bottom-4 left-4 right-4 z-20 max-w-4xl mx-auto">
+                        <div className="absolute bottom-4 left-4 right-4 z-20 max-w-4xl mx-auto pointer-events-none">
                             <OscilloscopeView
                                 data={liveData}
                                 isDarkMode={true}
@@ -294,31 +412,6 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
                             />
                         </div>
                     )}
-
-                    {/* Engine Content */}
-                    <div className="relative z-10 w-full h-full overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-                        <div className="max-w-7xl mx-auto space-y-6">
-                            <div className="flex items-center justify-between mb-8 border-b border-black pb-4">
-                                <h2 className="text-2xl font-black text-black tracking-tighter uppercase flex items-center gap-3">
-                                    <span className="w-2 h-2 bg-black"></span>
-                                    Engine Control Center
-                                </h2>
-                                <div className="flex gap-3">
-                                    <span className="px-2 py-1 border border-black text-black text-[9px] font-mono font-bold uppercase tracking-widest flex items-center gap-2">
-                                        <span className="w-1 h-1 bg-black"></span>
-                                        ONLINE
-                                    </span>
-                                    <span className="px-2 py-1 bg-black text-white text-[9px] font-mono font-bold uppercase tracking-widest flex items-center gap-2">
-                                        <span className="w-1 h-1 bg-white animate-pulse"></span>
-                                        TERMINAL
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* Injected Components (Dashboard, etc.) */}
-                            {children}
-                        </div>
-                    </div>
                 </motion.div>
             </div>
         </div >

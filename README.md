@@ -1,162 +1,194 @@
-# QDash 
+# QDash
 
 > Advanced Simulation & Data Visualization Platform
 
-**core** is a modular, high-performance simulation engine designed to coordinate complex logic across distributed nodes. It enables users to define custom execution modules, link them to nD spatial environments, and visualize the resulting data streams in real-time.
-
-
-## ⚠️ IMPORTANT: First-Time Setup
-
-1. **Quick Setup**: Run `setup-gemini.bat` (Windows) or see `SETUP_GEMINI.md`
-2. **Get API Key**: https://makersuite.google.com/app/apikey
-3. **Add to `.env`**: `CLIENT_KEY_GEMINI_API_KEY=your_key_here`
-4. **Restart Server**: Stop and run `npm start` again
-
-Without this, the terminal chat will show connection errors. See **[SETUP_GEMINI.md](SETUP_GEMINI.md)** for detailed instructions.
-
----
-
-
-ToDo:
-- agent capabilities: 
-- User self handling of API key 
-- connect to "QBrain" project
-- Visualization in screen of the engine. 
-choose all modules params classified for type to suitable visualizaton techniques. use matplot. retro n-Dimention (nD)
-- 
-- 
-
-
+**QDash** is a React-based control plane for a modular simulation engine. Users manage **Environments** (spatial containers), **Modules** (Python logic), **Fields** (data layers), and **Injections** (external stimuli) via an AI-powered terminal and visual designers. The frontend talks to the engine over WebSocket; state is held in Redux (sessions, envs, modules, fields, injections, conversation).
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)
 
+---
+
+
+todo
+frontend full agent capabilities and interaction just use relay for commmits
+
+
+
+
+
+
+
+## ⚠️ First-Time Setup
+
+1. **Quick Setup**: Run `setup-gemini.bat` (Windows) or see `SETUP_GEMINI.md`
+2. **Get API Key**: https://makersuite.google.com/app/apikey
+3. **Add to `.env`**: `CLIENT_KEY_GEMINI_API_KEY=your_key_here`
+4. **Restart**: Stop and run `npm start` again
+
+Without this, the terminal chat will show connection errors. See **[SETUP_GEMINI.md](SETUP_GEMINI.md)** for details.
+
+---
+
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Core Concepts](#core-concepts)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
+- [Overview](#-overview)
+- [Core Concepts](#-core-concepts)
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [To-Do](#-to-do)
+- [Installation](#-installation)
+- [Usage](#-usage)
+- [Contributing](#-contributing)
+
+---
 
 ## 🌟 Overview
 
-core provides a "God Mode" interface for managing distributed computational graphs. Users don't just run static scripts; they build living, breathing environments where logic (Modules) flows through data carriers (Fields) across a spatial manifold (Environments).
+QDash provides a single interface to manage distributed simulation graphs: create envs, link modules and fields to sessions, inject patterns, and drive everything via natural language (Gemini) or structured commands. The **core** engine coordinates logic across nodes; the UI keeps live state in Redux and syncs with the backend over WebSocket.
 
 ### Key Objectives
 
-- **Modular Logic**: Decouple simulation logic from the runtime engine using hot-swappable Python **Modules**.
-- **Spatial Intelligence**: Map abstract data to physical 3D/4D space for intuitive debugging and analysis.
-- **Natural Language Control**: Interact with the system via a terminal interface powered by Gemini AI.
-- **Graph-Based Execution**: Visualize and manipulate the dependency graph of your simulation in real-time.
+- **Modular logic**: Python **Modules** are hot-swappable; link them to sessions and envs.
+- **Spatial mapping**: **Environments** define dimensions and nodes; **Fields** carry data; **Injections** target coordinates.
+- **Natural language + structure**: Terminal chat (Gemini) plus dedicated designers (Module, Field, Injection, World Config, Session Config).
+- **Live feedback**: Logs, env lists, and session config updates flow through WebSocket and Redux.
+
+---
 
 ## 🧩 Core Concepts
 
-1.  **Environments (Envs)**: The spatial containers for your simulation. An Env defines core dimensions, physics constants, and active nodes.
-2.  **Modules**: Self-contained units of logic (Python classes) that perform calculations. Example: `HeatDiffusion`, `AgentBehavior`, `QuantumOscillator`.
-3.  **Fields**: Data layers managed by Modules. A Module might read a `Temperature` Field and update a `pressure` Field.
-4.  **Injections**: External stimuli applied to core. You "inject" energy or data patterns into specific coordinates to kickstart simulations.
+| Concept | Description |
+|--------|--------------|
+| **Environments (Envs)** | Spatial containers for a simulation. Each has id, dimensions, nodes, optional `field_id`. Stored in Redux `envs.userEnvs`; linked to sessions. |
+| **Modules** | Units of logic (e.g. Python classes). Stored in `modules.userModules`; linked to sessions/envs. |
+| **Fields** | Data layers used by modules. Stored in `fields.userFields`; can be associated with envs (World Config “Field” dropdown) and sessions. |
+| **Injections** | External stimuli at specific coordinates. Stored in `injections`; assigned per env/field in session config. |
+| **Sessions** | Working context: which envs, modules, and fields are linked, plus injection mappings. State in `sessions` slice. |
+| **Conversation** | Terminal context: `conversation.models` is an array of `env_id`s “in conversation” (e.g. for visualization or scoping). |
+
+See **[redux_ds.md](redux_ds.md)** for full Redux structures.
+
+---
 
 ## ✨ Features
 
 ### Interactive Terminal
-- **AI-Powered**: Chat with the system ("Create a new env", "Link module X to session Y").
-- **Hybrid Control**: Switch seamlessly between natural language and structured commands.
-- **Real-time Feedback**: See system logs, errors, and confirmations instantly.
+- **AI-powered**: Natural language to create envs, link modules, run simulations.
+- **Hybrid**: Mix free-form chat and structured commands.
+- **Live feedback**: Logs and WebSocket events shown in the terminal.
 
 ### Visual Builders
-- **Node Cfg Slider**: Fine-tune the properties of individual nodes within core.
-- **Module Designer**: Upload, edit, and manage your Python simulation code.
-- **Energy Injection Designer**: Draw patterns of energy injection on a canvas and apply them to core.
+- **World Config (Env Cfg)**: Create/update envs; choose a **Field** from user fields; send `SET_ENV` with `data.env` and optional `data.field`.
+- **Session Config**: Link envs, modules, and injections to the active session; hierarchical config (env → module → field → injection).
+- **Module Designer**: Upload and edit Python module code.
+- **Field Designer**: Manage user fields.
+- **Energy / Injection Designer**: Define injection patterns and apply to envs.
 
-### 3D/4D Visualization
-- **Live View**: Watch the state of your Fields evolve in real-time.
-- **Oscilloscope View**: Retro n-D waveform display—module params as rolling phosphor-style traces (green/amber grid, multi-channel) when the simulation is running.
-- **Cluster Viz**: Inspect the topology of your simulation cluster.
+### Visualization
+- **Live View**: Field state over time per env.
+- **Oscilloscope View**: Retro n-D style traces for module params.
+- **Cluster Viz**: Topology of the simulation cluster.
+- **Env list**: User envs with status; “Add to Conversation” adds `env_id` to `conversation.models` (e.g. in World Cfg model tab).
+
+---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     Frontend (React)                    │
-│   [Terminal]  [3D Canvas]  [Designers]  [Dashboard]     │
-├─────────────────────────────────────────────────────────┤
-│                  WebSocket Gateway                      │
-├─────────────────────────────────────────────────────────┤
-│                   core Engine (Python)              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │
-│  │  Graph      │  │  Module     │  │  Injection  │      │
-│  │  Manager    │  │  Executor   │  │  Controller │      │
-│  └─────────────┘  └─────────────┘  └─────────────┘      │
-├─────────────────────────────────────────────────────────┤
-│                    Data Storage (BigQuery/Firebase)     │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   Frontend (React + Redux)                   │
+│  [Terminal]  [World Cfg]  [Session Config]  [Designers]      │
+│  Redux: sessions | envs | modules | fields | injections |    │
+│         conversation (models = env_ids) | websocket          │
+├───────────────────────────────────────────────────────────────┤
+│                    WebSocket (bestbrain.tech / localhost)     │
+├───────────────────────────────────────────────────────────────┤
+│                   Simulation Engine (Python)                  │
+│  Graph | Module Executor | Injection Controller              │
+├───────────────────────────────────────────────────────────────┤
+│                   Data (Firebase / backend)                  │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+- **Env list responses** (`GET_USERS_ENVS`, `LIST_USERS_ENVS`, `LIST_ENVS`): Envs are stored with `field_id` preserved; Redux `envs.userEnvs` and World Cfg use it.
+- **SET_ENV**: Payload includes `data.env` and optional `data.field` (selected user field id).
+
+---
+
+## 📌 To-Do
+
+- **Agent capabilities**: Extend terminal agent (e.g. intent handling, tool use).
+- **User self-handling of API key**: Let users set/store Gemini API key in the app (e.g. settings or prompt).
+- **Connect to "QBrain" project**: Integration with QBrain backend or services.
+- **Visualization in-screen**: Choose module params by type and map them to visualization techniques; use matplotlib; support retro n-D views.
+- **Visualization — Add model Button**
+  - **Scope**: Within each **user env item** in the env list (each env card in World Cfg left column), add a switch that adds that env’s `env_id` to the Redux **conversation “models”** list (i.e. `conversation.models`).
+  - **Data**: `conversation.models` is the terminal-facing list of env IDs “in conversation”; it drives which envs are considered for live input / visualization context.
+  - **Terminal behavior**: The terminal captures **live input** from the user and **clears the input on each submit**. The workflow should be:
+    1. User toggles “Add model” on an env item → dispatch `addModelEnv(env_id)` so that `env_id` is in `state.conversation.models`.
+    2. On submit, the terminal sends the current message (and optionally the current `conversation.models` as context) to the backend/Gemini.
+    3. After submit, the **input field is cleared** (existing behavior); `conversation.models` can either stay as-is for the next turn or be cleared per product choice (e.g. clear on submit or keep until user removes envs).
+  - **Workflow to implement**: (1) Add a per-env-item switch in the env list (World Cfg) that toggles `env_id` in `conversation.models`. (2) Ensure terminal submit clears the input and, if desired, pass `conversation.models` in the request. (3) Document or add a clear rule for when `conversation.models` is reset (e.g. on submit vs. manual only).
+
+---
 
 ## 🚀 Installation
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
-- Python (v3.10 or higher for the backend engine)
-- Firebase Account (for auth/data persistence)
+- Node.js (v14+)
+- Python (v3.10+) for the backend engine
+- Firebase (for auth/persistence)
 
 ### Quick Start
 
-1. **Clone the repository**
+1. **Clone**
    ```bash
    git clone https://github.com/wired87/qdash.git
    cd qdash
    ```
 
-2. **Install frontend dependencies**
+2. **Install**
    ```bash
    npm install
    ```
 
-3. **Configure Environment**
+3. **Configure**
    - Copy `.env.example` to `.env`
-   - Add your `CLIENT_KEY_GEMINI_API_KEY`
-   - Configure Firebase credentials if running against a custom instance.
+   - Set `CLIENT_KEY_GEMINI_API_KEY`
+   - Configure Firebase if using a custom project
 
-4. **Start the Development Server**
+4. **Run**
    ```bash
    npm start
    ```
-   *Note: Ensure the backend engine is running separately on port 8000 (ws://127.0.0.1:8000/run).*
+   Backend expected at `ws://127.0.0.1:8000/run` (or production WebSocket URL).
+
+---
 
 ## 💻 Usage
 
-### 1. Initialize an Environment
-Open the **Env Cfg** or type:
-> "Create a 10x10 Grid for heat simulation"
+1. **Create an env**: Open **Env Cfg** (World Config), set dimensions/options, pick a Field, confirm. Or ask in terminal: *“Create a 10×10 grid for heat simulation.”*
+2. **Define logic**: Use **Module Designer** to add Python modules (e.g. `HeatModule` with `diffuse`).
+3. **Link & run**: In **Session Config**, link envs and modules to the session. In terminal: *“Link HeatModule to current session”* then *“Start simulation.”*
+4. **Inject**: Use the Injection designer or Session Config to assign injections to env/field/positions.
 
-### 2. Define Logic
-Use the **Module Designer** to upload a Python script.
-> Class `HeatModule` with process method `diffuse`.
-
-### 3. Link & Run
-Connect your Module to the active Session.
-> "Link HeatModule to current session"
-> "Start simulation"
-
-### 4. Inject
-Use the **Injection ⚡** tool to add heat sources to core and watch it spread.
+---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please follow standard fork-and-pull-request workflows.
+Contributions are welcome. Use the usual fork-and-pull-request workflow.
+
+---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ---
 
 <p align="center">
   Made with ❤️ by the QDash Team
 </p>
-

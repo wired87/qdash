@@ -125,7 +125,7 @@ const _useWebSocket = (
       if (addConsoleMessage) {
         addConsoleMessage(`❌ Failed to save world config: ${message.error || 'Unknown error'}`, 'system');
       }
-    } else if (message.type === "ENV_LIST" || message.type === "GET_ENV_RESPONSE" || message.type === "GET_ENV" || message.type === "GET_USERS_ENVS" || message.type === "LIST_ENVS") {
+    } else if (message.type === "ENV_LIST" || message.type === "GET_ENV_RESPONSE" || message.type === "GET_ENV" || message.type === "GET_USERS_ENVS" || message.type === "LIST_USERS_ENVS" || message.type === "LIST_ENVS") {
       // Handle environment list response
       // Check for message.data.envs as strictly requested
       const envsList = message.data?.envs || message.data?.environments || message.environments || [];
@@ -143,7 +143,7 @@ const _useWebSocket = (
 
       if (Array.isArray(envsList)) {
         envsList.forEach(env => {
-          // Schema: { id, sim_time, amount_of_nodes, dims }
+          // Schema: { id, sim_time, amount_of_nodes, dims, field_id }
           const id = env.id || env.env_id || env.nid;
           if (id) {
             envsMap[id] = {
@@ -151,7 +151,7 @@ const _useWebSocket = (
               sim_time: env.sim_time,
               amount_of_nodes: env.amount_of_nodes,
               dims: env.dims,
-              // Preserve other fields just in case
+              field_id: env.field_id ?? env.field,
               status: env.status || 'default',
               nodes: env.nodes || {},
               ...env

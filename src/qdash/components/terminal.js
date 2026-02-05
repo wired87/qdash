@@ -133,10 +133,12 @@ export const TerminalConsole = ({
 
   const handleSubmit = (files) => {
     const command = inputValue.trim().toLowerCase();
-    if (!command) return;
+    const hasFiles = Array.isArray(files) && files.length > 0;
 
-    // Save user message first
-    if (saveMessage) {
+    if (!command && !hasFiles) return;
+
+    // Save user message when there is text
+    if (command && saveMessage) {
       saveMessage({
         type: 'user',
         text: inputValue,
@@ -144,7 +146,7 @@ export const TerminalConsole = ({
       });
     }
 
-    // Local command classification
+    // Local command classification (keyword match)
     for (const item of commandMap) {
       for (const keyword of item.keywords) {
         if (command.includes(keyword)) {
@@ -156,15 +158,19 @@ export const TerminalConsole = ({
               timestamp: new Date().toISOString(),
             });
           }
+          // When there are files, always transfer to backend
+          if (hasFiles) {
+            originalHandleSubmit(files);
+          }
           updateInputValue("");
           return;
         }
       }
     }
 
-    // If no local command, fallback to AI
+    // No local command (or no keyword match): always send to backend (message and/or files)
     originalHandleSubmit(files);
-    updateInputValue(""); // Also clear input here
+    updateInputValue("");
   };
 
   // Listen for external camera trigger
