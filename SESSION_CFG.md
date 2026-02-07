@@ -75,7 +75,8 @@ When a simulation is started via `START_SIM`, the following payload is sent to t
             "fields": {
               "wave_function": {
                 "injections": {
-                  "[2,2,2]": "inj_wave_packet"
+                  "[2,2,2]": "inj_wave_packet",
+                  
                 }
               }
             }
