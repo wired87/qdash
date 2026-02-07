@@ -3,7 +3,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Button, Chip, Tooltip, Spinner, Switch } from "@heroui/react";
 import { X, PlayCircle, Plus, Minus, Server, Box, Database, Zap, Layers, FolderGit2, Globe, ZapOff, Loader2 } from "lucide-react";
 import { USER_ID_KEY, getSessionId } from "../auth";
-import SessionClusterPreview from './SessionClusterPreview';
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 
 
@@ -166,8 +165,22 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     // Live Workspace State
     const [highlightedPos, setHighlightedPos] = useState([0, 0, 0]);
+    const [selectedPosKeys, setSelectedPosKeys] = useState([]); // multi-select: array of posKey strings for "Assign to selected"
     const [isCenterMode, setIsCenterMode] = useState(false);
+    const [injectEntireField, setInjectEntireField] = useState(false); // assign injection to all nodes in env
     const [itemLoading, setItemLoading] = useState(false);
+    const [isDrawing, setIsDrawing] = useState(false); // mouse-drag drawing on grids
+    const [drawMode, setDrawMode] = useState(null); // 'assign' | 'unassign' | null
+
+    const selectedPosKeysSet = useMemo(() => new Set(selectedPosKeys), [selectedPosKeys]);
+    const togglePositionSelection = useCallback((posKey) => {
+        setSelectedPosKeys(prev => {
+            const set = new Set(prev);
+            if (set.has(posKey)) set.delete(posKey);
+            else set.add(posKey);
+            return Array.from(set);
+        });
+    }, []);
 
     // Memoized selected item (Env or Module)
     const selectedItem = useMemo(() => {
@@ -197,7 +210,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     // Config State for Deep Nested Structure
     const [envEnableSM, setEnvEnableSM] = useState({}); // Track enable_sm per environment
-    const [clusterKey, setClusterKey] = useState(0); // Key to force remount of ClusterPreview
+    const [clusterKey, setClusterKey] = useState(0); // Key to force visual refresh in live editor
 
     // Valid Session ID to use (either active selection or current)
     const targetSessionId = activeSession?.id || currentSessionId;
@@ -510,7 +523,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         setClusterKey(prev => prev + 1);
     };
 
-    // Called when user clicks a node in 3D view or assignment button
+    // Called when user clicks a node in 3D view or assignment button (single pos or entire field)
     const handleNodeAssignment = (pos) => {
         if (!activeEnv) {
             alert("Please select an Environment first.");
@@ -522,21 +535,80 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         }
 
         const envId = activeEnv.id;
-        const posKey = JSON.stringify(pos);
+        const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
 
-        // Check if currently assigned
+        if (injectEntireField) {
+            // Assign or unassign entire field (all nodes)
+            const injId = selectedInjection.id;
+            const fieldInjs = sessionConfigData?.[envId]?.injections?.[selectedField] || {};
+
+            if (Object.values(fieldInjs).includes(injId)) {
+                // Unassign from all positions that have this injection
+                Object.entries(fieldInjs).forEach(([posKey, assignedId]) => {
+                    if (assignedId === injId) {
+                        dispatch(unassignInjection({
+                            sessionId: targetSessionId,
+                            envId,
+                            posKey,
+                            fieldId: selectedField
+                        }));
+                    }
+                });
+            } else {
+                // Assign to every node: generate all positions and assign
+                const gen = (axis) => {
+                    if (axis === dims.length) return [[]];
+                    const rest = gen(axis + 1);
+                    return Array.from({ length: dims[axis] }, (_, i) => rest.map(r => [i, ...r])).flat();
+                };
+                const allPositions = gen(0);
+                allPositions.forEach(p => {
+                    dispatch(assignInjection({
+                        sessionId: targetSessionId,
+                        envId,
+                        posKey: JSON.stringify(p),
+                        injectionId: injId,
+                        fieldId: selectedField
+                    }));
+                });
+            }
+        } else {
+            const posKey = JSON.stringify(pos);
+            const currentInjection = sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey];
+
+            if (currentInjection === selectedInjection.id) {
+                dispatch(unassignInjection({
+                    sessionId: targetSessionId,
+                    envId,
+                    posKey,
+                    fieldId: selectedField
+                }));
+            } else {
+                dispatch(assignInjection({
+                    sessionId: targetSessionId,
+                    envId,
+                    posKey,
+                    injectionId: selectedInjection.id,
+                    fieldId: selectedField
+                }));
+            }
+        }
+
+        setClusterKey(prev => prev + 1);
+    };
+
+    // Helper used by grid cells to apply assignment/unassignment without dialogs
+    const applyInjectionAtPos = useCallback((pos, mode) => {
+        if (!activeEnv || !selectedInjection) return;
+
+        const envId = activeEnv.id;
+        const posKey = JSON.stringify(pos);
         const currentInjection = sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey];
 
-        if (currentInjection === selectedInjection.id) {
-            // Unassign
-            dispatch(unassignInjection({
-                sessionId: targetSessionId,
-                envId,
-                posKey,
-                fieldId: selectedField
-            }));
-        } else {
-            // Assign
+        const effectiveMode = mode || (currentInjection === selectedInjection.id ? 'unassign' : 'assign');
+
+        if (effectiveMode === 'assign') {
+            if (currentInjection === selectedInjection.id) return;
             dispatch(assignInjection({
                 sessionId: targetSessionId,
                 envId,
@@ -544,15 +616,44 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                 injectionId: selectedInjection.id,
                 fieldId: selectedField
             }));
-
-            // Close the live preview after assignment as requested
-            setSelectedInjection(null);
-            setDetailItem(null);
+        } else if (effectiveMode === 'unassign') {
+            if (currentInjection !== selectedInjection.id) return;
+            dispatch(unassignInjection({
+                sessionId: targetSessionId,
+                envId,
+                posKey,
+                fieldId: selectedField
+            }));
         }
 
-        // Force remount of the 3D view
         setClusterKey(prev => prev + 1);
-    };
+    }, [activeEnv, selectedInjection, sessionConfigData, selectedField, dispatch, targetSessionId]);
+
+    // Assign or unassign current injection to/from all positions in selectedPosKeys
+    const handleAssignToSelected = useCallback((mode) => {
+        if (!activeEnv || !selectedInjection || selectedPosKeys.length === 0) return;
+        const envId = activeEnv.id;
+        selectedPosKeys.forEach(posKey => {
+            if (mode === 'assign') {
+                dispatch(assignInjection({
+                    sessionId: targetSessionId,
+                    envId,
+                    posKey,
+                    injectionId: selectedInjection.id,
+                    fieldId: selectedField
+                }));
+            } else {
+                dispatch(unassignInjection({
+                    sessionId: targetSessionId,
+                    envId,
+                    posKey,
+                    fieldId: selectedField
+                }));
+            }
+        });
+        setSelectedPosKeys([]);
+        setClusterKey(prev => prev + 1);
+    }, [activeEnv, selectedInjection, selectedPosKeys, selectedField, dispatch, targetSessionId]);
 
     const handleStartSim = () => {
         if (!activeSession) return;
@@ -657,8 +758,8 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                     {activeSession ? (
                         <div className="flex-1 flex flex-col bg-slate-50 dark:bg-black/20">
 
-                            {/* Top Pane: 3 Columns */}
-                            <div className="h-1/2 flex border-b border-slate-200 dark:border-slate-800">
+                            {/* Top Pane: 3 Columns (slightly reduced to give more space to Injection CFG view) */}
+                            <div className="h-[45%] flex border-b border-slate-200 dark:border-slate-800">
 
                                 {/* Column 1: Environments */}
                                 <div className="flex-1 basis-0 flex flex-col border-r border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -798,7 +899,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                 </div>
                             </div>
 
-                            {/* Bottom Pane: Live View */}
+                            {/* Bottom Pane: Injection Configuration & Live View (extended height) */}
                             <div className="flex-1 bg-slate-100 dark:bg-slate-900 p-4 overflow-hidden flex flex-col">
                                 <div className="text-xs font-bold text-slate-500 uppercase mb-2 flex justify-between">
                                     <span>Live Workspace</span>
@@ -809,23 +910,34 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                     <div className="w-1/2 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
                                         {selectedInjection && detailItem && activeEnv ? (
                                             <div className="flex flex-col h-full">
-                                                <div className="p-2 border-b text-[10px] font-bold text-slate-400 uppercase bg-slate-50 flex justify-between items-center">
+                                                <div className="p-2 border-b text-[10px] font-bold text-slate-400 uppercase bg-slate-50 flex justify-between items-center gap-2 flex-wrap">
                                                     <span>Target Position</span>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] text-slate-500">Center</span>
-                                                        <Switch
-                                                            size="sm"
-                                                            isSelected={isCenterMode}
-                                                            onValueChange={(isSelected) => {
-                                                                setIsCenterMode(isSelected);
-                                                                if (isSelected && activeEnv.dims) {
-                                                                    const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
-                                                                    const center = dims.map(d => Math.floor(d / 2));
-                                                                    setHighlightedPos(center);
-                                                                    setClusterKey(prev => prev + 1);
-                                                                }
-                                                            }}
-                                                        />
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[10px] text-slate-500">Entire field</span>
+                                                            <Switch
+                                                                size="sm"
+                                                                isSelected={injectEntireField}
+                                                                onValueChange={setInjectEntireField}
+                                                                classNames={{ wrapper: 'group-data-[selected=true]:bg-amber-500' }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[10px] text-slate-500">Center</span>
+                                                            <Switch
+                                                                size="sm"
+                                                                isSelected={isCenterMode}
+                                                                onValueChange={(isSelected) => {
+                                                                    setIsCenterMode(isSelected);
+                                                                    if (isSelected && activeEnv.dims) {
+                                                                        const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
+                                                                        const center = dims.map(d => Math.floor(d / 2));
+                                                                        setHighlightedPos(center);
+                                                                        setClusterKey(prev => prev + 1);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
@@ -871,17 +983,38 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                         ));
                                                     })()}
 
+                                                    {/* Multi-select: assign to many positions at once */}
+                                                    {selectedPosKeys.length > 0 && (
+                                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded text-xs">
+                                                            <p className="font-bold mb-2 text-amber-800">Selected ({selectedPosKeys.length}) positions</p>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                <Button size="sm" color="primary" className="min-w-0" onPress={() => handleAssignToSelected('assign')}>
+                                                                    Assign to selected
+                                                                </Button>
+                                                                <Button size="sm" color="danger" variant="flat" className="min-w-0" onPress={() => handleAssignToSelected('unassign')}>
+                                                                    Unassign from selected
+                                                                </Button>
+                                                                <Button size="sm" variant="flat" className="min-w-0" onPress={() => setSelectedPosKeys([])}>
+                                                                    Clear selection
+                                                                </Button>
+                                                            </div>
+                                                            <p className="text-[10px] text-amber-600 mt-1">Ctrl+click / Cmd+click cells in the grid to add or remove from selection.</p>
+                                                        </div>
+                                                    )}
+
                                                     <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded text-xs text-blue-700">
                                                         <p className="font-bold mb-2">Target: [{highlightedPos ? highlightedPos.join(', ') : '?'}]</p>
                                                         <Button
                                                             size="sm"
                                                             color={(() => {
+                                                                if (injectEntireField) return "warning";
                                                                 const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
                                                                 const posKey = JSON.stringify(highlightedPos);
                                                                 return sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey] ? "danger" : "primary";
                                                             })()}
                                                             className="w-full font-bold shadow-sm"
                                                             startContent={(() => {
+                                                                if (injectEntireField) return null;
                                                                 const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
                                                                 const posKey = JSON.stringify(highlightedPos);
                                                                 return sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey] ? <Minus size={16} /> : <Plus size={16} />;
@@ -889,12 +1022,69 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                             onPress={() => handleNodeAssignment(highlightedPos)}
                                                         >
                                                             {(() => {
+                                                                if (injectEntireField) {
+                                                                    const envId = activeEnv?.id;
+                                                                    const fieldInjs = sessionConfigData?.[envId]?.injections?.[selectedField] || {};
+                                                                    const hasAny = Object.values(fieldInjs).includes(selectedInjection?.id);
+                                                                    return hasAny ? "Unassign from all nodes" : "Assign to all nodes";
+                                                                }
                                                                 const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
                                                                 const posKey = JSON.stringify(highlightedPos);
                                                                 return sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey] ? "Unassign Injection" : "Assign Injection";
                                                             })()}
                                                         </Button>
                                                     </div>
+
+                                                    {/* Data points: all positions where this injection is assigned for this field */}
+                                                    {(() => {
+                                                        const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
+                                                        const fieldInjs = sessionConfigData?.[envId]?.injections?.[selectedField] || {};
+                                                        const pointsForThisInjection = Object.entries(fieldInjs)
+                                                            .filter(([, id]) => id === selectedInjection?.id)
+                                                            .map(([posKey]) => {
+                                                                try {
+                                                                    const p = JSON.parse(posKey);
+                                                                    return { posKey, label: Array.isArray(p) ? p.join(', ') : posKey };
+                                                                } catch (e) {
+                                                                    return { posKey, label: posKey };
+                                                                }
+                                                            });
+                                                        return (
+                                                            <div className="mt-4 flex flex-col gap-1">
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                                                    Data points ({pointsForThisInjection.length})
+                                                                </label>
+                                                                <div className="max-h-32 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-1 space-y-0.5">
+                                                                    {pointsForThisInjection.length === 0 && (
+                                                                        <p className="text-[10px] text-slate-400 italic px-2 py-1">No positions assigned</p>
+                                                                    )}
+                                                                    {pointsForThisInjection.map(({ posKey, label }) => (
+                                                                        <div key={posKey} className="flex items-center justify-between gap-2 text-[10px] bg-white rounded px-2 py-1 border border-slate-100">
+                                                                            <span className="font-mono truncate">[{label}]</span>
+                                                                            <Button
+                                                                                isIconOnly
+                                                                                size="sm"
+                                                                                variant="light"
+                                                                                color="danger"
+                                                                                className="min-w-6 w-6 h-6"
+                                                                                onPress={() => {
+                                                                                    dispatch(unassignInjection({
+                                                                                        sessionId: targetSessionId,
+                                                                                        envId,
+                                                                                        posKey,
+                                                                                        fieldId: selectedField
+                                                                                    }));
+                                                                                    setClusterKey(prev => prev + 1);
+                                                                                }}
+                                                                            >
+                                                                                <Minus size={12} />
+                                                                            </Button>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         ) : (
@@ -904,22 +1094,320 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                         )}
                                     </div>
 
-                                    {/* RIGHT SIDE */}
-                                    <div className="w-1/2 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden relative">
+                                    {/* RIGHT SIDE: Dimension Grids (2D + 1D) with drawing support */}
+                                    <div
+                                        className="w-1/2 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden relative"
+                                        onMouseLeave={() => {
+                                            setIsDrawing(false);
+                                            setDrawMode(null);
+                                        }}
+                                        onMouseUp={() => {
+                                            setIsDrawing(false);
+                                            setDrawMode(null);
+                                        }}
+                                    >
                                         {selectedInjection && detailItem && activeEnv ? (
-                                            <SessionClusterPreview
-                                                key={clusterKey}
-                                                injection={detailItem}
-                                                onNodeClick={handleNodeAssignment}
-                                                dims={Array.isArray(activeEnv?.dims) ? activeEnv.dims : [8, 8, 8]}
-                                                highlightedPos={highlightedPos}
-                                                assignedConfig={
-                                                    (() => {
+                                            <div className="flex flex-col h-full">
+                                                <div className="p-2 border-b text-[10px] font-bold text-slate-400 uppercase bg-slate-50 flex justify-between items-center gap-2 flex-wrap">
+                                                    <span>Dimension Grids</span>
+                                                    <span className="text-[10px] text-slate-500 font-normal normal-case">
+                                                        Env: {activeEnv.id} · Field: {selectedField} · Draw: drag · Multi: Ctrl+click cells
+                                                    </span>
+                                                </div>
+                                                <div className="flex-1 overflow-auto p-3 sm:p-4">
+                                                    {(() => {
+                                                        const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
+                                                        const dimLabels = ['X', 'Y', 'Z', 'W', 'V', 'U'];
                                                         const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
-                                                        return sessionConfigData?.[envId]?.injections?.[selectedField] || {};
-                                                    })()
-                                                }
-                                            />
+                                                        const assignedMap = sessionConfigData?.[envId]?.injections?.[selectedField] || {};
+
+                                                        // Ensure we always have a position array of correct length (return copy to avoid mutating state during render)
+                                                        const safePos = (basePos) => {
+                                                            if (Array.isArray(basePos) && basePos.length === dims.length) return [...basePos];
+                                                            return dims.map(() => 0);
+                                                        };
+
+                                                        const currentPos = safePos(highlightedPos);
+
+                                                        // Decide if we can show a 2D grid for first two dimensions ("smooth" sizes)
+                                                        const has2DPlane = dims.length >= 2 && dims[0] > 1 && dims[1] > 1 && dims[0] <= 32 && dims[1] <= 32;
+
+                                                        const rows = [];
+
+                                                        if (has2DPlane) {
+                                                            const maxX = dims[0];
+                                                            const maxY = dims[1];
+
+                                                            const fillPlaneXY = () => {
+                                                                for (let yIdx = 0; yIdx < maxY; yIdx++) {
+                                                                    for (let xIdx = 0; xIdx < maxX; xIdx++) {
+                                                                        const pos = safePos(currentPos);
+                                                                        pos[0] = xIdx;
+                                                                        pos[1] = yIdx;
+                                                                        applyInjectionAtPos(pos, 'assign');
+                                                                    }
+                                                                }
+                                                            };
+
+                                                            rows.push(
+                                                                <div key="plane-xy" className="flex flex-col gap-1">
+                                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                                                            Plane {dimLabels[0]}/{dimLabels[1]}
+                                                                        </span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-[10px] text-slate-400">
+                                                                                X: {currentPos[0]} · Y: {currentPos[1]}
+                                                                            </span>
+                                                                            <Button size="sm" variant="flat" color="primary" className="min-w-0 px-2 text-[10px]" onPress={fillPlaneXY}>
+                                                                                Fill plane
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="inline-flex flex-col gap-1 border border-slate-200 rounded-lg p-1 bg-slate-50/60">
+                                                                        {Array.from({ length: maxY }).map((_, yIdx) => (
+                                                                            <div key={yIdx} className="flex gap-1">
+                                                                                {Array.from({ length: maxX }).map((_, xIdx) => {
+                                                                                    const posForCell = safePos(currentPos);
+                                                                                    posForCell[0] = xIdx;
+                                                                                    posForCell[1] = yIdx;
+                                                                                    const posKey = JSON.stringify(posForCell);
+                                                                                    const isActive = currentPos[0] === xIdx && currentPos[1] === yIdx;
+                                                                                    const isAssignedHere = !!assignedMap[posKey];
+                                                                                    const isSelected = selectedPosKeysSet.has(posKey);
+
+                                                                                    return (
+                                                                                <button
+                                                                                            key={xIdx}
+                                                                                    type="button"
+                                                                                    onMouseDown={(e) => {
+                                                                                        if (e.ctrlKey || e.metaKey) {
+                                                                                            e.preventDefault();
+                                                                                            togglePositionSelection(posKey);
+                                                                                            return;
+                                                                                        }
+                                                                                        const mode = isAssignedHere ? 'unassign' : 'assign';
+                                                                                        setIsDrawing(true);
+                                                                                        setDrawMode(mode);
+                                                                                        setHighlightedPos(posForCell);
+                                                                                        applyInjectionAtPos(posForCell, mode);
+                                                                                    }}
+                                                                                    onMouseEnter={() => {
+                                                                                        if (!isDrawing || !drawMode) return;
+                                                                                        setHighlightedPos(posForCell);
+                                                                                        applyInjectionAtPos(posForCell, drawMode);
+                                                                                    }}
+                                                                                            className={`w-5 h-5 sm:w-6 sm:h-6 text-[9px] rounded-[4px] border flex items-center justify-center transition-colors
+                                                                                                ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1 ' : ''}
+                                                                                                ${isAssignedHere
+                                                                                                    ? 'bg-emerald-500 text-white border-emerald-600'
+                                                                                                    : isActive
+                                                                                                        ? 'bg-blue-500 text-white border-blue-600'
+                                                                                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                                                                                                }`}
+                                                                                        >
+                                                                                            {xIdx}
+                                                                                        </button>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        const startIndex = has2DPlane ? 2 : 0;
+
+                                                        for (let dimIndex = startIndex; dimIndex < dims.length; dimIndex++) {
+                                                            const maxDim = dims[dimIndex];
+
+                                                            const fillDimension = () => {
+                                                                for (let idx = 0; idx < maxDim; idx++) {
+                                                                    const pos = safePos(currentPos);
+                                                                    pos[dimIndex] = idx;
+                                                                    applyInjectionAtPos(pos, 'assign');
+                                                                }
+                                                            };
+
+                                                            rows.push(
+                                                                <div key={dimIndex} className="flex flex-col gap-1">
+                                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                                        <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                                                            Dimension {dimLabels[dimIndex] || dimIndex}
+                                                                        </span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-[10px] text-slate-400">
+                                                                                Index: {currentPos[dimIndex]}
+                                                                            </span>
+                                                                            <Button size="sm" variant="flat" color="primary" className="min-w-0 px-2 text-[10px]" onPress={fillDimension}>
+                                                                                Fill dim
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {Array.from({ length: maxDim }).map((_, idx) => {
+                                                                            const posForCell = safePos(currentPos);
+                                                                            posForCell[dimIndex] = idx;
+                                                                            const posKey = JSON.stringify(posForCell);
+                                                                            const isActive = currentPos[dimIndex] === idx;
+                                                                            const isAssignedHere = !!assignedMap[posKey];
+                                                                            const isSelected = selectedPosKeysSet.has(posKey);
+
+                                                                            return (
+                                                                                <button
+                                                                                    key={idx}
+                                                                                    type="button"
+                                                                                    onMouseDown={(e) => {
+                                                                                        if (e.ctrlKey || e.metaKey) {
+                                                                                            e.preventDefault();
+                                                                                            togglePositionSelection(posKey);
+                                                                                            return;
+                                                                                        }
+                                                                                        const mode = isAssignedHere ? 'unassign' : 'assign';
+                                                                                        setIsDrawing(true);
+                                                                                        setDrawMode(mode);
+                                                                                        setHighlightedPos(posForCell);
+                                                                                        applyInjectionAtPos(posForCell, mode);
+                                                                                    }}
+                                                                                    onMouseEnter={() => {
+                                                                                        if (!isDrawing || !drawMode) return;
+                                                                                        setHighlightedPos(posForCell);
+                                                                                        applyInjectionAtPos(posForCell, drawMode);
+                                                                                    }}
+                                                                                    className={`w-6 h-6 sm:w-7 sm:h-7 text-[10px] rounded-md border flex items-center justify-center transition-colors
+                                                                                        ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1 ' : ''}
+                                                                                        ${isAssignedHere
+                                                                                            ? 'bg-emerald-500 text-white border-emerald-600'
+                                                                                            : isActive
+                                                                                                ? 'bg-blue-500 text-white border-blue-600'
+                                                                                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                                                                        }`}
+                                                                                >
+                                                                                    {idx}
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        // --- Overview map of all assigned injection points (n-dim collapsed to first 2 dims) ---
+                                                        let overview = null;
+                                                        const assignedKeys = Object.keys(assignedMap || {});
+
+                                                        if (assignedKeys.length > 0) {
+                                                            if (has2DPlane) {
+                                                                const maxX = dims[0];
+                                                                const maxY = dims[1];
+                                                                const counts = Array.from({ length: maxY }, () =>
+                                                                    Array.from({ length: maxX }, () => 0)
+                                                                );
+
+                                                                assignedKeys.forEach((key) => {
+                                                                    try {
+                                                                        const pos = JSON.parse(key);
+                                                                        const x = pos[0] ?? 0;
+                                                                        const y = pos[1] ?? 0;
+                                                                        if (y >= 0 && y < maxY && x >= 0 && x < maxX) {
+                                                                            counts[y][x] += 1;
+                                                                        }
+                                                                    } catch (e) {
+                                                                        // ignore parse errors
+                                                                    }
+                                                                });
+
+                                                                overview = (
+                                                                    <div className="w-40 sm:w-52 flex-shrink-0 bg-slate-900 rounded-xl border border-slate-700 p-2 flex flex-col gap-2">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-[9px] font-bold text-slate-200 uppercase">
+                                                                                Assign Map
+                                                                            </span>
+                                                                            <span className="text-[9px] text-slate-400">
+                                                                                {assignedKeys.length} pts
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex-1 flex items-center justify-center">
+                                                                            <div className="inline-flex flex-col gap-[2px]">
+                                                                                {counts.map((row, yIdx) => (
+                                                                                    <div key={yIdx} className="flex gap-[2px]">
+                                                                                        {row.map((count, xIdx) => {
+                                                                                            const intensity = Math.min(1, count / 3);
+                                                                                            const bg =
+                                                                                                count === 0
+                                                                                                    ? 'bg-slate-800'
+                                                                                                    : `bg-emerald-400`;
+                                                                                            const opacity = count === 0 ? 'opacity-30' : `opacity-${50 + Math.round(intensity * 50)}`;
+                                                                                            return (
+                                                                                                <div
+                                                                                                    key={xIdx}
+                                                                                                    className={`w-3 h-3 rounded-[2px] border border-slate-700 ${bg} ${opacity}`}
+                                                                                                />
+                                                                                            );
+                                                                                        })}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            } else {
+                                                                // 1D overview: collapse to first dimension only
+                                                                const maxX = dims[0] || 1;
+                                                                const counts = Array.from({ length: maxX }, () => 0);
+                                                                assignedKeys.forEach((key) => {
+                                                                    try {
+                                                                        const pos = JSON.parse(key);
+                                                                        const x = pos[0] ?? 0;
+                                                                        if (x >= 0 && x < maxX) counts[x] += 1;
+                                                                    } catch (e) { }
+                                                                });
+
+                                                                overview = (
+                                                                    <div className="w-40 sm:w-52 flex-shrink-0 bg-slate-900 rounded-xl border border-slate-700 p-2 flex flex-col gap-2">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-[9px] font-bold text-slate-200 uppercase">
+                                                                                Assign Map
+                                                                            </span>
+                                                                            <span className="text-[9px] text-slate-400">
+                                                                                {assignedKeys.length} pts
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex-1 flex items-center justify-center">
+                                                                            <div className="flex gap-[2px]">
+                                                                                {counts.map((count, xIdx) => {
+                                                                                    const intensity = Math.min(1, count / 3);
+                                                                                    const bg =
+                                                                                        count === 0
+                                                                                            ? 'bg-slate-800'
+                                                                                            : `bg-emerald-400`;
+                                                                                    const opacity = count === 0 ? 'opacity-30' : `opacity-${50 + Math.round(intensity * 50)}`;
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={xIdx}
+                                                                                            className={`w-3 h-3 rounded-[2px] border border-slate-700 ${bg} ${opacity}`}
+                                                                                        />
+                                                                                    );
+                                                                                })}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        }
+
+                                                        return (
+                                                            <div className="flex gap-4 h-full">
+                                                                <div className="flex-1 flex flex-col gap-3 sm:gap-4">
+                                                                    {rows}
+                                                                </div>
+                                                                {overview}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
                                         ) : (
                                             <div className="h-full overflow-hidden flex flex-col relative">
                                                 {selectedItem ? (

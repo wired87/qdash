@@ -11,17 +11,19 @@ import {setUserMethods} from "./store/slices/methodSlice";
 
 
 
-const handleDownload = (data) => {
+const handleDownload = (data, filename = "data.json") => {
+  if (data == null) return;
+
   const jsonString = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonString], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement("a");
   link.href = url;
-  link.download = "data.json"; // Dateiname
+  link.download = filename;
   link.click();
 
-  URL.revokeObjectURL(url); // Speicher freigeben
+  URL.revokeObjectURL(url);
 };
 
 const _useWebSocket = (
@@ -311,6 +313,28 @@ const _useWebSocket = (
       if (message.data) updateDataset(message.data);
     } else if (message.type === "DATA_RESPONSE") {
       handleDownload(message.data);
+    } else if (message.type === "SHOW_ENV_CFG") {
+      // Download environment configuration as JSON
+      const envId =
+        message.env_id ||
+        message.auth?.env_id ||
+        (typeof message.data === "object" ? message.data.env_id : undefined);
+
+      const payload =
+        message.data?.config ||
+        message.config ||
+        message.data ||
+        message;
+
+      const filename = envId ? `env_${envId}_cfg.json` : "env_cfg.json";
+      handleDownload(payload, filename);
+
+      if (addConsoleMessage) {
+        addConsoleMessage(
+          `⬇️ Environment config downloaded: ${envId || "env"}`,
+          "system"
+        );
+      }
     } else if (message.type === "CLUSTER_DATA") {
       if (message.data) setClusterData(message.data);
     } else if (message.type === "4D_DATA") {

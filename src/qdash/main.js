@@ -6,7 +6,7 @@ import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from
 import "../index.css";
 import WorldCfgCreator from "./components/world_cfg";
 import _useWebSocket from "./websocket";
-import { USER_ID_KEY } from "./auth";
+import { USER_ID_KEY, getSessionId } from "./auth";
 import Dashboard from "./components/dash";
 import { useFirebaseListeners } from "./firebase";
 import { getNodeColor } from "./get_color";
@@ -449,7 +449,7 @@ export const MainApp = () => {
     // We will just set it once.
     setMessages([
       {
-        text: `Welcome to core.
+        text: `Welcome to The Grid.
 
 ⚠️ ENGINE UNDER CONSTRUCTION ⚠️
 
@@ -590,7 +590,7 @@ Please tell me your email if you want to receive updates or register for early a
       });
     };
 
-    // Send files as SET_FILE request (Module from File)
+    // When files are present: send SET_FILE with data (query, files) and auth (user_id, session_id)
     if (files.length > 0) {
       const processedFiles = [];
       for (const file of files) {
@@ -615,25 +615,24 @@ Please tell me your email if you want to receive updates or register for early a
 
       if (processedFiles.length > 0) {
         const userId = localStorage.getItem(USER_ID_KEY);
-        const messageText = inputValue.trim() || null;
-        // Use input value as ID (Module Name) if provided, otherwise default to first filename (sans extension)
-        const moduleId = messageText || processedFiles[0].name.replace(/\.[^/.]+$/, "");
+        const sessionId = getSessionId();
+        const textQuery = inputValue.trim() || null;
 
         sendMessage({
           type: "SET_FILE",
           data: {
-            id: moduleId,
-            files: processedFiles,
-            message: messageText
+            query: textQuery,
+            files: processedFiles
           },
           auth: {
-            user_id: userId
+            user_id: userId,
+            session_id: sessionId
           },
           timestamp: new Date().toISOString()
         });
 
         setMessages(prev => [...prev, {
-          text: `📤 Uploading ${processedFiles.length} file(s) as module '${moduleId}'${messageText ? ` with message` : ''}...`,
+          text: `📤 Sending ${processedFiles.length} file(s)${textQuery ? ` with message` : ''}...`,
           type: 'system',
           timestamp: new Date().toISOString()
         }]);

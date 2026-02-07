@@ -328,8 +328,26 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
               <div className="h-[80%] flex flex-row border-b border-slate-200 dark:border-slate-800">
                 {/* Left 30% of Right Side: Config Inputs */}
                 <div className="w-[30%] flex flex-col border-r border-slate-200 dark:border-slate-800 overflow-y-auto p-4 bg-slate-50/20">
-                  <div className={`mb-4 px-3 py-2 rounded-lg border text-center font-bold text-sm capitalize ${getStatusColor(selectedEnvConfig.status)}`}>
+                  <div className={`mb-3 px-3 py-2 rounded-lg border text-center font-bold text-sm capitalize ${getStatusColor(selectedEnvConfig.status)}`}>
                     Status: {selectedEnvConfig.status || 'Created'}
+                  </div>
+                  <div className="mb-4 flex justify-center">
+                    <Button
+                      size="sm"
+                      color="secondary"
+                      startContent={<Download size={14} />}
+                      onPress={() => {
+                        const userId = localStorage.getItem(USER_ID_KEY);
+                        if (!sendMessage || !selectedEnvConfig?.id || !userId) return;
+                        sendMessage({
+                          type: "SHOW_ENV_CFG",
+                          auth: { env_id: selectedEnvConfig.id, user_id: userId },
+                          timestamp: new Date().toISOString()
+                        });
+                      }}
+                    >
+                      Download CFG
+                    </Button>
                   </div>
                   <ConfigAccordion
                     sendMessage={sendMessage}

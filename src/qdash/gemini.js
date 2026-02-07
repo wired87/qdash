@@ -45,7 +45,7 @@ const initializeChat = () => {
         {
           role: "user",
           parts: [{
-            text: `You are an expert assistant for core, an Advanced Simulation & Data Visualization Platform.
+            text: `You are an expert assistant for The Grid, an Advanced Simulation & Data Visualization Platform.
 Your name is 'Q'. You respond concisely and professionally.
 
 KNOWLEDGE BASE:
@@ -79,7 +79,7 @@ Use this knowledge to answer user questions about the website and its features.`
         },
         {
           role: "model",
-          parts: [{ text: "Understood. I am Q, your expert assistant for core. I have access to the knowledge base and am ready to assist you with simulations, visualization, configuration, and any questions about the platform." }],
+          parts: [{ text: "Understood. I am Q, your expert assistant for The Grid. I have access to the knowledge base and am ready to assist you with simulations, visualization, configuration, and any questions about the platform." }],
         },
       ],
       generationConfig: {
@@ -124,7 +124,7 @@ export const classifyAndRespond = async (message, onChunkReceived) => {
     }
   } catch (error) {
     console.error("Error communicating with Gemini API:", error);
-    onChunkReceived("I'm sorry, but I'm having trouble connecting to my core functions right now. Please ensure REACT_APP_CLIENT_KEY_GEMINI_API_KEY is set in your .env file.");
+    onChunkReceived("I'm sorry, but I'm having trouble connecting to The Grid services right now. Please ensure REACT_APP_CLIENT_KEY_GEMINI_API_KEY is set in your .env file.");
   }
 };
 
