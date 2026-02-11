@@ -7,7 +7,7 @@ import {
     setActiveSessionFields,
     setLoading as setSessionLoading
 } from './slices/sessionSlice';
-import { setUserEnvs, removeEnv, addEnv, setLoading as setEnvLoading } from './slices/envSlice';
+import { setUserEnvs, removeEnv, setLoading as setEnvLoading } from './slices/envSlice';
 import { setUserModules, setLoading as setModuleLoading } from './slices/moduleSlice';
 import { setLoading as setFieldLoading } from './slices/fieldSlice';
 import { setUserInjections, updateInjectionDetail, setLoading as setInjectionLoading } from './slices/injectionSlice';

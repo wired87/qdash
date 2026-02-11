@@ -223,3 +223,33 @@ export const generateSimpleResponse = async (prompt) => {
     return "⚠️ Error generating response.";
   }
 };
+
+/**
+ * Generate a concise method implementation based on a natural language description.
+ * Returns plain code (no explanations), suitable to be stored as a method equation/body.
+ */
+export const generateMethodCode = async (description) => {
+  const modelInstance = getModel();
+  const prompt = `
+You are an assistant that writes concise Python methods for a simulation engine.
+
+Given the following user request, generate a single, self-contained Python function that implements it.
+
+Requirements:
+- Use a short, generic function name \\"run\\" with signature: def run(data: dict) -> any:
+- Assume all inputs come from the \\"data\\" dict.
+- Do not include any explanations or comments, only valid Python code.
+- Keep the implementation minimal but functional.
+
+User request:
+${description}
+`;
+
+  try {
+    const result = await modelInstance.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (error) {
+    console.error("Error generating method code:", error);
+    throw error;
+  }
+};

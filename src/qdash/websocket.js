@@ -44,7 +44,7 @@ const _useWebSocket = (
   // useRef for message queue when offline
   const messageQueue = useRef([]);
   const ws = useRef(null);
-
+  const handleWebSocketMessageRef = useRef(null);
 
   const get_ws_endpoint = () => {
     const userId = localStorage.getItem(USER_ID_KEY)
@@ -607,8 +607,9 @@ const _useWebSocket = (
       // Für alle anderen unbekannten Nachrichtentypen
       console.log("Unbekannte WebSocket-Nachricht:", message);
     }
-  }
-  // Tom
+  };
+  handleWebSocketMessageRef.current = handleWebSocketMessage;
+
   // Reconnection refs
   const reconnectTimeout = useRef(null);
   const isMounted = useRef(true);
@@ -654,7 +655,7 @@ const _useWebSocket = (
       try {
         const receivedMessage = JSON.parse(event.data);
         window.dispatchEvent(new CustomEvent('qdash-ws-message', { detail: receivedMessage }));
-        handleWebSocketMessage(receivedMessage);
+        if (handleWebSocketMessageRef.current) handleWebSocketMessageRef.current(receivedMessage);
       } catch (e) {
         console.log("Fehler beim Parsen der WebSocket-Nachricht:", e);
       }
@@ -684,6 +685,7 @@ const _useWebSocket = (
       }
     };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handler kept in ref to avoid reconnect loops
   }, []);
 
   useEffect(() => {

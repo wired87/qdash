@@ -2,6 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
     userEnvs: [],
+    selectedEnvId: null, // global selected env for engine, injections, etc.
     loading: false,
     error: null,
     logs: {}, // env_id -> list of log objects
@@ -27,6 +28,12 @@ const envSlice = createSlice({
         },
         removeEnv: (state, action) => {
             state.userEnvs = state.userEnvs.filter(e => e.id !== action.payload);
+            if (state.selectedEnvId === action.payload) {
+                state.selectedEnvId = null;
+            }
+        },
+        setSelectedEnv: (state, action) => {
+            state.selectedEnvId = action.payload ?? null;
         },
         setLoading: (state, action) => {
             state.loading = action.payload;
@@ -44,5 +51,13 @@ const envSlice = createSlice({
     },
 });
 
-export const { setUserEnvs, addEnv, removeEnv, setLoading, updateLogs, updateVisData } = envSlice.actions;
+export const { setUserEnvs, addEnv, removeEnv, setSelectedEnv, setLoading, updateLogs, updateVisData } = envSlice.actions;
+
+/** Selector: get full selected env object from userEnvs */
+export const selectSelectedEnv = (state) => {
+    const id = state.envs?.selectedEnvId;
+    if (!id) return null;
+    return (state.envs?.userEnvs || []).find((e) => e.id === id) ?? null;
+};
+
 export default envSlice.reducer;

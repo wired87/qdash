@@ -201,6 +201,8 @@ export const trackResourceUsage = async (firebaseDb, userId, resourceType, amoun
             case 'injections':
                 updates['resources.total_injections'] = (userData.resources?.total_injections || 0) + amount;
                 break;
+            default:
+                break;
         }
 
         await updateDoc(userRef, updates);
@@ -272,7 +274,7 @@ export const addBillingTransaction = async (firebaseDb, userId, transaction) => 
     }
 };
 
-export default {
+const firestoreUserManager = {
     createOrUpdateUser,
     updateUserPlan,
     updateUserResources,
@@ -280,3 +282,5 @@ export default {
     getUserProfile,
     addBillingTransaction,
 };
+
+export default firestoreUserManager;

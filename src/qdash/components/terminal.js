@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import Webcam from "react-webcam";
+import { useSelector } from "react-redux";
 import { useFile } from "../../hooks/useFile";
 import { Camera, X, Paperclip } from "lucide-react";
-
+import { USER_ID_KEY } from "../auth";
+import { generateMethodCode } from "../gemini";
 
 const CustomChip = ({ children, color, size, className = "", onPress }) => {
   const baseClasses = "inline-flex items-center justify-center rounded-md font-medium transition-all duration-150";
@@ -109,6 +111,8 @@ export const TerminalConsole = ({
   toggleSessionConfig,
   toggleParamConfig
 }) => {
+  const userEnvs = useSelector((state) => state.envs?.userEnvs ?? []);
+  const wsStatus = useSelector((state) => state.websocket?.status);
   const [isExpanded, setIsExpanded] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -131,6 +135,66 @@ export const TerminalConsole = ({
     { keywords: ['ncfg', 'node config'], action: toggleNcfgSlider, name: 'Node Config' },
   ];
 
+  const handleGenerateMethod = useCallback((fullInput) => {
+    if (!setMessages) return;
+
+    const raw = fullInput.trim();
+    const rest = raw.replace(/^generate_method\s*/i, "");
+    if (!rest) {
+      const ts = new Date().toISOString();
+      setMessages(prev => [...prev, {
+        type: "system",
+        text: "Usage: generate_method <methodId> <description...>",
+        timestamp: ts,
+      }]);
+      return;
+    }
+
+    const tokens = rest.split(/\s+/);
+    const methodId = tokens.shift();
+    const description = tokens.join(" ") || `Generated method ${methodId}`;
+    const ts = new Date().toISOString();
+
+    if (saveMessage) {
+      saveMessage({
+        type: "system",
+        text: `[SYSTEM] Generating method "${methodId}"`,
+        timestamp: ts,
+      });
+    }
+
+    setMessages(prev => [...prev, {
+      type: "system",
+      text: `[SYSTEM] Generating method "${methodId}"`,
+      timestamp: ts,
+    }]);
+
+    (async () => {
+      try {
+        const code = await generateMethodCode(rest);
+        const draftMsg = {
+          type: "gemini",
+          text: code,
+          timestamp: new Date().toISOString(),
+          methodDraft: {
+            id: methodId,
+            description,
+            code,
+          },
+        };
+        setMessages(prev => [...prev, draftMsg]);
+      } catch (err) {
+        const errTs = new Date().toISOString();
+        const errText = `Failed to generate method: ${err.message || String(err)}`;
+        setMessages(prev => [...prev, {
+          type: "system",
+          text: errText,
+          timestamp: errTs,
+        }]);
+      }
+    })();
+  }, [setMessages, saveMessage]);
+
   const handleSubmit = (files) => {
     const command = inputValue.trim().toLowerCase();
     const hasFiles = Array.isArray(files) && files.length > 0;
@@ -144,6 +208,13 @@ export const TerminalConsole = ({
         text: inputValue,
         timestamp: new Date().toISOString(),
       });
+    }
+
+    // Local: generate_method → AI method draft in terminal
+    if (command.startsWith("generate_method")) {
+      handleGenerateMethod(inputValue);
+      updateInputValue("");
+      return;
     }
 
     // Local command classification (keyword match)
@@ -254,6 +325,60 @@ export const TerminalConsole = ({
     }
   };
 
+  const getDirectionTag = (type) => {
+    // Simple in/out code tagging for terminal streams
+    return type === "user" ? "IN" : "OUT";
+  };
+
+  const handleDiscardMethodDraft = useCallback((idx) => {
+    if (!setMessages) return;
+    setMessages(prev => prev.filter((_, i) => i !== idx));
+  }, [setMessages]);
+
+  const handleConfirmMethodDraft = useCallback((draft, idx) => {
+    if (!sendMessage || !setMessages) return;
+    const userId = localStorage.getItem(USER_ID_KEY);
+    if (!userId) {
+      const ts = new Date().toISOString();
+      setMessages(prev => [...prev, {
+        type: "system",
+        text: "Cannot save method: missing user id.",
+        timestamp: ts,
+      }]);
+      return;
+    }
+
+    const methodId = draft.id || `method_${Date.now()}`;
+    const description = draft.description || `Generated method ${methodId}`;
+    const equation = draft.code || draft.text || "";
+
+    sendMessage({
+      type: "SET_METHOD",
+      data: {
+        id: methodId,
+        description,
+        params: [],
+        param_origins: [],
+        return_key: null,
+        equation,
+      },
+      auth: {
+        user_id: userId,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    const ts = new Date().toISOString();
+    setMessages(prev => [
+      ...prev.filter((_, i) => i !== idx),
+      {
+        type: "system",
+        text: `[SYSTEM] Method "${methodId}" saved.`,
+        timestamp: ts,
+      },
+    ]);
+  }, [sendMessage, setMessages]);
+
   return (
     <div
       className={`fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl 
@@ -329,16 +454,49 @@ export const TerminalConsole = ({
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </td>
                   <td className="p-3 align-top">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wide border
-                      ${msg.type === 'user' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                        msg.type === 'gemini' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
-                          msg.type === 'system' ? 'bg-slate-100 text-slate-600 border-slate-200' :
-                            'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                      {getMessageIcon(msg.type)} {msg.type}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wide border
+                        ${msg.type === 'user' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                          msg.type === 'gemini' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
+                            msg.type === 'system' ? 'bg-slate-100 text-slate-600 border-slate-200' :
+                              'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                        {getMessageIcon(msg.type)} {msg.type}
+                      </span>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm text-[9px] font-semibold uppercase tracking-widest border
+                        ${msg.type === 'user'
+                          ? 'border-emerald-400/60 text-emerald-500'
+                          : 'border-slate-400/70 text-slate-500'
+                        }`}>
+                        {getDirectionTag(msg.type)}
+                      </span>
+                    </div>
                   </td>
                   <td className="p-3 text-slate-700 whitespace-pre-wrap align-top leading-relaxed">
-                    {msg.text}
+                    {msg.methodDraft ? (
+                      <div className="space-y-2">
+                        <pre className="bg-slate-900 text-slate-100 text-xs p-3 rounded-md overflow-x-auto">
+                          {msg.text}
+                        </pre>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmMethodDraft(msg.methodDraft, index)}
+                            className="px-2 py-1 text-[11px] font-mono uppercase tracking-widest rounded border border-emerald-500/70 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
+                          >
+                            Save method
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDiscardMethodDraft(index)}
+                            className="px-2 py-1 text-[11px] font-mono uppercase tracking-widest rounded border border-slate-500/60 text-slate-400 bg-slate-800/30 hover:bg-slate-800/60 transition-colors"
+                          >
+                            Discard
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      msg.text
+                    )}
                   </td>
                 </tr>
               ))}
@@ -360,6 +518,26 @@ export const TerminalConsole = ({
             </CustomButton>
           ))}
         </div>
+
+        {/* Disconnected-style placeholder when no envs are present */}
+        {(!userEnvs || userEnvs.length === 0) && (
+          <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-slate-500 flex flex-col">
+            <span>
+              {wsStatus === "error"
+                ? "Connection Error"
+                : wsStatus === "disconnected"
+                ? "Disconnected"
+                : "Connecting to Q-Dash"}
+            </span>
+            <span className="text-[9px] text-slate-400">
+              {wsStatus === "error"
+                ? "Retrying..."
+                : wsStatus === "disconnected"
+                ? "Reconnecting..."
+                : "Establishing secure link..."}
+            </span>
+          </div>
+        )}
 
         {options.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">

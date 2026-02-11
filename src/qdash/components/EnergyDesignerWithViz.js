@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { X, Plus, Trash2, ZapOff } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { USER_ID_KEY } from '../auth';
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 
@@ -34,12 +34,31 @@ const ALL_SUBS = [
 // Canvas constants
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 200;
-const POINT_RADIUS = 8;
-const MAX_ENERGY = 100; // Changed to 0-100 range
+const MAX_ENERGY = 100;
+
+const WAVEFORMS = [
+    { id: 'sine', label: 'Sine' },
+    { id: 'square', label: 'Square' },
+    { id: 'saw', label: 'Saw' },
+    { id: 'triangle', label: 'Triangle' },
+];
+
+/** Generate waveform value at phase (0..1 within one cycle). Returns 0..1. */
+function waveformValue(phase, type) {
+    const p = phase % 1;
+    const x = p * 2 * Math.PI;
+    switch (type) {
+        case 'sine': return 0.5 + 0.5 * Math.sin(x);
+        case 'square': return Math.sin(x) >= 0 ? 1 : 0;
+        case 'saw': return p;
+        case 'triangle': return 0.5 + 0.5 * (2 * Math.abs(2 * p - 1) - 1); // -1..1 → 0..1
+        default: return 0.5 + 0.5 * Math.sin(x);
+    }
+}
 
 const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envData }) => {
     const { userInjections: injections } = useSelector(state => state.injections);
-    const [isLoading, setIsLoading] = useState(false); // Deprecated, using Redux data directly or could use state.injections.loading
+    const [isLoading, setIsLoading] = useState(false);
 
     const [currentInjection, setCurrentInjection] = useState(null);
     const [selectedInjId, setSelectedInjId] = useState(null);
@@ -47,15 +66,14 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
     const isConnected = useSelector(state => state.websocket.isConnected);
 
     // Get sim_time from env config (world_cfg)
-    const simTime = envData?.config?.sim_time || envData?.sim_time || 100; // Default to 100 if not found
+    const simTime = envData?.config?.sim_time || envData?.sim_time || 100;
 
-    // Canvas refs for single block
+    // Frequency controller params
+    const [frequency, setFrequency] = useState(1);
+    const [amplitude, setAmplitude] = useState(50);
+    const [waveform, setWaveform] = useState('sine');
+
     const canvasRef = useRef(null);
-    const [points, setPoints] = useState([
-        { id: 0, x: 50, y: 150 },
-        { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
-    ]);
-    const [draggingPoint, setDraggingPoint] = useState(null);
 
     // Request user injections on mount
     useEffect(() => {
@@ -111,21 +129,35 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
         return () => window.removeEventListener('message', handleMessage);
     }, [sendMessage]);
 
-    // Draw canvas
+    /** Generate [[times], [energies]] from frequency controller params */
+    const generateWaveformData = useCallback(() => {
+        const times = [];
+        const energies = [];
+        const samples = Math.min(256, Math.max(20, Math.floor(simTime / 2)));
+        for (let i = 0; i <= samples; i++) {
+            const t = i / samples;
+            const time = Math.round(t * simTime);
+            // Phase: frequency cycles over normalized time 0..1
+            const phase = t * frequency;
+            const val = waveformValue(phase, waveform);
+            const energy = Math.round(val * amplitude);
+            times.push(time);
+            energies.push(Math.max(0, Math.min(MAX_ENERGY, energy)));
+        }
+        return [times, energies];
+    }, [simTime, frequency, amplitude, waveform]);
+
+    // Draw waveform preview canvas
     useEffect(() => {
-        if (!canvasRef.current) return;
+        if (!canvasRef.current || !currentInjection) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-
-        // Clear canvas
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // Draw grid
+        // Grid
         ctx.strokeStyle = '#e5e7eb';
         ctx.lineWidth = 1;
-
-        // Vertical grid lines (time)
         for (let i = 0; i <= 10; i++) {
             const x = (i / 10) * CANVAS_WIDTH;
             ctx.beginPath();
@@ -133,8 +165,6 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
             ctx.lineTo(x, CANVAS_HEIGHT);
             ctx.stroke();
         }
-
-        // Horizontal grid lines (energy)
         for (let i = 0; i <= 10; i++) {
             const y = (i / 10) * CANVAS_HEIGHT;
             ctx.beginPath();
@@ -143,129 +173,27 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
             ctx.stroke();
         }
 
-        // Draw axes labels
         ctx.fillStyle = '#6b7280';
         ctx.font = '12px monospace';
-
-        // X-axis label (time) - show sim_time range
         ctx.fillText(`Time: 0 → ${simTime}`, 10, CANVAS_HEIGHT - 5);
-
-        // Y-axis labels (energy 0-100)
-        ctx.fillText('100', 5, 15);
-        ctx.fillText('50', 5, CANVAS_HEIGHT / 2 + 5);
+        ctx.fillText(`${amplitude}`, 5, 15);
         ctx.fillText('0', 5, CANVAS_HEIGHT - 5);
-        // Draw line connecting points
-        if (points.length > 0) {
+
+        // Draw waveform
+        const [times, energies] = generateWaveformData();
+        if (times.length > 0) {
             ctx.strokeStyle = '#3b82f6';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            points.forEach(point => ctx.lineTo(point.x, point.y));
+            ctx.moveTo(0, CANVAS_HEIGHT - (energies[0] / MAX_ENERGY) * CANVAS_HEIGHT);
+            for (let i = 1; i < times.length; i++) {
+                const x = (times[i] / simTime) * CANVAS_WIDTH;
+                const y = CANVAS_HEIGHT - (energies[i] / MAX_ENERGY) * CANVAS_HEIGHT;
+                ctx.lineTo(x, y);
+            }
             ctx.stroke();
         }
-
-        // Draw points with value labels
-        points.forEach((point, index) => {
-            // Calculate time and energy values
-            const time = Math.round((point.x / CANVAS_WIDTH) * simTime);
-            const energy = Math.round((1 - (point.y / CANVAS_HEIGHT)) * MAX_ENERGY);
-
-            // Draw point circle
-            ctx.fillStyle = '#3b82f6';
-            ctx.beginPath();
-            ctx.arc(point.x, point.y, POINT_RADIUS, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Draw value label
-            ctx.fillStyle = '#1f2937';
-            ctx.font = 'bold 11px monospace';
-            ctx.textAlign = 'center';
-
-            // Position label above or below point based on y position
-            const labelY = point.y < CANVAS_HEIGHT / 2 ? point.y + POINT_RADIUS + 20 : point.y - POINT_RADIUS - 10;
-
-            // Draw label background for better readability
-            const labelText = `T:${time} E:${energy}`;
-            const metrics = ctx.measureText(labelText);
-            const padding = 4;
-
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.fillRect(
-                point.x - metrics.width / 2 - padding,
-                labelY - 10,
-                metrics.width + padding * 2,
-                14
-            );
-
-            // Draw border around label
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(
-                point.x - metrics.width / 2 - padding,
-                labelY - 10,
-                metrics.width + padding * 2,
-                14
-            );
-
-            // Draw text
-            ctx.fillStyle = '#1f2937';
-            ctx.fillText(labelText, point.x, labelY);
-        });
-    }, [points, simTime]);
-
-    // Canvas mouse handlers
-    const handleCanvasMouseDown = (e) => {
-        const rect = canvasRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        // Check if clicking on existing point
-        const clickedPoint = points.find(p =>
-            Math.hypot(p.x - x, p.y - y) < POINT_RADIUS + 5
-        );
-
-        if (clickedPoint) {
-            setDraggingPoint(clickedPoint.id);
-        }
-    };
-
-    const handleCanvasMouseMove = (e) => {
-        if (draggingPoint === null) return;
-
-        const rect = canvasRef.current.getBoundingClientRect();
-        const x = Math.max(0, Math.min(CANVAS_WIDTH, e.clientX - rect.left));
-        const y = Math.max(0, Math.min(CANVAS_HEIGHT, e.clientY - rect.top));
-
-        setPoints(prev => prev.map(p =>
-            p.id === draggingPoint ? { ...p, x, y } : p
-        ));
-    };
-
-    const handleCanvasMouseUp = () => {
-        setDraggingPoint(null);
-    };
-
-    const addPoint = () => {
-        const lastPoint = points[points.length - 1];
-        const newX = Math.min(CANVAS_WIDTH - 50, lastPoint.x + 50);
-        // Add slight vertical variation (±20-40px) to avoid overlapping
-        const yVariation = (Math.random() - 0.5) * 60; // Random -30 to +30
-        const newY = Math.max(20, Math.min(CANVAS_HEIGHT - 20, lastPoint.y + yVariation));
-        setPoints(prev => [...prev, {
-            id: prev.length,
-            x: newX,
-            y: newY
-        }]);
-    };
-
-    const removePoint = () => {
-        if (points.length > 2) {
-            setPoints(prev => prev.slice(0, -1));
-        }
-    };
+    }, [currentInjection, simTime, frequency, amplitude, waveform, generateWaveformData]);
 
     // Create new injection
     const createNewInjection = () => {
@@ -276,11 +204,9 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
         };
         setCurrentInjection(newInj);
         setSelectedInjId(null);
-        // Reset canvas
-        setPoints([
-            { id: 0, x: 50, y: 150 },
-            { id: 1, x: CANVAS_WIDTH - 50, y: 150 },
-        ]);
+        setFrequency(1);
+        setAmplitude(50);
+        setWaveform('sine');
     };
 
     // Load injection into editor
@@ -288,17 +214,16 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
         setCurrentInjection(inj);
         setSelectedInjId(inj.id);
 
-        // Convert [[times], [energies]] to canvas points
-        const [times, energies] = inj.data;
-        if (times.length > 0 && energies.length > 0) {
-            const newPoints = times.map((time, i) => {
-                // Map time to x (0-50 range to canvas width)
-                const x = (time / 50) * CANVAS_WIDTH;
-                // Map energy to y (0-99 range to canvas height, inverted)
-                const y = CANVAS_HEIGHT - ((energies[i] / MAX_ENERGY) * CANVAS_HEIGHT);
-                return { id: i, x, y };
-            });
-            setPoints(newPoints);
+        // Prefer freq ctrl params if stored
+        if (inj.frequency != null) setFrequency(Number(inj.frequency));
+        if (inj.amplitude != null) setAmplitude(Number(inj.amplitude));
+        if (inj.waveform) setWaveform(inj.waveform);
+
+        // Infer from data if no freq params
+        const [times, energies] = inj.data || [[], []];
+        if (times.length > 0 && energies.length > 0 && inj.frequency == null) {
+            const maxE = Math.max(...energies);
+            setAmplitude(Math.max(1, Math.min(MAX_ENERGY, maxE)));
         }
     };
 
@@ -328,54 +253,31 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
     const handleConfirm = () => {
         if (!currentInjection) return;
 
-        // Generate ID if empty
         const finalId = currentInjection.id.trim() ||
             `inj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        // Extract energy values mapped to discrete time steps (0 to sim_time)
-        // X-axis: 0 to sim_time, Y-axis: 0 to 100 (energy)
-        const energyMap = {}; // Map time -> energy
-
-        points.forEach(point => {
-            // Map x position to time (0 to simTime)
-            const time = Math.round((point.x / CANVAS_WIDTH) * simTime);
-            // Map y to energy (0-100 range, inverted because canvas y increases downward)
-            const energy = Math.round((1 - (point.y / CANVAS_HEIGHT)) * MAX_ENERGY);
-
-            // Only one point per time step - last one wins if duplicates
-            energyMap[time] = Math.max(0, Math.min(MAX_ENERGY, energy));
-        });
-
-        // Create sparse time series - only include non-zero energy values
-        const times = [];
-        const energies = [];
-
-        for (let t = 0; t <= simTime; t++) {
-            const energy = energyMap[t];
-            // Only include time steps with non-zero energy
-            if (energy !== undefined && energy !== 0) {
-                times.push(t);
-                energies.push(energy);
-            }
-        }
+        const [times, energies] = generateWaveformData();
 
         const injectionData = {
             id: finalId,
             description: currentInjection.description || "",
-            data: [[...times], [...energies]], // Nested array format
+            data: [[...times], [...energies]],
+            frequency,
+            amplitude,
+            waveform,
         };
 
-        // Send to backend
         if (sendMessage) {
             const userId = localStorage.getItem(USER_ID_KEY);
             sendMessage({
-                auth: {
-                    user_id: userId
-                },
+                auth: { user_id: userId },
                 data: {
                     id: finalId,
                     description: currentInjection.description || "",
-                    data: [[...times], [...energies]], // Nested array format
+                    data: [[...times], [...energies]],
+                    frequency,
+                    amplitude,
+                    waveform,
                 },
                 type: "SET_INJ",
                 status: {
@@ -387,7 +289,6 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
             });
         }
 
-        // Call onSend callback
         if (onSend) {
             onSend(injectionData);
         }
@@ -439,10 +340,10 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
                     }}>⚡</div>
                     <div>
                         <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1f2937', margin: 0 }}>
-                            Energy Profile Designer
+                            Frequency Controller
                         </h2>
                         <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>
-                            Single-block injection configuration
+                            Control injection frequency, amplitude, and waveform
                         </p>
                     </div>
                 </div>
@@ -525,7 +426,9 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
                                                 {inj.id}
                                             </div>
                                             <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                                                {inj.data[0]?.length || 0} points
+                                                {inj.frequency != null
+                                                    ? `${inj.frequency} Hz · ${inj.amplitude ?? '?'} amp`
+                                                    : `${inj.data?.[0]?.length || 0} points`}
                                             </div>
                                         </div>
                                         <button
@@ -604,19 +507,57 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
 
 
 
-                            {/* Canvas */}
+                            {/* Frequency Controller */}
                             <div style={{ marginBottom: '1rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#374151' }}>
-                                        Energy Profile
-                                    </label>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
+                                    Frequency (Hz)
+                                </label>
+                                <input
+                                    type="number"
+                                    min={0.01}
+                                    max={100}
+                                    step={0.1}
+                                    value={frequency}
+                                    onChange={(e) => setFrequency(parseFloat(e.target.value) || 1)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '2px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                        fontSize: '0.875rem'
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
+                                    Amplitude (0–{MAX_ENERGY})
+                                </label>
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={MAX_ENERGY}
+                                    value={amplitude}
+                                    onChange={(e) => setAmplitude(Number(e.target.value))}
+                                    style={{ width: '100%', accentColor: '#3b82f6' }}
+                                />
+                                <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>{amplitude}</span>
+                            </div>
+
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem' }}>
+                                    Waveform
+                                </label>
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    {WAVEFORMS.map((w) => (
                                         <button
-                                            onClick={addPoint}
+                                            key={w.id}
+                                            type="button"
+                                            onClick={() => setWaveform(w.id)}
                                             style={{
                                                 padding: '0.5rem 1rem',
-                                                backgroundColor: '#10b981',
-                                                color: 'white',
+                                                backgroundColor: waveform === w.id ? '#3b82f6' : '#e5e7eb',
+                                                color: waveform === w.id ? 'white' : '#374151',
                                                 border: 'none',
                                                 borderRadius: '6px',
                                                 fontSize: '0.75rem',
@@ -624,38 +565,23 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
                                                 cursor: 'pointer'
                                             }}
                                         >
-                                            + Point
+                                            {w.label}
                                         </button>
-                                        <button
-                                            onClick={removePoint}
-                                            disabled={points.length <= 2}
-                                            style={{
-                                                padding: '0.5rem 1rem',
-                                                backgroundColor: points.length <= 2 ? '#d1d5db' : '#ef4444',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '6px',
-                                                fontSize: '0.75rem',
-                                                fontWeight: '600',
-                                                cursor: points.length <= 2 ? 'not-allowed' : 'pointer'
-                                            }}
-                                        >
-                                            - Point
-                                        </button>
-                                    </div>
+                                    ))}
                                 </div>
+                            </div>
+
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.5rem', display: 'block' }}>
+                                    Preview
+                                </label>
                                 <canvas
                                     ref={canvasRef}
                                     width={CANVAS_WIDTH}
                                     height={CANVAS_HEIGHT}
-                                    onMouseDown={handleCanvasMouseDown}
-                                    onMouseMove={handleCanvasMouseMove}
-                                    onMouseUp={handleCanvasMouseUp}
-                                    onMouseLeave={handleCanvasMouseUp}
                                     style={{
                                         border: '2px solid #e5e7eb',
                                         borderRadius: '8px',
-                                        cursor: draggingPoint !== null ? 'grabbing' : 'grab',
                                         display: 'block',
                                         width: '100%',
                                         maxWidth: '600px'

@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useSelector, useStore } from "react-redux";
 import { useEnvStore } from "./env_store";
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/react";
+import { selectSelectedEnv } from "./store/slices/envSlice";
 
 
 import "../index.css";
@@ -56,6 +58,7 @@ export const MainApp = () => {
   const [isFieldDesignerOpen, setIsFieldDesignerOpen] = useState(false);
   const [isSessionConfigOpen, setIsSessionConfigOpen] = useState(false);
   const [isParamConfigOpen, setIsParamConfigOpen] = useState(false);
+  const [isEnvCfgPanelOpen, setIsEnvCfgPanelOpen] = useState(false);
   const [selectedEnv, setSelectedEnv] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -344,9 +347,20 @@ export const MainApp = () => {
     toggleClusterModal();
   }, [sendMessage, toggleClusterModal]);
 
+  const store = useStore();
+  const globalSelectedEnv = useSelector(selectSelectedEnv);
+  const userEnvs = useSelector((s) => s.envs?.userEnvs ?? []);
   const toggleInjection = useCallback(() => {
-    setInjectionEnvId(prev => prev === null ? 'standalone' : null);
-  }, []);
+    setInjectionEnvId(prev => {
+      if (prev !== null) return null;
+      const id = store.getState().envs?.selectedEnvId;
+      return id || 'standalone';
+    });
+  }, [store]);
+
+  const injectionEnvData = injectionEnvId && injectionEnvId !== 'standalone'
+    ? (globalSelectedEnv?.id === injectionEnvId ? globalSelectedEnv : userEnvs.find(e => e.id === injectionEnvId))
+    : null;
 
   const handleCloseInjection = useCallback(() => {
     setInjectionEnvId(null);
@@ -724,6 +738,13 @@ Please tell me your email if you want to receive updates or register for early a
           isSimRunning={Object.values(envs).some(e => e.status === 'running')}
           isCfgOpen={isCfgSliderOpen}
           sendMessage={sendMessage}
+          isEnvCfgPanelOpen={isEnvCfgPanelOpen}
+          onOpenEnvCfg={() => setIsEnvCfgPanelOpen(true)}
+          onCloseEnvCfg={() => setIsEnvCfgPanelOpen(false)}
+          user={user}
+          userProfile={userProfile}
+          saveUserWorldConfig={saveUserWorldConfig}
+          listenToUserWorldConfig={listenToUserWorldConfig}
         >
           <LogSidebar logs={logs} isOpen={isLogSidebarOpen} onClose={toggleLogSidebar} />
           {get_dashboard()}
@@ -791,13 +812,14 @@ Please tell me your email if you want to receive updates or register for early a
         sendMessage={sendMessage}
       />
 
-      {/* Energy Designer - Bottom-to-top slider modal */}
+      {/* Energy Designer - Bottom-to-top slider modal; uses global selected env when set */}
       {injectionEnvId && (
         <EnergyDesignerWithViz
           initialData={injectionData}
           onClose={handleCloseInjection}
           onSend={handleSendInjection}
           sendMessage={sendMessage}
+          envData={injectionEnvData}
         />
       )}
     </div>

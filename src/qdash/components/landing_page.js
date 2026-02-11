@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, useInView } from 'framer-motion';
 import { Select, SelectItem } from '@heroui/react';
@@ -6,46 +6,33 @@ import { LiveView } from './LiveView';
 import { OscilloscopeView } from './OscilloscopeView';
 import { FuturisticBackground } from './FuturisticBackground';
 import { ParticleGridEngine } from './ParticleGridEngine';
+import EngineFormsSidebar from './EngineFormsSidebar';
+import EngineEnvsSidebar from './EngineEnvsSidebar';
+import EnvCfgGlassPanel from './EnvCfgGlassPanel';
+import ConfigAccordion from './accordeon';
 import { USER_ID_KEY, SESSION_ID_KEY, getSessionId } from '../auth';
 import { setActiveSession } from '../store/slices/sessionSlice';
+import { setSelectedEnv, selectSelectedEnv } from '../store/slices/envSlice';
+import { clearCurrentEnv, setSelectedGeometry, selectSelectedGeometry } from '../store/slices/appStateSlice';
+import { setLoading as setInjectionLoading } from '../store/slices/injectionSlice';
+import { X } from 'lucide-react';
+import { Button } from '@heroui/react';
 
-
-const ColorizedText = ({ text }) => {
-    // Fundamental minimalistic color stack
-    const colors = [
-        "text-fundamental-blue",
-        "text-fundamental-red",
-        "text-fundamental-yellow",
-        "text-fundamental-green",
-        "text-fundamental-orange",
-        "text-fundamental-violet"
-    ];
-
-    if (typeof text !== 'string') return text; // Fallback for JSX
-
-    return (
-        <span className="font-black drop-shadow-sm">
-            {text.split(" ").map((word, wordIndex) => {
-                // "Technical magical" logic: Sparse coloring (roughly 1 in 3), or long words
-                const isColored = (wordIndex % 3 === 0);
-
-                const colorClass = isColored
-                    ? colors[wordIndex % colors.length]
-                    : "text-slate-400"; // Muted gray for contrast
-
-                const animationClass = isColored ? "animate-pulse" : "";
-
-                return (
-                    <span key={wordIndex} className={`${colorClass} ${animationClass} inline-block mr-3`}>
-                        {word}
-                    </span>
-                );
-            })}
-        </span>
-    );
-};
-
-export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgOpen, children, sendMessage }) => {
+export const LandingPage = ({
+    liveData,
+    setTerminalVisible,
+    isSimRunning,
+    isCfgOpen,
+    children,
+    sendMessage,
+    isEnvCfgPanelOpen,
+    onOpenEnvCfg,
+    onCloseEnvCfg,
+    user,
+    userProfile,
+    saveUserWorldConfig,
+    listenToUserWorldConfig,
+}) => {
     const heroRef = useRef(null);
     const instructionsSectionRef = useRef(null); // Rename to avoid conflict with instructionsRef used for InView
     const engineRef = useRef(null);
@@ -53,16 +40,27 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
     const dispatch = useDispatch();
     const sessions = useSelector((state) => state.sessions.sessions) || [];
     const activeSession = useSelector((state) => state.sessions.activeSession);
+    const selectedEnv = useSelector(selectSelectedEnv);
+    const selectedGeometry = useSelector(selectSelectedGeometry);
+    const userInjections = useSelector((state) => state.injections.userInjections || []);
+    const injectionsLoading = useSelector((state) => state.injections.loading);
     const isInstructionsInView = useInView(instructionsSectionRef, { amount: 0.3 });
     const isEngineInView = useInView(engineRef, { amount: 0.3 });
 
-    // Request user sessions when Engine Control Center is in view (initial load)
+    // Request user sessions and user envs when Engine Control Center is in view (initial load)
     useEffect(() => {
         if (isEngineInView && sendMessage) {
             const userId = localStorage.getItem(USER_ID_KEY);
             if (userId) {
+                // Sessions list
                 sendMessage({
                     type: 'LIST_USERS_SESSIONS',
+                    auth: { user_id: userId },
+                    timestamp: new Date().toISOString()
+                });
+                // User environments for left engine sidebar
+                sendMessage({
+                    type: 'GET_USERS_ENVS',
                     auth: { user_id: userId },
                     timestamp: new Date().toISOString()
                 });
@@ -86,6 +84,26 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
     const [hasVisitedEngine, setHasVisitedEngine] = useState(false);
     const FIRST_VISIT_KEY = 'qdash_welcome_shown';
     const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(FIRST_VISIT_KEY));
+    const [droppedForms, setDroppedForms] = useState([]);
+    const [isDragOverEnv, setIsDragOverEnv] = useState(false);
+    const [hoverEnv, setHoverEnv] = useState(null);
+    const [hoverInjectionType, setHoverInjectionType] = useState(null);
+
+    const handleEnvDragOver = useCallback((e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setIsDragOverEnv(true);
+    }, []);
+    const handleEnvDragLeave = useCallback((e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOverEnv(false);
+    }, []);
+    const handleEnvDrop = useCallback((e) => {
+        e.preventDefault();
+        setIsDragOverEnv(false);
+        const formType = e.dataTransfer.getData('application/x-qdash-form');
+        if (!formType) return;
+        setDroppedForms((prev) => [...prev, { id: `form-${Date.now()}-${Math.random().toString(36).slice(2)}`, type: formType }]);
+    }, []);
     // const [showArrow, setShowArrow] = useState(true); // Removed floating arrow logic as we have full sections now
     const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -97,29 +115,14 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
     }, [isEngineInView, setTerminalVisible]);
 
     const slides = [
-        {
-            headline: "The Grid",
-            subtext: "Advanced Simulation & Data Visualization Platform."
-        },
-        {
-            headline: "Modular Logic",
-            subtext: "Decouple simulation logic from the runtime engine using hot-swappable Python Modules."
-        },
-        {
-            headline: "Spatial Intelligence",
-            subtext: "Map abstract data to physical 3D/4D space for intuitive debugging and analysis."
-        },
-        {
-            headline: "Natural Language Control",
-            subtext: "Interact with the system via a terminal interface powered by Gemini AI."
-        },
-        {
-            headline: "Graph-Based Execution",
-            subtext: "Visualize and manipulate the dependency graph of your simulation in real-time."
-        },
+        { headline: "The Grid", subtext: "nD simulation & viz." },
+        { headline: "Modular Logic", subtext: "Hot-swappable Python modules." },
+        { headline: "Spatial Intelligence", subtext: "Data in 13/nD space." },
+        { headline: "Natural Language", subtext: "Terminal + Gemini AI." },
+        { headline: "Graph Execution", subtext: "Dependency graph in real time." },
         {
             headline: "Open Source",
-            subtext: "Explore & contribute to The Grid on GitHub.",
+            subtext: "The Grid on GitHub.",
             button: { text: "View Code", url: "https://github.com/wired87/qdash" }
         }
     ];
@@ -142,6 +145,20 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
         setShowWelcome(false);
         localStorage.setItem(FIRST_VISIT_KEY, '1');
     };
+
+    // When hovering a geometry icon on the right, ensure injections are loaded
+    useEffect(() => {
+        if (!hoverInjectionType || !sendMessage) return;
+        if (userInjections && userInjections.length > 0) return;
+        const userId = localStorage.getItem(USER_ID_KEY);
+        if (!userId) return;
+        dispatch(setInjectionLoading(true));
+        sendMessage({
+            type: "GET_INJ_USER",
+            auth: { user_id: userId },
+            timestamp: new Date().toISOString(),
+        });
+    }, [hoverInjectionType, sendMessage, userInjections, dispatch]);
 
     React.useEffect(() => {
         if (showSpinner) {
@@ -310,9 +327,232 @@ export const LandingPage = ({ liveData, setTerminalVisible, isSimRunning, isCfgO
                     transition={{ duration: 0.8 }}
                     className="w-full h-full flex flex-col min-h-0 relative"
                 >
-                    {/* Full-screen particle grid (entire control center) */}
-                    <div className="absolute inset-0 z-0 w-full h-full min-h-0">
-                        <ParticleGridEngine className="w-full h-full" />
+                    {/* Engine viewport full width with absolute side views */}
+                    <div className="absolute inset-0 z-0">
+                        {/* Left env cfg glass panel when open */}
+                        {isEnvCfgPanelOpen && (
+                            <div className="absolute inset-y-0 left-0 z-30">
+                                <EnvCfgGlassPanel
+                                    isOpen={true}
+                                    onClose={onCloseEnvCfg}
+                                    sendMessage={sendMessage}
+                                    user={user}
+                                    userProfile={userProfile}
+                                    saveUserWorldConfig={saveUserWorldConfig}
+                                    listenToUserWorldConfig={listenToUserWorldConfig}
+                                />
+                            </div>
+                        )}
+
+                        {/* Engine viewport – rounded card, takes full width */}
+                        <div
+                            className={`w-full h-full relative transition-all duration-200 px-1 sm:px-2 ${isDragOverEnv ? 'ring-4 ring-amber-500/60 ring-inset' : ''}`}
+                            onDragOver={handleEnvDragOver}
+                            onDragLeave={handleEnvDragLeave}
+                            onDrop={handleEnvDrop}
+                        >
+                            <div className="w-full h-full rounded-xl sm:rounded-2xl overflow-hidden border border-slate-800/40 shadow-[0_18px_45px_rgba(0,0,0,0.45)] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+                                <ParticleGridEngine
+                                    className="w-full h-full"
+                                    droppedForms={droppedForms}
+                                    envConfig={selectedEnv ? { dims: selectedEnv.dims, amount_of_nodes: selectedEnv.amount_of_nodes ?? selectedEnv.cluster_dim } : null}
+                                />
+                            </div>
+                            {/* Env cfg modal: backdrop shows engine; centered modal with config */}
+                            {selectedEnv && (
+                                <div
+                                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-label="Environment configuration"
+                                >
+                                    <div
+                                        className="absolute inset-0 transition-opacity"
+                                        style={{
+                                            background: 'rgba(0, 0, 0, 0.35)',
+                                            backdropFilter: 'blur(8px)',
+                                            WebkitBackdropFilter: 'blur(8px)',
+                                        }}
+                                        onClick={() => { dispatch(setSelectedEnv(null)); dispatch(clearCurrentEnv()); }}
+                                    />
+                                    <div
+                                        className="relative w-full max-w-lg max-h-[85vh] flex flex-col rounded-xl border border-white/20 overflow-hidden shadow-2xl"
+                                        style={{
+                                            background: 'rgba(15, 23, 42, 0.88)',
+                                            backdropFilter: 'blur(16px)',
+                                            WebkitBackdropFilter: 'blur(16px)',
+                                            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08)',
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/10">
+                                            <span className="text-xs font-mono font-bold uppercase tracking-widest text-cyan-300/95">
+                                                Env: {selectedEnv.id ?? selectedEnv.env_id}
+                                            </span>
+                                            <Button
+                                                isIconOnly
+                                                size="sm"
+                                                variant="light"
+                                                className="min-w-8 w-8 h-8 text-slate-400 hover:text-white"
+                                                onPress={() => { dispatch(setSelectedEnv(null)); dispatch(clearCurrentEnv()); }}
+                                                title="Close"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                        <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                                            <ConfigAccordion
+                                                sendMessage={sendMessage}
+                                                initialValues={{
+                                                    id: selectedEnv.id ?? selectedEnv.env_id,
+                                                    amount_of_nodes: selectedEnv.amount_of_nodes ?? selectedEnv.cluster_dim,
+                                                    sim_time: selectedEnv.sim_time,
+                                                    dims: selectedEnv.dims,
+                                                    enable_sm: selectedEnv.enable_sm,
+                                                    particle: selectedEnv.particle,
+                                                    status: selectedEnv.status ?? selectedEnv.state,
+                                                    field_id: selectedEnv.field_id ?? selectedEnv.field,
+                                                }}
+                                                shouldShowDefault={false}
+                                                user={user}
+                                                userProfile={userProfile}
+                                                saveUserWorldConfig={saveUserWorldConfig}
+                                                listenToUserWorldConfig={listenToUserWorldConfig}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {isDragOverEnv && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-amber-500/10 border-2 border-dashed border-amber-500/50 rounded-lg m-2">
+                                    <span className="px-4 py-2 bg-stone-900/90 text-amber-400 font-mono text-sm uppercase tracking-widest rounded border border-amber-500/50">
+                                        Drop form here
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Left env dock – absolute over engine, mid-left */}
+                        <div className="absolute inset-y-0 left-0 flex items-center justify-center pointer-events-none">
+                            <div className="pointer-events-auto w-16 sm:w-[200px] md:w-[260px]">
+                                <EngineEnvsSidebar
+                                    className="w-full max-h-[60vh]"
+                                    sendMessage={sendMessage}
+                                    onOpenEnvCfg={onOpenEnvCfg}
+                                    isVisible={isEngineInView}
+                                    onHoverEnv={setHoverEnv}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Right forms sidebar – absolute over engine, mid-right; hidden on small screens for more space */}
+                        <div className="absolute inset-y-0 right-0 hidden md:flex items-center justify-center pointer-events-none">
+                            <div className="pointer-events-auto w-16 sm:w-[220px] md:w-[260px]">
+                                <EngineFormsSidebar
+                                    className="h-full"
+                                    selectedGeometry={selectedGeometry}
+                                    onSelectType={(id) => dispatch(setSelectedGeometry(id ?? null))}
+                                    onHoverType={setHoverInjectionType}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Hover cfg panel: full height, right side 40% width (env cfg) */}
+                        {hoverEnv && (
+                            <div className="fixed inset-y-0 right-0 z-40 w-[40vw] min-w-[320px] max-w-xl border-l border-slate-200/40 bg-slate-950/90 text-slate-100 shadow-2xl flex flex-col">
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-200">
+                                            Env cfg
+                                        </span>
+                                        <span className="text-[11px] font-mono text-slate-400 truncate max-w-[240px]">
+                                            {hoverEnv.id ?? hoverEnv.env_id}
+                                        </span>
+                                    </div>
+                                    <Button
+                                        isIconOnly
+                                        size="sm"
+                                        variant="light"
+                                        className="min-w-8 w-8 h-8 text-slate-300 hover:text-white"
+                                        onPress={() => setHoverEnv(null)}
+                                        title="Close"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                                <div className="flex-1 min-h-0 overflow-y-auto p-4">
+                                    <pre className="text-[11px] font-mono whitespace-pre-wrap break-all bg-slate-900/70 border border-slate-700/80 rounded-lg p-3">
+{JSON.stringify(hoverEnv, null, 2)}
+                                    </pre>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Injection modal on geometry hover – full height, right side 40% width */}
+                        {hoverInjectionType && (
+                            <div className="fixed inset-y-0 right-0 z-40 w-[40vw] min-w-[320px] max-w-xl border-l border-emerald-400/40 bg-slate-950/95 text-slate-100 shadow-2xl flex flex-col">
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-900/80">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-mono font-bold uppercase tracking-widest text-emerald-300">
+                                            Injections · {hoverInjectionType}
+                                        </span>
+                                        <span className="text-[11px] font-mono text-slate-400">
+                                            {userInjections?.length || 0} total
+                                        </span>
+                                    </div>
+                                    <Button
+                                        isIconOnly
+                                        size="sm"
+                                        variant="light"
+                                        className="min-w-8 w-8 h-8 text-slate-300 hover:text-white"
+                                        onPress={() => setHoverInjectionType(null)}
+                                        title="Close"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                                <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+                                    {injectionsLoading && (
+                                        <div className="text-[11px] text-slate-400 font-mono uppercase tracking-widest">
+                                            Loading injections…
+                                        </div>
+                                    )}
+                                    {!injectionsLoading && (!userInjections || userInjections.length === 0) && (
+                                        <div className="text-[11px] text-slate-500 font-mono uppercase tracking-widest">
+                                            No injections found
+                                        </div>
+                                    )}
+                                    {!injectionsLoading && userInjections && userInjections.length > 0 && (() => {
+                                        const matchesType = (inj) => {
+                                            const t = (inj.geometry || inj.shape || inj.type || '').toLowerCase();
+                                            return t === hoverInjectionType.toLowerCase();
+                                        };
+                                        const primary = userInjections.filter(matchesType);
+                                        const list = primary.length > 0 ? primary : userInjections;
+                                        return list.map((inj) => (
+                                            <div
+                                                key={inj.id}
+                                                className="p-3 rounded-lg border border-slate-700/80 bg-slate-900/80 hover:border-emerald-400/70 transition-colors"
+                                            >
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <span className="text-[11px] font-mono font-semibold truncate">
+                                                        {inj.id}
+                                                    </span>
+                                                    <span className="text-[10px] font-mono text-slate-500">
+                                                        {(inj.type || inj.geometry || hoverInjectionType) ?? 'unknown'}
+                                                    </span>
+                                                </div>
+                                                {inj.description && (
+                                                    <p className="text-[11px] text-slate-300 line-clamp-2">
+                                                        {inj.description}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ));
+                                    })()}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Top bar overlay – responsive */}

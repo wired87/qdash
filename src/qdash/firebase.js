@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onChildChanged, onChildAdded, off, onValue, push, set, get, query, limitToLast } from "firebase/database";
+import { getDatabase, ref, onChildChanged, onChildAdded, off, onValue, push, set, query, limitToLast } from "firebase/database";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { getNodeColor } from "./get_color";
-
 export function useFirebaseListeners(
   fbCreds,
   updateEnv,
@@ -136,7 +134,7 @@ export function useFirebaseListeners(
         { id: nodeId, ...changedData }
       )
     },
-    []
+    [updateEnv]
   );
 
   const handleStatusChange = useCallback(

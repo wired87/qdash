@@ -58,7 +58,7 @@ const GAUGE_FIELDS = [
 ];
 
 const HIGGS_FIELDS = [
-    "higgs"
+    "phi"
 ];
 
 const FERMION_FIELDS = [

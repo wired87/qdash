@@ -12,10 +12,22 @@ const websocketSlice = createSlice({
     initialState,
     reducers: {
         setConnectionStatus: (state, action) => {
-            const { status, isConnected, error } = action.payload;
+            const { status, isConnected, error } = action.payload || {};
             state.status = status;
             state.isConnected = isConnected;
-            if (error) state.error = error; // Simplified error storage
+            // Store only a serializable snapshot of the error (no DOM/Event objects)
+            if (error) {
+                if (typeof error === 'string') {
+                    state.error = error;
+                } else if (typeof error === 'object') {
+                    state.error = {
+                        message: error.message || String(error.type || 'WebSocketError'),
+                        code: error.code ?? error.statusCode ?? undefined,
+                    };
+                } else {
+                    state.error = String(error);
+                }
+            }
             if (isConnected) {
                 state.lastConnected = new Date().toISOString();
                 state.error = null;

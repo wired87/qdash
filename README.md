@@ -14,6 +14,8 @@
 todo
 frontend full agent capabilities and interaction just use relay for commmits
 
+- **Geometry drag-drop**: Make just the geometries from the right side view available for drag-and-drop into the middle (main background particle) component where the selected grid is defined. File conversion in frontend.
+
 
 
 
