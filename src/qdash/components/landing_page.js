@@ -7,15 +7,16 @@ import { OscilloscopeView } from './OscilloscopeView';
 import { FuturisticBackground } from './FuturisticBackground';
 import { ParticleGridEngine } from './ParticleGridEngine';
 import EngineFormsSidebar from './EngineFormsSidebar';
+import ImageTo3DModal, { processImageFile } from './ImageTo3DModal';
 import EngineEnvsSidebar from './EngineEnvsSidebar';
 import EnvCfgGlassPanel from './EnvCfgGlassPanel';
 import ConfigAccordion from './accordeon';
 import { USER_ID_KEY, SESSION_ID_KEY, getSessionId } from '../auth';
-import { setActiveSession } from '../store/slices/sessionSlice';
+import { setActiveSession, addSession } from '../store/slices/sessionSlice';
 import { setSelectedEnv, selectSelectedEnv } from '../store/slices/envSlice';
 import { clearCurrentEnv, setSelectedGeometry, selectSelectedGeometry } from '../store/slices/appStateSlice';
 import { setLoading as setInjectionLoading } from '../store/slices/injectionSlice';
-import { X } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { Button } from '@heroui/react';
 
 export const LandingPage = ({
@@ -88,6 +89,7 @@ export const LandingPage = ({
     const [isDragOverEnv, setIsDragOverEnv] = useState(false);
     const [hoverEnv, setHoverEnv] = useState(null);
     const [hoverInjectionType, setHoverInjectionType] = useState(null);
+    const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
     const handleEnvDragOver = useCallback((e) => {
         e.preventDefault();
@@ -100,8 +102,26 @@ export const LandingPage = ({
     const handleEnvDrop = useCallback((e) => {
         e.preventDefault();
         setIsDragOverEnv(false);
-        const formType = e.dataTransfer.getData('application/x-qdash-form');
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = Array.from(files).find((f) => /^image\/(png|jpeg|jpg|webp)$/i.test(f.type));
+            if (file) {
+                processImageFile(file).then(({ data, width, height }) => {
+                    const id = `form-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                    setDroppedForms((prev) => [...prev, { id, type: 'image_3d', heightmap: data, heightmapWidth: width, heightmapHeight: height }]);
+                }).catch(() => {});
+                return;
+            }
+        }
+
+        const formType = e.dataTransfer.getData('application/x-qdash-form') || e.dataTransfer.getData('text/plain');
         if (!formType) return;
+        if (formType === 'image_3d') {
+            setIsImageModalOpen(true);
+            return;
+        }
+        if (!['rect', 'triangle', 'box'].includes(formType)) return;
         setDroppedForms((prev) => [...prev, { id: `form-${Date.now()}-${Math.random().toString(36).slice(2)}`, type: formType }]);
     }, []);
     // const [showArrow, setShowArrow] = useState(true); // Removed floating arrow logic as we have full sections now
@@ -327,8 +347,20 @@ export const LandingPage = ({
                     transition={{ duration: 0.8 }}
                     className="w-full h-full flex flex-col min-h-0 relative"
                 >
-                    {/* Engine viewport full width with absolute side views */}
-                    <div className="absolute inset-0 z-0">
+                    {/* Engine viewport full width with absolute side views – drop zone covers entire area including sidebars */}
+                    <div
+                        className={`absolute inset-0 z-0 transition-all duration-200 ${isDragOverEnv ? 'ring-4 ring-amber-500/60 ring-inset' : ''}`}
+                        onDragOver={handleEnvDragOver}
+                        onDragLeave={handleEnvDragLeave}
+                        onDrop={handleEnvDrop}
+                    >
+                        {isDragOverEnv && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                                <span className="px-4 py-2 bg-stone-900/90 text-amber-400 font-mono text-sm uppercase tracking-widest rounded border border-amber-500/50 shadow-lg">
+                                    Drop form here
+                                </span>
+                            </div>
+                        )}
                         {/* Left env cfg glass panel when open */}
                         {isEnvCfgPanelOpen && (
                             <div className="absolute inset-y-0 left-0 z-30">
@@ -345,17 +377,12 @@ export const LandingPage = ({
                         )}
 
                         {/* Engine viewport – rounded card, takes full width */}
-                        <div
-                            className={`w-full h-full relative transition-all duration-200 px-1 sm:px-2 ${isDragOverEnv ? 'ring-4 ring-amber-500/60 ring-inset' : ''}`}
-                            onDragOver={handleEnvDragOver}
-                            onDragLeave={handleEnvDragLeave}
-                            onDrop={handleEnvDrop}
-                        >
+                        <div className="w-full h-full relative transition-all duration-200 px-1 sm:px-2">
                             <div className="w-full h-full rounded-xl sm:rounded-2xl overflow-hidden border border-slate-800/40 shadow-[0_18px_45px_rgba(0,0,0,0.45)] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
                                 <ParticleGridEngine
                                     className="w-full h-full"
                                     droppedForms={droppedForms}
-                                    envConfig={selectedEnv ? { dims: selectedEnv.dims, amount_of_nodes: selectedEnv.amount_of_nodes ?? selectedEnv.cluster_dim } : null}
+                                    envConfig={selectedEnv ? { dims: selectedEnv.dims, amount_of_nodes: selectedEnv.amount_of_nodes ?? selectedEnv.cluster_dim, distance: selectedEnv.distance ?? 0 } : null}
                                 />
                             </div>
                             {/* Env cfg modal: backdrop shows engine; centered modal with config */}
@@ -390,6 +417,7 @@ export const LandingPage = ({
                                                 Env: {selectedEnv.id ?? selectedEnv.env_id}
                                             </span>
                                             <Button
+                                                aria-label="Close environment config"
                                                 isIconOnly
                                                 size="sm"
                                                 variant="light"
@@ -412,6 +440,7 @@ export const LandingPage = ({
                                                     particle: selectedEnv.particle,
                                                     status: selectedEnv.status ?? selectedEnv.state,
                                                     field_id: selectedEnv.field_id ?? selectedEnv.field,
+                                                    distance: selectedEnv.distance ?? 0,
                                                 }}
                                                 shouldShowDefault={false}
                                                 user={user}
@@ -423,18 +452,11 @@ export const LandingPage = ({
                                     </div>
                                 </div>
                             )}
-                            {isDragOverEnv && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-amber-500/10 border-2 border-dashed border-amber-500/50 rounded-lg m-2">
-                                    <span className="px-4 py-2 bg-stone-900/90 text-amber-400 font-mono text-sm uppercase tracking-widest rounded border border-amber-500/50">
-                                        Drop form here
-                                    </span>
-                                </div>
-                            )}
                         </div>
 
-                        {/* Left env dock – absolute over engine, mid-left */}
-                        <div className="absolute inset-y-0 left-0 flex items-center justify-center pointer-events-none">
-                            <div className="pointer-events-auto w-16 sm:w-[200px] md:w-[260px]">
+                        {/* Left env dock – absolute over engine, mid-left; z-50 so it stays above overlays and remains clickable */}
+                        <div className="absolute inset-y-0 left-0 flex items-center justify-center z-50">
+                            <div className="w-16 sm:w-[200px] md:w-[260px]">
                                 <EngineEnvsSidebar
                                     className="w-full max-h-[60vh]"
                                     sendMessage={sendMessage}
@@ -445,14 +467,15 @@ export const LandingPage = ({
                             </div>
                         </div>
 
-                        {/* Right forms sidebar – absolute over engine, mid-right; hidden on small screens for more space */}
-                        <div className="absolute inset-y-0 right-0 hidden md:flex items-center justify-center pointer-events-none">
-                            <div className="pointer-events-auto w-16 sm:w-[220px] md:w-[260px]">
+                        {/* Right forms sidebar – absolute over engine, mid-right; z-50 so it stays above hover panels (z-40) and remains clickable/draggable */}
+                        <div className="absolute inset-y-0 right-0 hidden md:flex items-center justify-center z-50">
+                            <div className="w-16 sm:w-[220px] md:w-[260px]">
                                 <EngineFormsSidebar
                                     className="h-full"
                                     selectedGeometry={selectedGeometry}
                                     onSelectType={(id) => dispatch(setSelectedGeometry(id ?? null))}
                                     onHoverType={setHoverInjectionType}
+                                    onOpenImageModal={() => setIsImageModalOpen(true)}
                                 />
                             </div>
                         </div>
@@ -470,6 +493,7 @@ export const LandingPage = ({
                                         </span>
                                     </div>
                                     <Button
+                                        aria-label="Close env config panel"
                                         isIconOnly
                                         size="sm"
                                         variant="light"
@@ -501,6 +525,7 @@ export const LandingPage = ({
                                         </span>
                                     </div>
                                     <Button
+                                        aria-label="Close injections panel"
                                         isIconOnly
                                         size="sm"
                                         variant="light"
@@ -560,7 +585,8 @@ export const LandingPage = ({
                         <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                             <div className="flex-shrink-0 flex flex-col gap-0.5 sm:gap-1">
                                 <span className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest text-black/70">Session</span>
-                                <Select
+                                <div className="flex items-center gap-1">
+                                    <Select
                                     size="sm"
                                     placeholder="Select session"
                                     selectedKeys={activeSession?.id ? [activeSession.id] : (getSessionId() ? [getSessionId()] : [])}
@@ -590,6 +616,25 @@ export const LandingPage = ({
                                         return <SelectItem key={id} textValue={String(label)}>{String(label)}</SelectItem>;
                                     })}
                                 </Select>
+                                    <Button
+                                        aria-label="Create session"
+                                        isIconOnly
+                                        size="sm"
+                                        variant="flat"
+                                        className="min-w-8 w-8 h-8 border border-black/20"
+                                        onPress={() => {
+                                            const newId = `session-${Date.now()}`;
+                                            const newSession = { id: newId, created_at: new Date().toISOString() };
+                                            dispatch(addSession(newSession));
+                                            dispatch(setActiveSession(newSession));
+                                            sessionStorage.setItem(SESSION_ID_KEY, newId);
+                                            sendMessage?.({ type: 'CREATE_SESSION', auth: { user_id: localStorage.getItem(USER_ID_KEY) }, session_id: newId });
+                                        }}
+                                        title="Create session"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </Button>
+                                </div>
                             </div>
                             <h2 className="text-lg sm:text-2xl font-black text-black tracking-tighter uppercase flex items-center gap-2 sm:gap-3 truncate">
                                 <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-black flex-shrink-0"></span>
@@ -654,6 +699,12 @@ export const LandingPage = ({
                     )}
                 </motion.div>
             </div>
+
+            <ImageTo3DModal
+                isOpen={isImageModalOpen}
+                onClose={() => setIsImageModalOpen(false)}
+                onAddToScene={(form) => setDroppedForms((prev) => [...prev, form])}
+            />
         </div >
     );
 };

@@ -8,6 +8,7 @@ import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 
 import {
     setLoading as setSessionLoading,
+    addSession,
     setActiveSession,
     optimisticLinkEnv,
     optimisticUnlinkEnv,
@@ -73,6 +74,23 @@ const FERMION_FIELDS = [
     "up_quark_0", "up_quark_1", "up_quark_2", "down_quark_0", "down_quark_1", "down_quark_2", "charm_quark_0", "charm_quark_1", "charm_quark_2", "strange_quark_0", "strange_quark_1", "strange_quark_2", "top_quark_0", "top_quark_1", "top_quark_2", "bottom_quark_0", "bottom_quark_1", "bottom_quark_2"
 ];
 
+/** Dynamic dim label: X,Y,Z,W,V,U for 0-5, else D0,D1,... for 6+ */
+function getDimLabel(dimIndex, totalDims) {
+    const names = ['X', 'Y', 'Z', 'W', 'V', 'U'];
+    return dimIndex < names.length ? names[dimIndex] : `D${dimIndex}`;
+}
+
+/** Derive per-dimension node counts from selected env. amount_of_nodes = nodes per dimension. */
+function getPerDimValuesFromEnv(env) {
+    if (!env) return [8, 8, 8];
+    const dimsArr = Array.isArray(env.dims) ? env.dims : null;
+    const D = dimsArr ? dimsArr.length : Math.max(1, Math.min(6, Math.round(Number(env.dims) || 3)));
+    const N = env.amount_of_nodes ?? env.cluster_dim ?? 64;
+    if (dimsArr) return dimsArr.map((d) => Math.max(1, Math.min(256, Math.round(Number(d) || 1))));
+    const amountNum = Array.isArray(N) ? Math.max(...N.map((n) => Math.round(Number(n) || 1))) : Math.max(1, Math.round(Number(N) || 64));
+    return Array(D).fill(Math.max(1, Math.min(256, amountNum)));
+}
+
 // Standard Model Modules with their fields
 const SM_MODULES = {
     "GAUGE": GAUGE_FIELDS,
@@ -82,7 +100,7 @@ const SM_MODULES = {
 
 
 // Helper for split list items
-const ListItem = ({ title, subtitle, onClick, isActive, actionIcon, onAction, actionColor = "primary", showEnableSM, enableSM, onEnableSMChange, shadowColor }) => {
+const ListItem = ({ title, subtitle, onClick, isActive, actionIcon, onAction, actionColor = "primary", actionLabel, showEnableSM, enableSM, onEnableSMChange, shadowColor }) => {
     const shadowStyle = shadowColor
         ? { boxShadow: `inset 0 0 0 2px rgba(${shadowColor.r}, ${shadowColor.g}, ${shadowColor.b}, 0.4), inset 0 2px 12px rgba(${shadowColor.r}, ${shadowColor.g}, ${shadowColor.b}, 0.2)` }
         : {};
@@ -106,6 +124,7 @@ const ListItem = ({ title, subtitle, onClick, isActive, actionIcon, onAction, ac
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <span className="text-[10px] text-slate-500">SM</span>
                         <Switch
+                            aria-label="Enable Standard Model"
                             size="sm"
                             isSelected={enableSM}
                             onValueChange={(val) => {
@@ -119,6 +138,7 @@ const ListItem = ({ title, subtitle, onClick, isActive, actionIcon, onAction, ac
                 )}
                 {actionIcon && (
                     <Button
+                        aria-label={actionLabel || (actionColor === 'danger' ? 'Remove' : 'Add')}
                         isIconOnly
                         size="sm"
                         color={actionColor}
@@ -166,6 +186,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     // Live Workspace State
     const [highlightedPos, setHighlightedPos] = useState([0, 0, 0]);
     const [selectedPosKeys, setSelectedPosKeys] = useState([]); // multi-select: array of posKey strings for "Assign to selected"
+    const [selectedDimIndices, setSelectedDimIndices] = useState({}); // per-dim multi-select: { dimIndex: Set<number> }
     const [isCenterMode, setIsCenterMode] = useState(false);
     const [injectEntireField, setInjectEntireField] = useState(false); // assign injection to all nodes in env
     const [itemLoading, setItemLoading] = useState(false);
@@ -173,6 +194,31 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     const [drawMode, setDrawMode] = useState(null); // 'assign' | 'unassign' | null
 
     const selectedPosKeysSet = useMemo(() => new Set(selectedPosKeys), [selectedPosKeys]);
+
+    /** Cartesian product of per-dim index sets -> array of posKey strings */
+    const cartesianProductToPosKeys = useCallback((dims, currentPos, dimIndices) => {
+        const safePos = (base) => (Array.isArray(base) && base.length === dims.length ? [...base] : dims.map(() => 0));
+        const cur = safePos(currentPos);
+        const indexArrays = dims.map((maxDim, d) => {
+            const set = dimIndices[d];
+            if (set && set.size > 0) return Array.from(set).filter(i => i >= 0 && i < maxDim);
+            return [cur[d]];
+        });
+        const result = [];
+        const recurse = (pos, dimIdx) => {
+            if (dimIdx >= dims.length) {
+                result.push(JSON.stringify(pos));
+                return;
+            }
+            for (const v of indexArrays[dimIdx]) {
+                pos[dimIdx] = v;
+                recurse([...pos], dimIdx + 1);
+            }
+        };
+        recurse(dims.map(() => 0), 0);
+        return result;
+    }, []);
+
     const togglePositionSelection = useCallback((posKey) => {
         setSelectedPosKeys(prev => {
             const set = new Set(prev);
@@ -180,7 +226,18 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             else set.add(posKey);
             return Array.from(set);
         });
+        setSelectedDimIndices({}); // clear per-dim selection when using right-side multi-select
     }, []);
+
+    const toggleDimIndexInSelection = useCallback((dimIndex, idx, dims, currentPos) => {
+        const nextIndices = { ...selectedDimIndices };
+        const set = new Set(nextIndices[dimIndex] || []);
+        if (set.has(idx)) set.delete(idx);
+        else set.add(idx);
+        nextIndices[dimIndex] = set;
+        setSelectedDimIndices(nextIndices);
+        setSelectedPosKeys(cartesianProductToPosKeys(dims, currentPos, nextIndices));
+    }, [cartesianProductToPosKeys, selectedDimIndices]);
 
     // Memoized selected item (Env or Module)
     const selectedItem = useMemo(() => {
@@ -228,6 +285,14 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             return fullEnv || { id: envId };
         });
     }, [sessionConfigData, userEnvs]);
+
+    // Live env data: always resolve activeEnv from latest userEnvs/activeSessionEnvs so dims/amount_of_nodes updates are reflected
+    const activeEnvData = useMemo(() => {
+        const id = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
+        if (!id) return null;
+        const fromSession = activeSessionEnvs.find(e => (typeof e === 'string' ? e : e.id) === id);
+        return fromSession ?? activeEnv;
+    }, [activeEnv, activeSessionEnvs]);
 
     // Extract linked modules for active env
     const activeSessionModules = useMemo(() => {
@@ -337,6 +402,21 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             }
         }
     }, [activeSession, currentSessionId, sessions, dispatch]);
+
+    // Clamp highlightedPos when env dims/amount_of_nodes change (live updates)
+    const perDimValues = useMemo(() => getPerDimValuesFromEnv(activeEnvData), [activeEnvData]);
+    useEffect(() => {
+        if (!perDimValues.length) return;
+        const prev = highlightedPos && Array.isArray(highlightedPos) ? highlightedPos : [];
+        const clamped = perDimValues.map((maxDim, i) => Math.min(Math.max(0, prev[i] ?? 0), Math.max(0, maxDim - 1)));
+        const needsUpdate = clamped.length !== prev.length || clamped.some((v, i) => v !== (prev[i] ?? 0));
+        if (needsUpdate) {
+            setHighlightedPos(clamped);
+            setClusterKey(k => k + 1);
+            setSelectedDimIndices({});
+            setSelectedPosKeys([]);
+        }
+    }, [perDimValues, highlightedPos]);
 
     // Fetch resources when session is selected
     useEffect(() => {
@@ -525,7 +605,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     // Called when user clicks a node in 3D view or assignment button (single pos or entire field)
     const handleNodeAssignment = (pos) => {
-        if (!activeEnv) {
+        if (!activeEnvData) {
             alert("Please select an Environment first.");
             return;
         }
@@ -534,8 +614,8 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             return;
         }
 
-        const envId = activeEnv.id;
-        const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
+        const envId = activeEnvData.id;
+        const dims = getPerDimValuesFromEnv(activeEnvData);
 
         if (injectEntireField) {
             // Assign or unassign entire field (all nodes)
@@ -599,9 +679,9 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     // Helper used by grid cells to apply assignment/unassignment without dialogs
     const applyInjectionAtPos = useCallback((pos, mode) => {
-        if (!activeEnv || !selectedInjection) return;
+        if (!activeEnvData || !selectedInjection) return;
 
-        const envId = activeEnv.id;
+        const envId = activeEnvData.id;
         const posKey = JSON.stringify(pos);
         const currentInjection = sessionConfigData?.[envId]?.injections?.[selectedField]?.[posKey];
 
@@ -627,12 +707,12 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         }
 
         setClusterKey(prev => prev + 1);
-    }, [activeEnv, selectedInjection, sessionConfigData, selectedField, dispatch, targetSessionId]);
+    }, [activeEnvData, selectedInjection, sessionConfigData, selectedField, dispatch, targetSessionId]);
 
     // Assign or unassign current injection to/from all positions in selectedPosKeys
     const handleAssignToSelected = useCallback((mode) => {
-        if (!activeEnv || !selectedInjection || selectedPosKeys.length === 0) return;
-        const envId = activeEnv.id;
+        if (!activeEnvData || !selectedInjection || selectedPosKeys.length === 0) return;
+        const envId = activeEnvData.id;
         selectedPosKeys.forEach(posKey => {
             if (mode === 'assign') {
                 dispatch(assignInjection({
@@ -653,7 +733,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         });
         setSelectedPosKeys([]);
         setClusterKey(prev => prev + 1);
-    }, [activeEnv, selectedInjection, selectedPosKeys, selectedField, dispatch, targetSessionId]);
+    }, [activeEnvData, selectedInjection, selectedPosKeys, selectedField, dispatch, targetSessionId]);
 
     const handleStartSim = () => {
         if (!activeSession) return;
@@ -713,7 +793,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                             isDisabled={!activeSession}>
                             Start Simulation
                         </Button>
-                        <Button isIconOnly variant="light" onPress={handleCloseModal} className="text-slate-900 dark:text-white hover:bg-slate-200/50">
+                        <Button aria-label="Close modal" isIconOnly variant="light" onPress={handleCloseModal} className="text-slate-900 dark:text-white hover:bg-slate-200/50">
                             <X size={24} />
                         </Button>
                     </div>
@@ -727,8 +807,26 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
                     {/* LEFT: Session List */}
                     <div className="w-64 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex flex-col">
-                        <div className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            Sessions
+                        <div className="p-4 flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sessions</span>
+                            <Button
+                                aria-label="Create session"
+                                isIconOnly
+                                size="sm"
+                                variant="flat"
+                                color="primary"
+                                className="min-w-8 w-8 h-8"
+                                onPress={() => {
+                                    const newId = `session-${Date.now()}`;
+                                    const newSession = { id: newId, created_at: new Date().toISOString() };
+                                    dispatch(addSession(newSession));
+                                    dispatch(setActiveSession(newSession));
+                                    sendMessage?.({ type: 'CREATE_SESSION', auth: { user_id: localStorage.getItem(USER_ID_KEY) }, session_id: newId });
+                                }}
+                                title="Create session"
+                            >
+                                <Plus size={16} />
+                            </Button>
                         </div>
                         <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-2 relative">
                             {sessionLoading && (
@@ -906,9 +1004,9 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                 </div>
 
                                 <div className="flex-1 flex gap-4 overflow-hidden">
-                                    {/* LEFT SIDE */}
-                                    <div className="w-1/2 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                                        {selectedInjection && detailItem && activeEnv ? (
+                                    {/* LEFT SIDE: Target Position - max 50% of live workspace */}
+                                    <div className="flex-1 min-w-0 max-w-[50%] flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                                        {selectedInjection && detailItem && activeEnvData ? (
                                             <div className="flex flex-col h-full">
                                                 <div className="p-2 border-b text-[10px] font-bold text-slate-400 uppercase bg-slate-50 flex justify-between items-center gap-2 flex-wrap">
                                                     <span>Target Position</span>
@@ -916,6 +1014,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                         <div className="flex items-center gap-1">
                                                             <span className="text-[10px] text-slate-500">Entire field</span>
                                                             <Switch
+                                                                aria-label="Inject entire field"
                                                                 size="sm"
                                                                 isSelected={injectEntireField}
                                                                 onValueChange={setInjectEntireField}
@@ -925,12 +1024,13 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                         <div className="flex items-center gap-1">
                                                             <span className="text-[10px] text-slate-500">Center</span>
                                                             <Switch
+                                                                aria-label="Center mode"
                                                                 size="sm"
                                                                 isSelected={isCenterMode}
                                                                 onValueChange={(isSelected) => {
                                                                     setIsCenterMode(isSelected);
-                                                                    if (isSelected && activeEnv.dims) {
-                                                                        const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
+                                                                    if (isSelected && activeEnvData) {
+                                                                        const dims = getPerDimValuesFromEnv(activeEnvData);
                                                                         const center = dims.map(d => Math.floor(d / 2));
                                                                         setHighlightedPos(center);
                                                                         setClusterKey(prev => prev + 1);
@@ -955,30 +1055,44 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                         </select>
                                                     </div>
                                                     {(() => {
-                                                        const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
-                                                        const dimLabels = ['X', 'Y', 'Z', 'W', 'V', 'U'];
+                                                        const dims = getPerDimValuesFromEnv(activeEnvData);
 
-                                                        return dims.map((maxDim, i) => (
-                                                            <div key={i} className="flex flex-col gap-1">
-                                                                <label className="text-xs font-bold text-slate-500 uppercase">Dimension {dimLabels[i] || i}</label>
-                                                                <select
-                                                                    className="p-2 rounded border border-slate-200 text-sm disabled:bg-slate-100 disabled:text-slate-400"
-                                                                    value={highlightedPos ? highlightedPos[i] : 0}
-                                                                    disabled={isCenterMode}
-                                                                    onChange={(e) => {
-                                                                        const val = parseInt(e.target.value);
-                                                                        setHighlightedPos(prev => {
-                                                                            const newPos = prev ? [...prev] : new Array(dims.length).fill(0);
-                                                                            newPos[i] = val;
-                                                                            return newPos;
-                                                                        });
-                                                                        setClusterKey(prev => prev + 1);
-                                                                    }}
-                                                                >
-                                                                    {Array.from({ length: maxDim }).map((_, idx) => (
-                                                                        <option key={idx} value={idx}>{idx}</option>
-                                                                    ))}
-                                                                </select>
+                                                        const safePos = (base) => (Array.isArray(base) && base.length === dims.length ? [...base] : dims.map(() => 0));
+                                                        const currentPos = safePos(highlightedPos);
+
+                                                        return dims.map((maxDim, dimIndex) => (
+                                                            <div key={dimIndex} className="flex flex-col gap-1">
+                                                                <label className="text-xs font-bold text-slate-500 uppercase">Dimension {getDimLabel(dimIndex, dims.length)} (len: {maxDim}) · Ctrl+click multi</label>
+                                                                <div className="flex flex-nowrap gap-1 overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-transparent pb-1 min-h-[2rem]">
+                                                                    {Array.from({ length: maxDim }).map((_, idx) => {
+                                                                        const posForCell = safePos(currentPos);
+                                                                        posForCell[dimIndex] = idx;
+                                                                        const isActive = currentPos[dimIndex] === idx;
+                                                                        const dimSet = selectedDimIndices[dimIndex];
+                                                                        const isInMultiSelect = dimSet && dimSet.has(idx);
+                                                                        return (
+                                                                            <button
+                                                                                key={idx}
+                                                                                type="button"
+                                                                                disabled={isCenterMode}
+                                                                                onClick={(e) => {
+                                                                                    if (e.ctrlKey || e.metaKey) {
+                                                                                        e.preventDefault();
+                                                                                        toggleDimIndexInSelection(dimIndex, idx, dims, currentPos);
+                                                                                        return;
+                                                                                    }
+                                                                                    setHighlightedPos(posForCell);
+                                                                                    setClusterKey(prev => prev + 1);
+                                                                                }}
+                                                                                className={`w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0 text-[10px] rounded-md border flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                                                                                    ${isActive ? 'bg-blue-500 text-white border-blue-600' : isInMultiSelect ? 'bg-amber-400 text-amber-900 border-amber-500' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-600 dark:hover:bg-slate-700'}
+                                                                                `}
+                                                                            >
+                                                                                {idx}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
                                                             </div>
                                                         ));
                                                     })()}
@@ -1062,6 +1176,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                                         <div key={posKey} className="flex items-center justify-between gap-2 text-[10px] bg-white rounded px-2 py-1 border border-slate-100">
                                                                             <span className="font-mono truncate">[{label}]</span>
                                                                             <Button
+                                                                                aria-label="Unassign from position"
                                                                                 isIconOnly
                                                                                 size="sm"
                                                                                 variant="light"
@@ -1094,9 +1209,9 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                         )}
                                     </div>
 
-                                    {/* RIGHT SIDE: Dimension Grids (2D + 1D) with drawing support */}
+                                    {/* RIGHT SIDE: nD structure - all points on nD grid live */}
                                     <div
-                                        className="w-1/2 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden relative"
+                                        className="flex-1 min-w-0 flex flex-col bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden relative"
                                         onMouseLeave={() => {
                                             setIsDrawing(false);
                                             setDrawMode(null);
@@ -1106,20 +1221,20 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                             setDrawMode(null);
                                         }}
                                     >
-                                        {selectedInjection && detailItem && activeEnv ? (
+                                        {selectedInjection && detailItem && activeEnvData ? (
                                             <div className="flex flex-col h-full">
                                                 <div className="p-2 border-b text-[10px] font-bold text-slate-400 uppercase bg-slate-50 flex justify-between items-center gap-2 flex-wrap">
-                                                    <span>Dimension Grids</span>
+                                                    <span>Injection Cube ({getPerDimValuesFromEnv(activeEnvData).map((_, i, arr) => getDimLabel(i, arr.length)).join('×')})</span>
                                                     <span className="text-[10px] text-slate-500 font-normal normal-case">
-                                                        Env: {activeEnv.id} · Field: {selectedField} · Draw: drag · Multi: Ctrl+click cells
+                                                        Env: {activeEnvData.id} · Field: {selectedField} · Draw: drag · Multi: Ctrl+click cells
                                                     </span>
                                                 </div>
                                                 <div className="flex-1 overflow-auto p-3 sm:p-4">
                                                     {(() => {
-                                                        const dims = Array.isArray(activeEnv.dims) ? activeEnv.dims : [8, 8, 8];
-                                                        const dimLabels = ['X', 'Y', 'Z', 'W', 'V', 'U'];
-                                                        const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
+                                                        const dims = getPerDimValuesFromEnv(activeEnvData);
+                                                        const envId = activeEnvData ? (typeof activeEnvData === 'string' ? activeEnvData : activeEnvData.id) : null;
                                                         const assignedMap = sessionConfigData?.[envId]?.injections?.[selectedField] || {};
+                                                        const assignedKeys = Object.keys(assignedMap || {});
 
                                                         // Ensure we always have a position array of correct length (return copy to avoid mutating state during render)
                                                         const safePos = (basePos) => {
@@ -1133,6 +1248,39 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                         const has2DPlane = dims.length >= 2 && dims[0] > 1 && dims[1] > 1 && dims[0] <= 32 && dims[1] <= 32;
 
                                                         const rows = [];
+
+                                                        // --- Live: All points on nD grid (top of right panel) ---
+                                                        rows.push(
+                                                            <div key="all-points" className="mb-3 p-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-600">
+                                                                <div className="text-[10px] font-bold text-slate-500 uppercase mb-2">
+                                                                    All injection points on nD grid ({assignedKeys.length})
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto scrollbar-thin">
+                                                                    {assignedKeys.length === 0 ? (
+                                                                        <span className="text-xs text-slate-400 italic">No points assigned</span>
+                                                                    ) : (
+                                                                        assignedKeys.map((posKey) => {
+                                                                            try {
+                                                                                const pos = JSON.parse(posKey);
+                                                                                const label = dims.length <= 6
+                                                                                    ? pos.map((v, i) => `${getDimLabel(i, dims.length)}:${v}`).join(', ')
+                                                                                    : pos.map((v, i) => `D${i}:${v}`).join(', ');
+                                                                                return (
+                                                                                    <span
+                                                                                        key={posKey}
+                                                                                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono
+                                                                                            ${posKey === JSON.stringify(currentPos) ? 'bg-blue-500 text-white' : 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200'}
+                                                                                        `}
+                                                                                    >
+                                                                                        {label}
+                                                                                    </span>
+                                                                                );
+                                                                            } catch (_) { return null; }
+                                                                        })
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
 
                                                         if (has2DPlane) {
                                                             const maxX = dims[0];
@@ -1153,11 +1301,11 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                                 <div key="plane-xy" className="flex flex-col gap-1">
                                                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                                                         <span className="text-[10px] font-bold text-slate-500 uppercase">
-                                                                            Plane {dimLabels[0]}/{dimLabels[1]}
+                                                                            Plane {getDimLabel(0, dims.length)}/{getDimLabel(1, dims.length)}
                                                                         </span>
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="text-[10px] text-slate-400">
-                                                                                X: {currentPos[0]} · Y: {currentPos[1]}
+                                                                                {getDimLabel(0, dims.length)}: {currentPos[0]} · {getDimLabel(1, dims.length)}: {currentPos[1]}
                                                                             </span>
                                                                             <Button size="sm" variant="flat" color="primary" className="min-w-0 px-2 text-[10px]" onPress={fillPlaneXY}>
                                                                                 Fill plane
@@ -1234,7 +1382,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                                 <div key={dimIndex} className="flex flex-col gap-1">
                                                                     <div className="flex items-center justify-between gap-2 flex-wrap">
                                                                         <span className="text-[10px] font-bold text-slate-500 uppercase">
-                                                                            Dimension {dimLabels[dimIndex] || dimIndex}
+                                                                            Dimension {getDimLabel(dimIndex, dims.length)}
                                                                         </span>
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="text-[10px] text-slate-400">
@@ -1245,7 +1393,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                                             </Button>
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex flex-wrap gap-1">
+                                                                    <div className="flex flex-nowrap gap-1 overflow-x-auto overflow-y-hidden scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-transparent pb-1">
                                                                         {Array.from({ length: maxDim }).map((_, idx) => {
                                                                             const posForCell = safePos(currentPos);
                                                                             posForCell[dimIndex] = idx;
@@ -1275,7 +1423,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                                                         setHighlightedPos(posForCell);
                                                                                         applyInjectionAtPos(posForCell, drawMode);
                                                                                     }}
-                                                                                    className={`w-6 h-6 sm:w-7 sm:h-7 text-[10px] rounded-md border flex items-center justify-center transition-colors
+                                                                                    className={`w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0 text-[10px] rounded-md border flex items-center justify-center transition-colors
                                                                                         ${isSelected ? 'ring-2 ring-amber-400 ring-offset-1 ' : ''}
                                                                                         ${isAssignedHere
                                                                                             ? 'bg-emerald-500 text-white border-emerald-600'
@@ -1295,7 +1443,6 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
                                                         // --- Overview map of all assigned injection points (n-dim collapsed to first 2 dims) ---
                                                         let overview = null;
-                                                        const assignedKeys = Object.keys(assignedMap || {});
 
                                                         if (assignedKeys.length > 0) {
                                                             if (has2DPlane) {
@@ -1320,13 +1467,16 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
                                                                 overview = (
                                                                     <div className="w-40 sm:w-52 flex-shrink-0 bg-slate-900 rounded-xl border border-slate-700 p-2 flex flex-col gap-2">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <span className="text-[9px] font-bold text-slate-200 uppercase">
-                                                                                Assign Map
-                                                                            </span>
-                                                                            <span className="text-[9px] text-slate-400">
-                                                                                {assignedKeys.length} pts
-                                                                            </span>
+                                                                        <div className="flex flex-col gap-0.5">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-[9px] font-bold text-slate-200 uppercase">
+                                                                                    Cube {getDimLabel(0, dims.length)}×{getDimLabel(1, dims.length)}
+                                                                                </span>
+                                                                                <span className="text-[9px] text-slate-400">
+                                                                                    {assignedKeys.length} pts
+                                                                                </span>
+                                                                            </div>
+                                                                            <span className="text-[8px] text-slate-500">Projection onto first 2 dims</span>
                                                                         </div>
                                                                         <div className="flex-1 flex items-center justify-center">
                                                                             <div className="inline-flex flex-col gap-[2px]">
@@ -1352,6 +1502,43 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                                         </div>
                                                                     </div>
                                                                 );
+                                                            } else if (dims.length > 6) {
+                                                                // High-dim: show list of assigned points with dynamic labels
+                                                                const coordStr = (key) => {
+                                                                    try {
+                                                                        const pos = JSON.parse(key);
+                                                                        return Array.isArray(pos)
+                                                                            ? pos.map((v, i) => `${getDimLabel(i, pos.length)}:${v}`).join(', ')
+                                                                            : key;
+                                                                    } catch (e) {
+                                                                        return key;
+                                                                    }
+                                                                };
+                                                                overview = (
+                                                                    <div className="w-40 sm:w-52 flex-shrink-0 bg-slate-900 rounded-xl border border-slate-700 p-2 flex flex-col gap-2">
+                                                                        <div className="flex flex-col gap-0.5">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-[9px] font-bold text-slate-200 uppercase">
+                                                                                    Cube ({dims.length}D)
+                                                                                </span>
+                                                                                <span className="text-[9px] text-slate-400">
+                                                                                    {assignedKeys.length} pts
+                                                                                </span>
+                                                                            </div>
+                                                                            <span className="text-[8px] text-slate-500">Assigned injection points</span>
+                                                                        </div>
+                                                                        <div className="flex-1 min-h-0 overflow-y-auto max-h-48 space-y-0.5">
+                                                                            {assignedKeys.slice(0, 50).map((key) => (
+                                                                                <div key={key} className="text-[8px] font-mono text-slate-300 truncate" title={coordStr(key)}>
+                                                                                    [{coordStr(key)}]
+                                                                                </div>
+                                                                            ))}
+                                                                            {assignedKeys.length > 50 && (
+                                                                                <div className="text-[8px] text-slate-500">+{assignedKeys.length - 50} more</div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
                                                             } else {
                                                                 // 1D overview: collapse to first dimension only
                                                                 const maxX = dims[0] || 1;
@@ -1366,13 +1553,16 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
                                                                 overview = (
                                                                     <div className="w-40 sm:w-52 flex-shrink-0 bg-slate-900 rounded-xl border border-slate-700 p-2 flex flex-col gap-2">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <span className="text-[9px] font-bold text-slate-200 uppercase">
-                                                                                Assign Map
-                                                                            </span>
-                                                                            <span className="text-[9px] text-slate-400">
-                                                                                {assignedKeys.length} pts
-                                                                            </span>
+                                                                        <div className="flex flex-col gap-0.5">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-[9px] font-bold text-slate-200 uppercase">
+                                                                                    Cube {getDimLabel(0, dims.length)}
+                                                                                </span>
+                                                                                <span className="text-[9px] text-slate-400">
+                                                                                    {assignedKeys.length} pts
+                                                                                </span>
+                                                                            </div>
+                                                                            <span className="text-[8px] text-slate-500">1D projection</span>
                                                                         </div>
                                                                         <div className="flex-1 flex items-center justify-center">
                                                                             <div className="flex gap-[2px]">

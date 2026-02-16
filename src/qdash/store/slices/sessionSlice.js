@@ -20,6 +20,13 @@ const sessionSlice = createSlice({
             state.sessions = action.payload;
             state.loading = false;
         },
+        addSession: (state, action) => {
+            const session = action.payload;
+            if (session?.id && !state.sessions.some(s => (typeof s === 'string' ? s : s.id) === session.id)) {
+                state.sessions = [...state.sessions, session];
+                state.loading = false;
+            }
+        },
         setActiveSession: (state, action) => {
             state.activeSession = action.payload;
             state.activeSessionId = action.payload ? action.payload.id : null;
@@ -372,7 +379,7 @@ const sessionSlice = createSlice({
 });
 
 export const {
-    setSessions, setActiveSession,
+    setSessions, addSession, setActiveSession,
     setActiveSessionEnvs, setActiveSessionModules, setActiveSessionFields, setSessionConfig,
     mergeEnableSM, mergeLinkData,
     optimisticLinkEnv, optimisticUnlinkEnv,

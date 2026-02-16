@@ -207,7 +207,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                         <p className="text-xs text-slate-500">Define code bases and equation links</p>
                     </div>
                 </div>
-                <Button isIconOnly variant="light" onPress={onClose}>
+                <Button aria-label="Close modal" isIconOnly variant="light" onPress={onClose}>
                     <X size={24} />
                 </Button>
             </div>
@@ -252,6 +252,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                         <span className="font-mono text-sm truncate">{methodId}</span>
                                     </div>
                                     <Button
+                                        aria-label="Delete method"
                                         isIconOnly
                                         size="sm"
                                         color="danger"
@@ -420,6 +421,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                                             {isConst ? "CONST" : "VAR"}
                                                         </span>
                                                         <Button
+                                                            aria-label="Remove parameter"
                                                             isIconOnly
                                                             size="sm"
                                                             variant="light"

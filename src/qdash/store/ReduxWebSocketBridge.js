@@ -93,8 +93,15 @@ const ReduxWebSocketBridge = () => {
         };
 
         const handleStatus = (event) => {
-            const { status, isConnected, error } = event.detail;
-            dispatch(setConnectionStatus({ status, isConnected, error }));
+            const { status, isConnected, error } = event.detail || {};
+            const serializableError = (() => {
+                if (!error) return null;
+                if (typeof error === 'string') return error;
+                if (error instanceof Event) return { message: 'WebSocket connection error', type: error.type || 'error' };
+                if (typeof error === 'object' && error !== null && typeof error.message === 'string') return { message: error.message, code: error.code };
+                return { message: String(error?.message ?? error?.type ?? 'Unknown error') };
+            })();
+            dispatch(setConnectionStatus({ status, isConnected, error: serializableError }));
         };
 
         window.addEventListener('qdash-ws-message', handleMessage);

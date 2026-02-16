@@ -288,7 +288,7 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
                 }
             });
         }
-
+        
         if (onSend) {
             onSend(injectionData);
         }

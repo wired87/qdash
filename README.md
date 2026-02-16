@@ -24,12 +24,8 @@ frontend full agent capabilities and interaction just use relay for commmits
 
 ## ⚠️ First-Time Setup
 
-1. **Quick Setup**: Run `setup-gemini.bat` (Windows) or see `SETUP_GEMINI.md`
-2. **Get API Key**: https://makersuite.google.com/app/apikey
-3. **Add to `.env`**: `CLIENT_KEY_GEMINI_API_KEY=your_key_here`
-4. **Restart**: Stop and run `npm start` again
-
-Without this, the terminal chat will show connection errors. See **[SETUP_GEMINI.md](SETUP_GEMINI.md)** for details.
+- clone -> paste env args -> ready to go 
+- feel free use it as blueprint for other projects 
 
 ---
 

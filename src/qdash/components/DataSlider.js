@@ -344,6 +344,7 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                               <Dropdown>
                                 <DropdownTrigger>
                                   <Button
+                                    aria-label="Environment actions"
                                     size="sm"
                                     variant="light"
                                     isIconOnly

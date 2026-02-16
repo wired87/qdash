@@ -25,6 +25,11 @@ const filteredCfg = {
         value: 3,
         description: "The room dimensions of the simulation cluster.",
     },
+    distance: {
+        value: 0,
+        description: "Distance in nanometers (nm).",
+        label: "distance (nm)",
+    },
 };
 
 const G_FIELDS = [
@@ -154,13 +159,17 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
         setCfg((prevCfg) => {
             let updatedCfg = { ...prevCfg };
             if (updatedCfg[sid]) {
+                let val = newValue;
+                if (sid === 'distance') {
+                    val = newValue === '' || isNaN(parseFloat(newValue)) ? 0 : parseFloat(newValue);
+                } else if (!isNaN(parseFloat(newValue)) && sid !== 'email' && sid !== 'particle') {
+                    val = parseFloat(newValue);
+                }
                 updatedCfg = {
                     ...updatedCfg,
                     [sid]: {
                         ...updatedCfg[sid],
-                        value: isNaN(parseFloat(newValue)) && sid !== 'email' && sid !== 'particle'
-                            ? newValue
-                            : parseFloat(newValue),
+                        value: val,
                         error: error
                     },
                 };
@@ -181,6 +190,9 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             Object.entries(cfg).map(([key, val]) => [key, val.value])
         );
         maxValues.id = crypto.randomUUID().replace(/-/g, '');
+        if (maxValues.distance === '' || maxValues.distance == null || isNaN(Number(maxValues.distance))) {
+            maxValues.distance = 0;
+        }
         // maxValues.amount_of_nodes = maxValues.amount_of_nodes;
         // maxValues.sim_time = maxValues.sim_time;
         return maxValues;
@@ -250,6 +262,7 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
         if (key === "enable_sm") {
             return (
                 <Switch
+                    aria-label="Enable Standard Model"
                     isSelected={cfg[key]?.value}
                     onValueChange={(isSelected) => handleValueChange(key, isSelected)}
                     size="sm"
@@ -261,7 +274,8 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             return (
                 <Input
                     isDisabled={key === 'dims'}
-                    value={cfg[key]?.value || ''}
+                    type={key === 'distance' ? 'number' : 'text'}
+                    value={String(cfg[key]?.value ?? (key === 'distance' ? 0 : ''))}
                     onValueChange={(val) => handleValueChange(key, val)}
                     size="sm"
                     variant="bordered"
@@ -290,7 +304,7 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                 className="flex flex-col gap-1.5"
             >
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 uppercase tracking-wider">
-                    {sid.replace(/_/g, ' ')}
+                    {(attrs.label || sid.replace(/_/g, ' '))}
                     {attrs.description && (
                         <div className="group relative">
                             <Info size={14} className="cursor-help text-slate-400 hover:text-blue-500 transition-colors" />

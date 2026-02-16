@@ -227,6 +227,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
         if (type === 'bool') {
             return (
                 <Switch
+                    aria-label={pair.paramId || 'Toggle'}
                     size="sm"
                     isSelected={!!value}
                     onValueChange={v => handleValueChange(pair.id, v)}
@@ -302,7 +303,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                         <p className="text-xs text-slate-500">Define data fields with parameter templates</p>
                     </div>
                 </div>
-                <Button isIconOnly variant="light" onPress={onClose}>
+                <Button aria-label="Close modal" isIconOnly variant="light" onPress={onClose}>
                     <X size={24} />
                 </Button>
             </div>
@@ -344,6 +345,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                         <span className="font-mono text-sm truncate">{fieldId}</span>
                                     </div>
                                     <Button
+                                        aria-label="Delete field"
                                         isIconOnly
                                         size="sm"
                                         color="danger"
@@ -484,6 +486,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                                         </div>
 
                                                         <Button
+                                                            aria-label="Remove parameter"
                                                             isIconOnly
                                                             size="sm"
                                                             color="danger"

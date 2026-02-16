@@ -260,6 +260,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
             {env.state || env.status || 'UNK'}
           </div>
           <Switch
+            aria-label={`Link ${env.id || 'env'} to session`}
             size="sm"
             isSelected={linkedEnvs.has(env.id) || isSessionEnv}
             onValueChange={(val) => handleSessionLink(env.id, val)}
@@ -298,7 +299,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
             <p className="text-xs text-slate-500">Configure simulation parameters and clusters</p>
           </div>
         </div>
-        <Button isIconOnly variant="light" onPress={onToggle}>
+        <Button aria-label="Close" isIconOnly variant="light" onPress={onToggle}>
           <X size={24} />
         </Button>
       </div>
@@ -431,6 +432,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold">Add to Conversation</span>
                             <Switch
+                              aria-label="Add to conversation"
                               size="sm"
                               isSelected={conversationModels.includes(selectedEnvConfig.id)}
                               onValueChange={(val) => {
@@ -485,6 +487,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
                     <span className="text-xs font-bold uppercase">Live Data Viewer</span>
                   </div>
                   <Button
+                    aria-label="Fetch env data"
                     size="sm"
                     variant="light"
                     isIconOnly

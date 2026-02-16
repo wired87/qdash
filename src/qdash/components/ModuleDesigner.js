@@ -280,6 +280,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
                                         <span className="font-mono text-sm truncate">{modId}</span>
                                     </div>
                                     <Button
+                                        aria-label="Delete module"
                                         isIconOnly
                                         size="sm"
                                         color="danger"
@@ -383,6 +384,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
                                                         </div>
                                                     </div>
                                                     <Button
+                                                        aria-label="Remove method from module"
                                                         isIconOnly
                                                         size="sm"
                                                         variant="light"
@@ -449,6 +451,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
                                                         </div>
                                                     </div>
                                                     <Button
+                                                        aria-label="Remove field from module"
                                                         isIconOnly
                                                         size="sm"
                                                         variant="light"
@@ -573,7 +576,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
                         <p className="text-xs text-slate-500">Group methods into reusable modules</p>
                     </div>
                 </div>
-                <Button isIconOnly variant="light" onPress={onClose}>
+                <Button aria-label="Close modal" isIconOnly variant="light" onPress={onClose}>
                     <X size={24} />
                 </Button>
             </div>

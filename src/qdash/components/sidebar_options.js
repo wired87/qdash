@@ -2,8 +2,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Users, FileText, Mail, Calendar, Star, Clock, Tag } from "lucide-react"
-
+// C:\Users\bestb\Desktop\projQ\qdash\qdash\src\hooks
 // Sample data arrays for each accordion section
+// C:\Users\bestb\Desktop\projQ\qdash\qdash\src\qdash\components\sidebar_options.js
 const sampleData = {
   users: [
     { id: 1, name: "John Doe", email: "john@example.com", status: "active" },

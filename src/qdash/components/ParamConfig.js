@@ -150,7 +150,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                         <p className="text-xs text-slate-500">Define parameter types</p>
                     </div>
                 </div>
-                <Button isIconOnly variant="light" onPress={onClose}>
+                <Button aria-label="Close modal" isIconOnly variant="light" onPress={onClose}>
                     <X size={24} />
                 </Button>
             </div>
@@ -198,6 +198,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                         <Loader2 size={16} className="animate-spin text-slate-400" />
                                     ) : (
                                         <Button
+                                            aria-label="Delete parameter"
                                             isIconOnly
                                             size="sm"
                                             color="danger"
@@ -227,6 +228,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                             <span className="text-xs text-slate-500">Enable to make this parameter immutable during runtime</span>
                                         </div>
                                         <Switch
+                                            aria-label="Constant parameter"
                                             isSelected={currentParam.is_constant}
                                             onValueChange={(val) => setCurrentParam({ ...currentParam, is_constant: val })}
                                             color="secondary"
@@ -236,8 +238,20 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
 
                                 {/* Conditional Rendering based on is_constant */}
                                 {currentParam.is_constant ? (
-                                    // Render ONLY Value and Type if constant
+                                    // Constant: ID, Type, Value, Description
                                     <>
+                                        {/* Param ID */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parameter ID</label>
+                                            <Input
+                                                placeholder="Enter Parameter ID"
+                                                value={currentParam.id || ''}
+                                                onChange={(e) => setCurrentParam({ ...currentParam, id: e.target.value })}
+                                                variant="bordered"
+                                                classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                            />
+                                        </div>
+
                                         {/* Type Selector */}
                                         <div className="space-y-2">
                                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Type</label>
@@ -266,6 +280,19 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                                 onChange={(e) => setCurrentParam({ ...currentParam, value: e.target.value })}
                                                 variant="bordered"
                                                 classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                            />
+                                        </div>
+
+                                        {/* Description Input */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
+                                            <Textarea
+                                                placeholder="Describe this parameter..."
+                                                value={currentParam.description || ''}
+                                                onValueChange={(val) => setCurrentParam({ ...currentParam, description: val })}
+                                                minRows={3}
+                                                variant="bordered"
+                                                classNames={{ input: "bg-slate-50 dark:bg-slate-800" }}
                                             />
                                         </div>
                                     </>

@@ -145,7 +145,7 @@ const _useWebSocket = (
 
       if (Array.isArray(envsList)) {
         envsList.forEach(env => {
-          // Schema: { id, sim_time, amount_of_nodes, dims, field_id }
+          // Schema: { id, sim_time, amount_of_nodes, dims, field_id, distance }
           const id = env.id || env.env_id || env.nid;
           if (id) {
             envsMap[id] = {
@@ -154,6 +154,7 @@ const _useWebSocket = (
               amount_of_nodes: env.amount_of_nodes,
               dims: env.dims,
               field_id: env.field_id ?? env.field,
+              distance: env.distance ?? 0,
               status: env.status || 'default',
               nodes: env.nodes || {},
               ...env
@@ -681,7 +682,8 @@ const _useWebSocket = (
       if (isMounted.current) {
         setError(event);
         setIsConnected(false);
-        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'error', isConnected: false, error: event } }));
+        const serializableError = { message: 'WebSocket connection error', type: event?.type || 'error' };
+        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'error', isConnected: false, error: serializableError } }));
       }
     };
 
