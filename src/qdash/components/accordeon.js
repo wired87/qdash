@@ -32,41 +32,6 @@ const filteredCfg = {
     },
 };
 
-const G_FIELDS = [
-    "photon",
-    "w_plus",
-    "w_minus",
-    "z_boson",
-    ...Array.from({ length: 8 }, (_, i) => `gluon_${i}`)
-];
-
-const H = ["higgs"];
-
-const FERMIONS = [
-    "electron", "muon", "tau",
-    "electron_neutrino", "muon_neutrino", "tau_neutrino",
-    ...Array.from({ length: 3 }, (_, i) => `up_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `down_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `charm_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `strange_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `top_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `bottom_quark_${i + 1}`)
-];
-
-const RESERVED_BASES = new Set(
-    [...G_FIELDS, ...H, ...FERMIONS].map(name =>
-        name.toLowerCase()
-            .replace(/[\s\-_]/g, '')
-            .replace(/\d+$/, '')
-    )
-);
-
-const isReserved = (val) => {
-    if (!val) return false;
-    const cleanVal = val.toString().toLowerCase().replace(/[\s\-_]/g, '').replace(/\d+$/, '');
-    return RESERVED_BASES.has(cleanVal);
-};
-
 const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig, listenToUserWorldConfig, userProfile, shouldShowDefault }) => {
     const userFields = useSelector((state) => state.fields.userFields) || [];
     const [completed, setCompleted] = useState(false);
@@ -151,11 +116,6 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             return;
         }
 
-        let error = null;
-        if (sid === 'id' && isReserved(newValue)) {
-            error = "Name is reserved (restricted particle logic).";
-        }
-
         setCfg((prevCfg) => {
             let updatedCfg = { ...prevCfg };
             if (updatedCfg[sid]) {
@@ -169,8 +129,7 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                     ...updatedCfg,
                     [sid]: {
                         ...updatedCfg[sid],
-                        value: val,
-                        error: error
+                        value: val
                     },
                 };
             }
@@ -290,12 +249,13 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
         }
         return (
             <ParticleChoice
+                fieldOptions={userFields.map(f => typeof f === 'string' ? f : (f?.id ?? f?.name ?? '')).filter(Boolean)}
                 updateSelectedTools={(item) => handleValueChange("particle", item)}
                 updateIsDropdownOpen={updateIsDropdownOpen}
                 isDropdownOpen={isDropdownOpen}
             />
         )
-    }, [cfg, updateIsDropdownOpen, isDropdownOpen, handleValueChange])
+    }, [cfg, userFields, updateIsDropdownOpen, isDropdownOpen, handleValueChange])
 
     const get_input = (sid, attrs) => {
         return (

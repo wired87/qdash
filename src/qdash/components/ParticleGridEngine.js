@@ -90,6 +90,41 @@ function buildIdleParticles(count) {
     return { positions, velocities, colors: buildMinimalColors(count) };
 }
 
+const SHAPE_SCALE = 10;
+
+/** Sample positions from a geometry shape (rect, triangle, box) for particle rearrangement. */
+function buildShapePositions(shapeType, count) {
+    let geo;
+    switch (shapeType) {
+        case 'rect':
+            geo = new THREE.PlaneGeometry(2, 1.2, 12, 8);
+            geo.rotateX(-Math.PI / 2);
+            break;
+        case 'triangle':
+            geo = new THREE.ConeGeometry(1, 2, 3, 8);
+            break;
+        case 'box':
+            geo = new THREE.BoxGeometry(1.5, 1.5, 1.5, 6, 6, 6);
+            break;
+        case 'image_3d':
+            geo = new THREE.BoxGeometry(1.5, 1.5, 1.5, 6, 6, 6);
+            break;
+        default:
+            geo = new THREE.BoxGeometry(1.5, 1.5, 1.5, 4, 4, 4);
+    }
+    const posAttr = geo.getAttribute('position');
+    const vertCount = posAttr.count;
+    const out = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+        const idx = i % vertCount;
+        out[i * 3] = posAttr.getX(idx) * SHAPE_SCALE;
+        out[i * 3 + 1] = posAttr.getY(idx) * SHAPE_SCALE;
+        out[i * 3 + 2] = posAttr.getZ(idx) * SHAPE_SCALE;
+    }
+    geo.dispose();
+    return { positions: out, colors: buildMinimalColors(count), count };
+}
+
 const HEIGHTMAP_MAX_HEIGHT = 2;
 
 /** Create geometry from heightmap data (1D array, width x height). */
@@ -172,6 +207,7 @@ export const ParticleGridEngine = ({
     className = '',
     droppedForms = [],
     envConfig = null,
+    selectedGeometry = null,
 }) => {
     const containerRef = useRef(null);
     const sceneRef = useRef(null);
@@ -325,6 +361,43 @@ export const ParticleGridEngine = ({
         });
 
         if (!envConfig) {
+            if (selectedGeometry && ['rect', 'triangle', 'box', 'image_3d'].includes(selectedGeometry)) {
+                const { positions: targetPositions, count } = buildShapePositions(selectedGeometry, IDLE_PARTICLE_COUNT);
+                const currentPositions = buildScatterPositions(targetPositions);
+                const sphereGeo = new THREE.SphereGeometry(0.18, 10, 8);
+                const glassMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xffffff,
+                    emissive: 0x88ccff,
+                    emissiveIntensity: 0.15,
+                    shininess: 20,
+                    specular: 0x4488ff,
+                    transparent: true,
+                    opacity: 0.75,
+                    depthWrite: false,
+                });
+                const instancedMesh = new THREE.InstancedMesh(sphereGeo, glassMaterial, count);
+                instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                const matrix = new THREE.Matrix4();
+                const position = new THREE.Vector3();
+                for (let i = 0; i < count; i++) {
+                    position.set(currentPositions[i * 3], currentPositions[i * 3 + 1], currentPositions[i * 3 + 2]);
+                    matrix.setPosition(position);
+                    instancedMesh.setMatrixAt(i, matrix);
+                }
+                instancedMesh.instanceMatrix.needsUpdate = true;
+                scene.add(instancedMesh);
+                nodeGridRef.current = instancedMesh;
+                currentPositionsRef.current = currentPositions;
+                targetPositionsRef.current = targetPositions;
+                return () => {
+                    scene.remove(instancedMesh);
+                    sphereGeo.dispose();
+                    glassMaterial.dispose();
+                    nodeGridRef.current = null;
+                    currentPositionsRef.current = null;
+                    targetPositionsRef.current = null;
+                };
+            }
             const { positions, velocities, colors } = buildIdleParticles(IDLE_PARTICLE_COUNT);
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -384,7 +457,7 @@ export const ParticleGridEngine = ({
             currentPositionsRef.current = null;
             targetPositionsRef.current = null;
         };
-    }, [envConfig, dimsRaw, amountOfNodes, distance]);
+    }, [envConfig, dimsRaw, amountOfNodes, distance, selectedGeometry]);
 
     // Sync dropped forms into the scene and setup DragControls
     useEffect(() => {

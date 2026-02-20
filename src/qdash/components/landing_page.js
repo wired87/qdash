@@ -383,6 +383,7 @@ export const LandingPage = ({
                                     className="w-full h-full"
                                     droppedForms={droppedForms}
                                     envConfig={selectedEnv ? { dims: selectedEnv.dims, amount_of_nodes: selectedEnv.amount_of_nodes ?? selectedEnv.cluster_dim, distance: selectedEnv.distance ?? 0 } : null}
+                                    selectedGeometry={selectedGeometry}
                                 />
                             </div>
                             {/* Env cfg modal: backdrop shows engine; centered modal with config */}

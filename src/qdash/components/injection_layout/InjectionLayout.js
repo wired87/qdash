@@ -71,22 +71,15 @@ const InjectionLayout = ({ env }) => {
                 const firstTool = data.blocks[0].tools[0];
                 updateNodeField(selectedNodeId, firstTool);
 
-                // Simplified color map for injection visualization
-                const colorMap = {
-                    photon: '#FFFF00',
-                    electron: '#0000FF',
-                    w_plus: '#FF00FF',
-                    w_minus: '#8A2BE2',
-                    z_boson: '#00FFFF',
-                    gluon: '#FFA500',
-                    higgs: '#FFFFFF'
+                // Hash-based color for field/tool (no hardcoded field names)
+                const hash = (s) => {
+                    let h = 0;
+                    for (let i = 0; i < (s || '').length; i++) h = ((h << 5) - h) + s.charCodeAt(i) | 0;
+                    return Math.abs(h);
                 };
-
-                if (colorMap[firstTool]) {
-                    updateNodeColor(selectedNodeId, colorMap[firstTool]);
-                } else {
-                    updateNodeColor(selectedNodeId, '#00FF00'); // Default tool color
-                }
+                const hue = hash(firstTool) % 360;
+                const color = `hsl(${hue}, 70%, 50%)`;
+                updateNodeColor(selectedNodeId, color);
             }
         }
         setIsModalOpen(false);

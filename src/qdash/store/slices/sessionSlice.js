@@ -151,61 +151,18 @@ const sessionSlice = createSlice({
                             Object.entries(sessionData.envs).forEach(([envId, envData]) => {
                                 // Initialize env if not exists
                                 if (!state.sessionData[sessionId].config.envs[envId]) {
-                                    state.sessionData[sessionId].config.envs[envId] = { modules: {}, injections: {} };
+                                    state.sessionData[sessionId].config.envs[envId] = { modules: [], injections: {} };
                                 }
 
-                                // Merge modules
+                                // Merge modules: env item carries modules: list[str] (selected module IDs only)
                                 if (envData.modules !== undefined) {
-                                    // If modules is empty object, clear all modules for this env
-                                    if (typeof envData.modules === 'object' && Object.keys(envData.modules).length === 0) {
-                                        state.sessionData[sessionId].config.envs[envId].modules = {};
+                                    if (Array.isArray(envData.modules)) {
+                                        state.sessionData[sessionId].config.envs[envId].modules = [...new Set(envData.modules)];
+                                    } else if (typeof envData.modules === 'object') {
+                                        // Legacy: object format -> extract module IDs
+                                        state.sessionData[sessionId].config.envs[envId].modules = Object.keys(envData.modules);
                                     } else {
-                                        if (!state.sessionData[sessionId].config.envs[envId].modules) {
-                                            state.sessionData[sessionId].config.envs[envId].modules = {};
-                                        }
-
-                                        Object.entries(envData.modules).forEach(([moduleId, moduleData]) => {
-                                            // Initialize module if not exists
-                                            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId]) {
-                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId] = { fields: {} };
-                                            }
-
-                                            // Merge fields
-                                            if (moduleData.fields !== undefined) {
-                                                // If fields is empty array or empty object, clear all fields for this module
-                                                if ((Array.isArray(moduleData.fields) && moduleData.fields.length === 0) ||
-                                                    (typeof moduleData.fields === 'object' && !Array.isArray(moduleData.fields) && Object.keys(moduleData.fields).length === 0)) {
-                                                    state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields = {};
-                                                } else {
-                                                    if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields) {
-                                                        state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields = {};
-                                                    }
-
-                                                    // If fields is an array, convert to object structure
-                                                    if (Array.isArray(moduleData.fields)) {
-                                                        moduleData.fields.forEach(fieldId => {
-                                                            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId]) {
-                                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {};
-                                                            }
-                                                        });
-                                                    } else if (typeof moduleData.fields === 'object') {
-                                                        // If fields is already an object, merge it
-                                                        Object.entries(moduleData.fields).forEach(([fieldId, fieldData]) => {
-                                                            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId]) {
-                                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {};
-                                                            }
-                                                            // Merge any existing field data
-                                                            if (fieldData && typeof fieldData === 'object') {
-                                                                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {
-                                                                    ...state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId],
-                                                                    ...fieldData
-                                                                };
-                                                            }
-                                                        });
-                                                    }
-                                                }
-                                            }
-                                        });
+                                        state.sessionData[sessionId].config.envs[envId].modules = [];
                                     }
                                 }
                                 // Merge injections
@@ -236,9 +193,9 @@ const sessionSlice = createSlice({
             if (!state.sessionData[sessionId].config.envs) {
                 state.sessionData[sessionId].config.envs = {};
             }
-            // Add env with empty modules and injections structure
+            // Add env with modules: list[str], injections: {}
             if (!state.sessionData[sessionId].config.envs[envId]) {
-                state.sessionData[sessionId].config.envs[envId] = { modules: {}, injections: {} };
+                state.sessionData[sessionId].config.envs[envId] = { modules: [], injections: {} };
             }
         },
         // Optimistic Unlink Env from Session (instant UI update)
@@ -255,81 +212,48 @@ const sessionSlice = createSlice({
                 delete state.sessionData[sessionId].config.envs[envId];
             }
         },
-        // Optimistic Link Module to Env (instant UI update)
+        // Optimistic Link Module to Env (instant UI update) - modules: list[str]
         optimisticLinkModule: (state, action) => {
             const { sessionId, envId, moduleId } = action.payload;
             if (!state.sessionData[sessionId]?.config?.envs?.[envId]) return;
-            if (!state.sessionData[sessionId].config.envs[envId].modules) {
-                state.sessionData[sessionId].config.envs[envId].modules = {};
-            }
-            // Add module with empty fields structure
-            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId]) {
-                state.sessionData[sessionId].config.envs[envId].modules[moduleId] = { fields: {} };
+            const mods = state.sessionData[sessionId].config.envs[envId].modules;
+            if (!Array.isArray(mods)) state.sessionData[sessionId].config.envs[envId].modules = [];
+            if (!state.sessionData[sessionId].config.envs[envId].modules.includes(moduleId)) {
+                state.sessionData[sessionId].config.envs[envId].modules.push(moduleId);
             }
         },
         // Optimistic Unlink Module from Env (instant UI update)
         optimisticUnlinkModule: (state, action) => {
             const { sessionId, envId, moduleId } = action.payload;
-            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules) {
-                delete state.sessionData[sessionId].config.envs[envId].modules[moduleId];
+            const mods = state.sessionData[sessionId]?.config?.envs?.[envId]?.modules;
+            if (Array.isArray(mods)) {
+                state.sessionData[sessionId].config.envs[envId].modules = mods.filter(id => id !== moduleId);
             }
         },
         // Remove Module from Env in Session
         removeSessionModule: (state, action) => {
             const { sessionId, envId, moduleId } = action.payload;
-            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules) {
-                delete state.sessionData[sessionId].config.envs[envId].modules[moduleId];
+            const mods = state.sessionData[sessionId]?.config?.envs?.[envId]?.modules;
+            if (Array.isArray(mods)) {
+                state.sessionData[sessionId].config.envs[envId].modules = mods.filter(id => id !== moduleId);
             }
         },
-        // Optimistic Link Method to Module (instant UI update)
-        optimisticLinkMethod: (state, action) => {
-            const { sessionId, envId, moduleId, methodId } = action.payload;
-            if (!state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]) return;
-            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods) {
-                state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods = {};
-            }
-            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId]) {
-                state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId] = {};
-            }
-        },
-        // Optimistic Unlink Method from Module
-        optimisticUnlinkMethod: (state, action) => {
-            const { sessionId, envId, moduleId, methodId } = action.payload;
-            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]?.methods) {
-                delete state.sessionData[sessionId].config.envs[envId].modules[moduleId].methods[methodId];
-            }
-        },
-        // Optimistic Link Field to Module (instant UI update)
-        optimisticLinkField: (state, action) => {
-            const { sessionId, envId, moduleId, fieldId } = action.payload;
-            if (!state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]) return;
-            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields) {
-                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields = {};
-            }
-            if (!state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId]) {
-                state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId] = {};
-            }
-        },
-        // Optimistic Unlink Field from Module (instant UI update)
-        optimisticUnlinkField: (state, action) => {
-            const { sessionId, envId, moduleId, fieldId } = action.payload;
-            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]?.fields) {
-                delete state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId];
-            }
-        },
-        // Remove Field from Module in Session
-        removeSessionField: (state, action) => {
-            const { sessionId, envId, moduleId, fieldId } = action.payload;
-            if (state.sessionData[sessionId]?.config?.envs?.[envId]?.modules?.[moduleId]?.fields) {
-                delete state.sessionData[sessionId].config.envs[envId].modules[moduleId].fields[fieldId];
-            }
-        },
+        // Optimistic Link Method to Module - no-op (env struct: modules is list[str] only)
+        optimisticLinkMethod: () => {},
+        // Optimistic Unlink Method from Module - no-op
+        optimisticUnlinkMethod: () => {},
+        // Optimistic Link Field to Module - no-op (env struct: modules is list[str] only)
+        optimisticLinkField: () => {},
+        // Optimistic Unlink Field from Module - no-op
+        optimisticUnlinkField: () => {},
+        // Remove Field from Module in Session - no-op
+        removeSessionField: () => {},
         // Assign Injection to Environment Position
         assignInjection: (state, action) => {
             const { sessionId, envId, fieldId, posKey, injectionId } = action.payload;
             // Ensure path exists
             if (!state.sessionData[sessionId]) state.sessionData[sessionId] = { envs: [], modules: [], fields: [], config: { envs: {} } };
-            if (!state.sessionData[sessionId].config.envs[envId]) state.sessionData[sessionId].config.envs[envId] = { modules: {}, injections: {} };
+            if (!state.sessionData[sessionId].config.envs[envId]) state.sessionData[sessionId].config.envs[envId] = { modules: [], injections: {} };
             if (!state.sessionData[sessionId].config.envs[envId].injections) state.sessionData[sessionId].config.envs[envId].injections = {};
             if (!state.sessionData[sessionId].config.envs[envId].injections[fieldId]) state.sessionData[sessionId].config.envs[envId].injections[fieldId] = {};
 

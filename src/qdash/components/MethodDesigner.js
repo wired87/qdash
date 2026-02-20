@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
+import { Button, Input, Select, SelectItem, Switch, Textarea } from "@heroui/react";
 import { Plus, Trash2, HelpCircle, FileText, Save, X, ZapOff, Lock } from "lucide-react";
 import { USER_ID_KEY, getSessionId } from "../auth";
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
@@ -49,6 +49,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             description: raw.description ?? '',
             params,
             return_key: raw.return_key ?? null,
+            derivate: !!raw.derivate,
             equation: getFunctionContent(raw)
         };
     }, [getFunctionContent]);
@@ -101,6 +102,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             description: "",
             params: [], // Array of objects { name: "paramId", origin: "self" }
             return_key: null,
+            derivate: false,
             equation: ""
         });
         setOriginalId(null);
@@ -157,6 +159,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 params: (currentModule.params || []).map(p => typeof p === 'string' ? p : p.name),
                 param_origins: (currentModule.params || []).map(p => typeof p === 'string' ? 'self' : (p.origin || 'self')),
                 return_key: currentModule.return_key,
+                derivate: !!currentModule.derivate,
                 equation: currentModule.equation
             },
             auth: {
@@ -472,6 +475,21 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                             );
                                         })}
                                     </Select>
+                                </div>
+
+                                {/* Derivate (include surrounding) */}
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200/50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Derivate</span>
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Include surrounding</span>
+                                    </div>
+                                    <Switch
+                                        aria-label="Derivate - include surrounding"
+                                        size="sm"
+                                        isSelected={!!currentModule.derivate}
+                                        onValueChange={(val) => setCurrentModule({ ...currentModule, derivate: val })}
+                                        classNames={{ wrapper: 'group-data-[selected=true]:bg-purple-500' }}
+                                    />
                                 </div>
 
                                 {/* Equation Editor */}

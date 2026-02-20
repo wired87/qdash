@@ -360,6 +360,7 @@ export const TerminalConsole = ({
         params: [],
         param_origins: [],
         return_key: null,
+        derivate: false,
         equation,
       },
       auth: {

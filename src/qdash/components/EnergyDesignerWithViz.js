@@ -4,33 +4,6 @@ import { X, Plus, Trash2 } from 'lucide-react';
 import { USER_ID_KEY } from '../auth';
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 
-const G_FIELDS = [
-    "photon",
-    "w_plus",
-    "w_minus",
-    "z_boson",
-    ...Array.from({ length: 8 }, (_, i) => `gluon_${i}`)
-];
-
-const H = ["higgs"];
-
-const FERMIONS = [
-    "electron", "muon", "tau",
-    "electron_neutrino", "muon_neutrino", "tau_neutrino",
-    ...Array.from({ length: 3 }, (_, i) => `up_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `down_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `charm_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `strange_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `top_quark_${i + 1}`),
-    ...Array.from({ length: 3 }, (_, i) => `bottom_quark_${i + 1}`)
-];
-
-const ALL_SUBS = [
-    ...FERMIONS.map(f => f.toUpperCase()),
-    ...G_FIELDS.map(g => g.toUpperCase()),
-    ...H.map(h => h.toUpperCase())
-];
-
 // Canvas constants
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 200;

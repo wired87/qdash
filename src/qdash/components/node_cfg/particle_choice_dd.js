@@ -1,30 +1,8 @@
 import { Check, ChevronDown } from "lucide-react";
 import React, { useState } from "react";
 
-// Dropdown Options
-const TOOL_OPTIONS = [
-    "photon",
-    "w_plus",
-    "w_minus",
-    "z_boson",
-    "gluon",
-    "electron",
-    "muon",
-    "tau",
-    "electron_neutrino",
-    "muon_neutrino",
-    "tau_neutrino",
-    "up_quark",
-    "down_quark",
-    "charm_quark",
-    "strange_quark",
-    "top_quark",
-    "bottom_quark",
-    "higgs",
-];
-
-// Component for the particle selection dropdown
 const ParticleChoice = ({
+    fieldOptions = [],
     updateIsDropdownOpen,
     isDropdownOpen,
     updateSelectedTools
@@ -98,7 +76,7 @@ const ParticleChoice = ({
                         overflowY: 'auto',
                     }}
                 >
-                    {TOOL_OPTIONS.map((tool) => {
+                    {fieldOptions.map((tool) => {
                         const isSelected = selectedTools.includes(tool);
                         return (
                             <div

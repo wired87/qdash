@@ -5,36 +5,25 @@ import { useSelector } from 'react-redux';
 import InjectionLivePreview from './InjectionLivePreview';
 import { USER_ID_KEY } from '../auth';
 
-
-// Default field options - can be customized
-const DEFAULT_FIELDS = [
-    'electric_field',
-    'magnetic_field',
-    'gravitational_field',
-    'quantum_field',
-    'higgs_field'
-];
-
-const InjectionSelectorModal = ({ isOpen, onClose, nodePosition, onConfirm, sendMessage, fieldOptions = DEFAULT_FIELDS }) => {
+const InjectionSelectorModal = ({ isOpen, onClose, nodePosition, onConfirm, sendMessage, fieldOptions }) => {
     const [injections, setInjections] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedInjection, setSelectedInjection] = useState(null);
     const [selectedField, setSelectedField] = useState('');
 
-    // Request injections when modal opens
+    // Request injections and fields when modal opens
     useEffect(() => {
         if (isOpen && sendMessage) {
             setIsLoading(true);
             const userId = localStorage.getItem(USER_ID_KEY);
-            sendMessage({
-                type: "GET_INJ_USER",
-                user_id: userId,
-                timestamp: new Date().toISOString()
-            });
+            sendMessage({ type: "GET_INJ_USER", auth: { user_id: userId }, timestamp: new Date().toISOString() });
+            sendMessage({ type: "LIST_USERS_FIELDS", auth: { user_id: userId }, timestamp: new Date().toISOString() });
         }
     }, [isOpen, sendMessage]);
 
     const { userInjections } = useSelector(state => state.injections);
+    const userFields = useSelector(state => state.fields.userFields) || [];
+    const fieldOpts = fieldOptions ?? userFields.map(f => typeof f === 'string' ? f : (f?.id ?? f?.name ?? '')).filter(Boolean);
 
     // Sync from Redux
     useEffect(() => {
@@ -173,7 +162,7 @@ const InjectionSelectorModal = ({ isOpen, onClose, nodePosition, onConfirm, send
                                         trigger: "bg-white dark:bg-slate-800"
                                     }}
                                 >
-                                    {fieldOptions.map((field) => (
+                                    {fieldOpts.map((field) => (
                                         <SelectItem key={field} value={field}>
                                             {field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                         </SelectItem>

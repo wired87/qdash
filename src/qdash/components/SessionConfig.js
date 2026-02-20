@@ -14,8 +14,6 @@ import {
     optimisticUnlinkEnv,
     optimisticLinkModule,
     optimisticUnlinkModule,
-    optimisticLinkField,
-    optimisticUnlinkField,
     assignInjection,
     unassignInjection
 } from '../store/slices/sessionSlice';
@@ -46,33 +44,30 @@ const getHierarchicalColor = (index) => {
     };
 };
 
-// Standard Model Field Definitions
-const GAUGE_FIELDS = [
-    "photon",  // A_μ
-    // Weak interaction (SU(2)_L)
-    "w_plus",  // W⁺
-    "w_minus",  // W⁻
-    "z_boson",  // Z⁰
-    // Strong interaction (SU(3)_C)
-    "gluon_0", "gluon_1", "gluon_2", "gluon_3",
-    "gluon_4", "gluon_5", "gluon_6", "gluon_7"
-];
+/** Derive SM modules and their fields from userModules/userFields where origin.upper === 'SM' */
+function getSMModulesAndFields(userModules, userFields) {
+    const smModules = {};
+    if (!userModules?.length || !userFields?.length) return smModules;
 
-const HIGGS_FIELDS = [
-    "phi"
-];
+    const fieldOriginIsSM = (f) => ((typeof f === 'object' ? f?.origin : '') || '').toUpperCase() === 'SM';
+    const smFieldIds = new Set(
+        userFields.filter(fieldOriginIsSM).map(f => typeof f === 'string' ? f : f.id)
+    );
 
-const FERMION_FIELDS = [
-    // Leptons
-    "electron",  // ψₑ
-    "muon",  // ψ_μ
-    "tau",  // ψ_τ
-    "electron_neutrino",  // νₑ
-    "muon_neutrino",  // ν_μ
-    "tau_neutrino",  // ν_τ
-    // Quarks (3 colors each)
-    "up_quark_0", "up_quark_1", "up_quark_2", "down_quark_0", "down_quark_1", "down_quark_2", "charm_quark_0", "charm_quark_1", "charm_quark_2", "strange_quark_0", "strange_quark_1", "strange_quark_2", "top_quark_0", "top_quark_1", "top_quark_2", "bottom_quark_0", "bottom_quark_1", "bottom_quark_2"
-];
+    userModules.forEach(m => {
+        const mod = typeof m === 'object' ? m : { id: m };
+        const origin = (mod.origin || '').toUpperCase();
+        if (origin !== 'SM') return;
+
+        const moduleId = mod.id;
+        const moduleFields = mod.fields && Array.isArray(mod.fields)
+            ? mod.fields.filter(fid => smFieldIds.has(typeof fid === 'string' ? fid : fid.id))
+            : [];
+        smModules[moduleId] = moduleFields.map(f => typeof f === 'string' ? f : f.id);
+    });
+
+    return smModules;
+}
 
 /** Dynamic dim label: X,Y,Z,W,V,U for 0-5, else D0,D1,... for 6+ */
 function getDimLabel(dimIndex, totalDims) {
@@ -90,14 +85,6 @@ function getPerDimValuesFromEnv(env) {
     const amountNum = Array.isArray(N) ? Math.max(...N.map((n) => Math.round(Number(n) || 1))) : Math.max(1, Math.round(Number(N) || 64));
     return Array(D).fill(Math.max(1, Math.min(256, amountNum)));
 }
-
-// Standard Model Modules with their fields
-const SM_MODULES = {
-    "GAUGE": GAUGE_FIELDS,
-    "HIGGS": HIGGS_FIELDS,
-    "FERMION": FERMION_FIELDS
-};
-
 
 // Helper for split list items
 const ListItem = ({ title, subtitle, onClick, isActive, actionIcon, onAction, actionColor = "primary", actionLabel, showEnableSM, enableSM, onEnableSMChange, shadowColor }) => {
@@ -180,7 +167,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     const [activeEnv, setActiveEnv] = useState(null);
     const [activeModule, setActiveModule] = useState(null);
     const [selectedInjection, setSelectedInjection] = useState(null);
-    const [selectedField, setSelectedField] = useState('photon');
+    const [selectedField, setSelectedField] = useState('');
     const [detailItem, setDetailItem] = useState(null);
 
     // Live Workspace State
@@ -294,12 +281,19 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         return fromSession ?? activeEnv;
     }, [activeEnv, activeSessionEnvs]);
 
-    // Extract linked modules for active env
+    // Extract linked modules for active env (from session config – modules: list[str])
     const activeSessionModules = useMemo(() => {
         const envId = activeEnv ? (typeof activeEnv === 'string' ? activeEnv : activeEnv.id) : null;
         if (!envId || !sessionConfigData[envId]?.modules) return [];
-        return Object.keys(sessionConfigData[envId].modules);
+        const m = sessionConfigData[envId].modules;
+        return Array.isArray(m) ? m : Object.keys(m || {});
     }, [sessionConfigData, activeEnv]);
+
+    // SM modules and fields: derived from userModules/userFields where origin.upper === 'SM'
+    const smModulesAndFields = useMemo(
+        () => getSMModulesAndFields(userModules, userFields),
+        [userModules, userFields]
+    );
 
     // Helper to check if session config has any data
     const hasSessionConfigData = useCallback(() => {
@@ -322,7 +316,8 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         const hasData = Object.values(envs).some(env => {
             const modules = env?.modules;
             const injections = env?.injections;
-            return (modules && Object.keys(modules).length > 0) || (injections && Object.keys(injections).length > 0);
+            const modCount = Array.isArray(modules) ? modules.length : Object.keys(modules || {}).length;
+            return modCount > 0 || (injections && Object.keys(injections).length > 0);
         });
 
         console.log('[SessionConfig] Has unsaved config:', hasData);
@@ -381,6 +376,27 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
             }
         }
     }, [isOpen, isConnected, fetchSessions, fetchFields, userFields]);
+
+    // Sync selectedField to first available field when userFields loads (no hardcoded default)
+    useEffect(() => {
+        if (!userFields?.length) return;
+        const fieldIds = userFields.map(f => typeof f === 'string' ? f : f.id);
+        const isValid = selectedField && fieldIds.includes(selectedField);
+        if (!isValid && fieldIds[0]) setSelectedField(fieldIds[0]);
+    }, [userFields, selectedField]);
+
+    // Sync envEnableSM from session config when loaded (env has all SM modules linked)
+    useEffect(() => {
+        if (!sessionConfigData || Object.keys(smModulesAndFields).length === 0) return;
+        const smModuleIds = new Set(Object.keys(smModulesAndFields));
+        const next = {};
+        Object.keys(sessionConfigData).forEach(envId => {
+            const mods = sessionConfigData[envId]?.modules;
+            const linked = Array.isArray(mods) ? mods : (mods ? Object.keys(mods) : []);
+            next[envId] = smModuleIds.size > 0 && smModuleIds.size === linked.length && smModuleIds.size === linked.filter(m => smModuleIds.has(m)).length;
+        });
+        setEnvEnableSM(prev => ({ ...prev, ...next }));
+    }, [sessionConfigData, smModulesAndFields]);
 
     // Re-fetch active session details if connection restores while a session is active
     useEffect(() => {
@@ -503,24 +519,9 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     };
 
     const handleLinkModule = (moduleId) => {
-        // Optimistic update - instant UI feedback
         if (activeEnv?.id) {
             dispatch(optimisticLinkModule({ sessionId: targetSessionId, envId: activeEnv.id, moduleId }));
-
-            // Auto-link fields defined in the module
-            const moduleData = userModules.find(m => (typeof m === 'string' ? m : m.id) === moduleId);
-            if (moduleData && moduleData.fields && Array.isArray(moduleData.fields)) {
-                moduleData.fields.forEach(fieldId => {
-                    dispatch(optimisticLinkField({
-                        sessionId: targetSessionId,
-                        envId: activeEnv.id,
-                        moduleId,
-                        fieldId
-                    }));
-                });
-            }
         }
-        // WebSocket disabled - config sent at simulation start
     };
 
     const handleUnlinkModule = (moduleId) => {
@@ -531,46 +532,19 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
         // WebSocket disabled - config sent at simulation start
     };
 
-    // Handle Standard Model toggle - auto link/unlink SM modules and fields
+    // Handle Standard Model toggle - add module ids to session struct (modules: list[str])
     const handleEnableSMToggle = (envId, enabled) => {
         setEnvEnableSM(prev => ({ ...prev, [envId]: enabled }));
 
         if (enabled) {
-            // Link all SM modules and their fields (local only)
-            Object.entries(SM_MODULES).forEach(([moduleId, fields]) => {
-                // Optimistically link module
+            Object.keys(smModulesAndFields).forEach(moduleId => {
                 dispatch(optimisticLinkModule({ sessionId: targetSessionId, envId, moduleId }));
-
-                // Link all fields for this module
-                fields.forEach(fieldId => {
-                    // Optimistically link field
-                    dispatch(optimisticLinkField({
-                        sessionId: targetSessionId,
-                        envId,
-                        moduleId,
-                        fieldId
-                    }));
-                });
             });
         } else {
-            // Unlink all SM modules and their fields (local only)
-            Object.entries(SM_MODULES).forEach(([moduleId, fields]) => {
-                // Unlink all fields first
-                fields.forEach(fieldId => {
-                    // Optimistically unlink field
-                    dispatch(optimisticUnlinkField({
-                        sessionId: targetSessionId,
-                        envId,
-                        moduleId,
-                        fieldId
-                    }));
-                });
-
-                // Optimistically unlink module
+            Object.keys(smModulesAndFields).forEach(moduleId => {
                 dispatch(optimisticUnlinkModule({ sessionId: targetSessionId, envId, moduleId }));
             });
         }
-        // WebSocket disabled - config sent at simulation start
     };
 
 
@@ -1045,10 +1019,11 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                                                         <label className="text-xs font-bold text-slate-500 uppercase">Target Field</label>
                                                         <select
                                                             className="p-2 rounded border border-slate-200 text-sm"
-                                                            value={selectedField}
+                                                            value={selectedField || (userFields?.[0] ? (typeof userFields[0] === 'string' ? userFields[0] : userFields[0].id) : '')}
                                                             onChange={(e) => setSelectedField(e.target.value)}
                                                         >
-                                                            {userFields.map(field => {
+                                                            {!userFields?.length && <option value="">No fields available</option>}
+                                                            {userFields?.map(field => {
                                                                 const fieldId = typeof field === 'string' ? field : field.id;
                                                                 return <option key={fieldId} value={fieldId}>{fieldId}</option>
                                                             })}
