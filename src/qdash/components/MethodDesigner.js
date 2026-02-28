@@ -6,6 +6,14 @@ import { USER_ID_KEY, getSessionId } from "../auth";
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 import { setLoading as setMethodLoading } from '../store/slices/methodSlice';
 
+const EQ_CATEGORY_OPTIONS = [
+    { eq_category: "Differential Equation", description: "Describes the temporal or spatial dynamics and evolution of the fields (e.g. d/dt psi). Core of the ODE-Solver (Diffrax)." },
+    { eq_category: "Interaction Equation", description: "Defines algebraically the coupling between different fields (e.g. Yukawa term -y * H * psi_bar * psi)." },
+    { eq_category: "Core Equation", description: "Defines the internal structure and identity of a field (e.g. the construction of psi_bar from psi)." },
+    { eq_category: "Constraint Equation", description: "Defines physical constraints that must hold at every point in time (e.g. normalisation of probability density to 1)." },
+    { eq_category: "Renormalisation Equation", description: "Adapts parameters when changing scale or grid resolution to preserve physical consistency." },
+    { eq_category: "Conservation Equation", description: "Describes stationary quantities (charge, energy) that must not change over time under correct physics (Noether theorem)." }
+];
 
 const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     const dispatch = useDispatch();
@@ -44,12 +52,17 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
         } else {
             params = [];
         }
+        const neighbor_vals = Array.isArray(raw.neighbor_vals) ? raw.neighbor_vals : [];
+        const eq_category = raw.eq_category ?? null;
         return {
             id: raw.id,
             description: raw.description ?? '',
             params,
             return_key: raw.return_key ?? null,
             derivate: !!raw.derivate,
+            is_differential_equation: !!raw.is_differential_equation,
+            neighbor_vals,
+            eq_category,
             equation: getFunctionContent(raw)
         };
     }, [getFunctionContent]);
@@ -103,6 +116,9 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             params: [], // Array of objects { name: "paramId", origin: "self" }
             return_key: null,
             derivate: false,
+            is_differential_equation: false,
+            neighbor_vals: [],
+            eq_category: null,
             equation: ""
         });
         setOriginalId(null);
@@ -160,6 +176,9 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 param_origins: (currentModule.params || []).map(p => typeof p === 'string' ? 'self' : (p.origin || 'self')),
                 return_key: currentModule.return_key,
                 derivate: !!currentModule.derivate,
+                is_differential_equation: !!currentModule.is_differential_equation,
+                neighbor_vals: currentModule.is_differential_equation ? (currentModule.neighbor_vals || []) : [],
+                eq_category: currentModule.eq_category || null,
                 equation: currentModule.equation
             },
             auth: {
@@ -329,9 +348,60 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                     />
                                 </div>
 
+                                {/* Equation Category */}
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Equation Category</label>
+                                    <Select
+                                        placeholder="Select equation category"
+                                        selectedKeys={currentModule.eq_category ? [currentModule.eq_category] : []}
+                                        onSelectionChange={(keys) => {
+                                            const selected = Array.from(keys)[0];
+                                            setCurrentModule({ ...currentModule, eq_category: selected || null });
+                                        }}
+                                        className="max-w-full"
+                                        variant="bordered"
+                                        size="sm"
+                                        classNames={{
+                                            trigger: "bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-slate-200/60 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 transition-all h-9"
+                                        }}
+                                    >
+                                        {EQ_CATEGORY_OPTIONS.map((opt) => (
+                                            <SelectItem key={opt.eq_category} value={opt.eq_category} textValue={opt.eq_category}>
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-xs">{opt.eq_category}</span>
+                                                    <span className="text-[10px] text-slate-400">{opt.description}</span>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </Select>
+                                </div>
+
+                                {/* Differential Equation Switch */}
+                                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200/50 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Differential Equation</span>
+                                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Method computes a differential (e.g. m − p/2)</span>
+                                    </div>
+                                    <Switch
+                                        aria-label="Differential equation"
+                                        size="sm"
+                                        isSelected={!!currentModule.is_differential_equation}
+                                        onValueChange={(val) => setCurrentModule({ ...currentModule, is_differential_equation: val })}
+                                        classNames={{ wrapper: 'group-data-[selected=true]:bg-purple-500' }}
+                                    />
+                                </div>
+
                                 {/* Params (Multiple Choice) */}
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Parameters</label>
+                                    {currentModule.is_differential_equation && (
+                                        <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50/80 dark:bg-amber-900/20 border border-amber-200/60 dark:border-amber-800/50">
+                                            <span className="text-amber-600 dark:text-amber-400 mt-0.5">ℹ</span>
+                                            <p className="text-[10px] text-amber-800 dark:text-amber-200 leading-relaxed">
+                                                Pick parameters for the <strong>center node only</strong>. The center is where the value that pm values are extracted from lives (e.g. psi). For diff eq like <code className="font-mono bg-amber-100/50 dark:bg-amber-900/30 px-1 rounded">m − p/2</code>, the center should be the source of psi.
+                                            </p>
+                                        </div>
+                                    )}
                                     <Select
                                         selectionMode="multiple"
                                         placeholder="Select parameters used in this method"
@@ -347,7 +417,9 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                                 }
                                                 return { name: id, origin: 'self' };
                                             });
-                                            setCurrentModule({ ...currentModule, params: newParams });
+                                            const paramNames = new Set(newParams.map(p => typeof p === 'string' ? p : p.name));
+                                            const neighbor_vals = (currentModule.neighbor_vals || []).filter(v => paramNames.has(v));
+                                            setCurrentModule({ ...currentModule, params: newParams, neighbor_vals });
                                         }}
                                         className="max-w-full"
                                         variant="bordered"
@@ -432,7 +504,9 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                                             className="h-5 w-5 min-w-5"
                                                             onPress={() => {
                                                                 const newParams = currentModule.params.filter(p => (typeof p === 'string' ? p : p.name) !== paramId);
-                                                                setCurrentModule({ ...currentModule, params: newParams });
+                                                                const paramNames = new Set(newParams.map(p => typeof p === 'string' ? p : p.name));
+                                                                const neighbor_vals = (currentModule.neighbor_vals || []).filter(v => paramNames.has(v));
+                                                                setCurrentModule({ ...currentModule, params: newParams, neighbor_vals });
                                                             }}
                                                         >
                                                             <X size={12} />
@@ -443,6 +517,46 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                         })}
                                     </div>
                                 </div>
+
+                                {/* Neighbor Vals (only when differential equation) */}
+                                {currentModule.is_differential_equation && (
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Neighbor Vals</label>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">Select which parameters come from neighbor nodes (pm values)</p>
+                                        <Select
+                                            selectionMode="multiple"
+                                            placeholder="Select neighbor parameters"
+                                            selectedKeys={new Set(currentModule.neighbor_vals || [])}
+                                            onSelectionChange={(keys) => {
+                                                const selected = Array.from(keys);
+                                                setCurrentModule({ ...currentModule, neighbor_vals: selected });
+                                            }}
+                                            className="max-w-full"
+                                            variant="bordered"
+                                            size="sm"
+                                            classNames={{
+                                                trigger: "bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border-slate-200/60 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 transition-all h-9"
+                                            }}
+                                        >
+                                            {(currentModule.params || []).map((paramObj) => {
+                                                const paramId = typeof paramObj === 'string' ? paramObj : paramObj.name;
+                                                const paramData = params.find(p => (typeof p === 'string' ? p : p.id) === paramId);
+                                                const pType = paramData?.type || 'unknown';
+                                                return (
+                                                    <SelectItem key={paramId} value={paramId} textValue={paramId}>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold text-xs">{paramId}</span>
+                                                            <span className="text-[10px] text-slate-400">{pType}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                );
+                                            })}
+                                        </Select>
+                                        {(currentModule.params || []).length === 0 && (
+                                            <p className="text-[10px] text-amber-600 dark:text-amber-400">Select parameters above first</p>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Return Key (Single Choice) */}
                                 <div className="space-y-1.5">

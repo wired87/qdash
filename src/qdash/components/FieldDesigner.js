@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { Button, Input, Select, SelectItem, Switch, Textarea } from "@heroui/react";
+import { Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { Plus, Trash2, Database, Save, X } from "lucide-react";
 import { USER_ID_KEY } from "../auth";
 import GlobalConnectionSpinner from './GlobalConnectionSpinner';
@@ -144,31 +144,8 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     }
 
     function handleParamSelect(pairId, paramId) {
-        setParamPairs(pairs => pairs.map(p => {
-            if (p.id === pairId) {
-                // Initialize value based on param type
-                const selectedParam = params.find(param => (typeof param === 'string' ? param : param.id) === paramId);
-                let defaultValue = null;
-
-                if (selectedParam && typeof selectedParam === 'object') {
-                    const type = selectedParam.type;
-                    if (type === 'int') defaultValue = 0;
-                    else if (type === 'float') defaultValue = 0.0;
-                    else if (type === 'bool') defaultValue = false;
-                    else if (type === 'list') defaultValue = ""; // Shape specification
-                    else if (type === 'complex') defaultValue = ""; // Shape specification
-                    else if (type === 'complex_list') defaultValue = ""; // Shape specification
-                }
-
-                return { ...p, paramId, value: defaultValue };
-            }
-            return p;
-        }));
-    }
-
-    function handleValueChange(pairId, newValue) {
         setParamPairs(pairs => pairs.map(p =>
-            p.id === pairId ? { ...p, value: newValue } : p
+            p.id === pairId ? { ...p, paramId, value: null } : p
         ));
     }
 
@@ -212,81 +189,6 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             }
         });
     }
-
-    // Render value input based on param type
-    const renderValueInput = (pair) => {
-        if (!pair.paramId) return null;
-
-        const selectedParam = params.find(p => (typeof p === 'string' ? p : p.id) === pair.paramId);
-        if (!selectedParam || typeof selectedParam === 'string') return null;
-
-        const type = selectedParam.type;
-        const value = pair.value;
-        const isDisabled = pair.paramId.startsWith('prev');
-
-        if (type === 'bool') {
-            return (
-                <Switch
-                    aria-label={pair.paramId || 'Toggle'}
-                    size="sm"
-                    isSelected={!!value}
-                    onValueChange={v => handleValueChange(pair.id, v)}
-                    isDisabled={isDisabled}
-                />
-            );
-        } else if (type === 'list') {
-            return (
-                <Input
-                    size="sm"
-                    placeholder="e.g., 10 or 2,3,4"
-                    value={value || ""}
-                    onChange={e => handleValueChange(pair.id, e.target.value)}
-                    classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                    description={<span className="text-[9px] text-slate-400">Specify shape: single number or comma-separated dimensions</span>}
-                    isDisabled={isDisabled}
-                />
-            );
-        } else if (type === 'complex') {
-            return (
-                <Input
-                    size="sm"
-                    placeholder="e.g., 2 (default for [Re, Im])"
-                    value={value || ""}
-                    onChange={e => handleValueChange(pair.id, e.target.value)}
-                    classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                    description={<span className="text-[9px] text-slate-400">Specify dimensions (typically 2 for real and imaginary)</span>}
-                    isDisabled={isDisabled}
-                />
-            );
-        } else if (type === 'complex_list') {
-            return (
-                <Input
-                    size="sm"
-                    placeholder="e.g., 5 (for 5 complex numbers)"
-                    value={value || ""}
-                    onChange={e => handleValueChange(pair.id, e.target.value)}
-                    classNames={{ inputWrapper: "bg-white dark:bg-slate-900" }}
-                    description={<span className="text-[9px] text-slate-400">Specify array length for complex numbers</span>}
-                    isDisabled={isDisabled}
-                />
-            );
-        } else {
-            // Default: int, float
-            const inputType = (type === 'int' || type === 'float') ? 'number' : 'text';
-            const step = type === 'float' ? '0.01' : '1';
-            return (
-                <Input
-                    size="sm"
-                    type={inputType}
-                    step={step}
-                    value={value ?? ''}
-                    onChange={e => handleValueChange(pair.id, inputType === 'number' ? parseFloat(e.target.value) : e.target.value)}
-                    classNames={{ inputWrapper: "bg-white dark:bg-slate-900 shadow-sm" }}
-                    isDisabled={isDisabled}
-                />
-            );
-        }
-    };
 
     if (!isOpen) return null;
 
@@ -451,64 +353,49 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                                             </div>
                                         )}
 
-                                        {paramPairs.map((pair) => {
-                                            const selectedParam = params.find(p => (typeof p === 'string' ? p : p.id) === pair.paramId);
-                                            const paramType = selectedParam && typeof selectedParam === 'object' ? selectedParam.type : '';
+                                        {paramPairs.map((pair) => (
+                                            <div key={pair.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 flex gap-2 items-center">
+                                                <div className="flex-1">
+                                                    <Select
+                                                        size="sm"
+                                                        placeholder="Select parameter"
+                                                        selectedKeys={pair.paramId ? [pair.paramId] : []}
+                                                        onSelectionChange={(keys) => {
+                                                            const id = Array.from(keys)[0];
+                                                            if (id) handleParamSelect(pair.id, id);
+                                                        }}
+                                                        variant="bordered"
+                                                        classNames={{ trigger: "bg-white dark:bg-slate-900" }}
+                                                    >
+                                                        {params.map(param => {
+                                                            const paramId = typeof param === 'string' ? param : param.id;
+                                                            const paramData = typeof param === 'object' ? param : null;
+                                                            const type = paramData?.type || 'unknown';
 
-                                            return (
-                                                <div key={pair.id} className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                                                    <div className="flex gap-2 items-start mb-3">
-                                                        {/* Parameter Dropdown */}
-                                                        <div className="flex-1">
-                                                            <Select
-                                                                size="sm"
-                                                                placeholder="Select parameter"
-                                                                selectedKeys={pair.paramId ? [pair.paramId] : []}
-                                                                onChange={(e) => handleParamSelect(pair.id, e.target.value)}
-                                                                variant="bordered"
-                                                                classNames={{ trigger: "bg-white dark:bg-slate-900" }}
-                                                            >
-                                                                {params.map(param => {
-                                                                    const paramId = typeof param === 'string' ? param : param.id;
-                                                                    const paramData = typeof param === 'object' ? param : null;
-                                                                    const type = paramData?.type || 'unknown';
-
-                                                                    return (
-                                                                        <SelectItem key={paramId} value={paramId} textValue={`${paramId} (${type})`}>
-                                                                            <div className="flex flex-col">
-                                                                                <span className="font-semibold">{paramId}</span>
-                                                                                <span className="text-xs text-slate-500">{type}</span>
-                                                                            </div>
-                                                                        </SelectItem>
-                                                                    );
-                                                                })}
-                                                            </Select>
-                                                        </div>
-
-                                                        <Button
-                                                            aria-label="Remove parameter"
-                                                            isIconOnly
-                                                            size="sm"
-                                                            color="danger"
-                                                            variant="light"
-                                                            onPress={() => handleRemoveParamPair(pair.id)}
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </Button>
-                                                    </div>
-
-                                                    {/* Value Input */}
-                                                    {pair.paramId && (
-                                                        <div className="space-y-2">
-                                                            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                                                                Value {paramType && <span className="text-slate-400">({paramType})</span>}
-                                                            </label>
-                                                            {renderValueInput(pair)}
-                                                        </div>
-                                                    )}
+                                                            return (
+                                                                <SelectItem key={paramId} value={paramId} textValue={`${paramId} (${type})`}>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-semibold">{paramId}</span>
+                                                                        <span className="text-xs text-slate-500">{type}</span>
+                                                                    </div>
+                                                                </SelectItem>
+                                                            );
+                                                        })}
+                                                    </Select>
                                                 </div>
-                                            );
-                                        })}
+
+                                                <Button
+                                                    aria-label="Remove parameter"
+                                                    isIconOnly
+                                                    size="sm"
+                                                    color="danger"
+                                                    variant="light"
+                                                    onPress={() => handleRemoveParamPair(pair.id)}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </Button>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 

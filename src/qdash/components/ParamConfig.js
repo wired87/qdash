@@ -51,23 +51,27 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
             type: "int",
             description: "",
             is_constant: false,
-            value: ""
+            value: "",
+            shape: []
         });
         setOriginalId(null);
     }
 
     function handleSelectParam(param) {
+        const baseType = (typeof param === 'string' ? "int" : (param.type || "int"));
+        const baseShape = (typeof param === 'string' ? [] : (Array.isArray(param.shape) ? param.shape : []));
         if (typeof param === 'string') {
-            setCurrentParam({ id: param, name: param, type: "int", description: "", value: "" });
+            setCurrentParam({ id: param, name: param, type: "int", description: "", value: "", shape: [] });
             setOriginalId(param);
         } else {
             setCurrentParam({
                 id: param.id,
-                name: param.name || param.id, // Use name if available, else fallback to ID
-                type: param.type || "int",
+                name: param.name || param.id,
+                type: baseType,
                 description: param.description || "",
                 is_constant: !!param.is_constant,
-                value: param.value || ""
+                value: param.value || "",
+                shape: (baseType === 'int' || baseType === 'float') ? [] : baseShape
             });
             setOriginalId(param.id);
         }
@@ -105,6 +109,9 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
         // Ensure ID exists
         const finalId = currentParam.id || `param_${Date.now()}`;
 
+        const isScalarType = currentParam.type === 'int' || currentParam.type === 'float';
+        const shape = isScalarType ? [] : (Array.isArray(currentParam.shape) ? currentParam.shape : []);
+
         const paramData = {
             id: finalId,
             name: currentParam.name, // Send name
@@ -112,6 +119,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
             description: currentParam.description || "",
             is_constant: currentParam.is_constant,
             value: currentParam.is_constant ? currentParam.value : undefined,
+            shape,
             user_id: userId
         };
 
@@ -258,7 +266,11 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                             <Select
                                                 placeholder="Select parameter type"
                                                 selectedKeys={[currentParam.type]}
-                                                onChange={(e) => setCurrentParam({ ...currentParam, type: e.target.value })}
+                                                onSelectionChange={(keys) => {
+                                                    const t = Array.from(keys)[0] || currentParam.type;
+                                                    const isScalar = t === 'int' || t === 'float';
+                                                    setCurrentParam({ ...currentParam, type: t, shape: isScalar ? [] : (currentParam.shape || []) });
+                                                }}
                                                 variant="bordered"
                                                 classNames={{ trigger: "bg-slate-50 dark:bg-slate-800" }}
                                             >
@@ -269,6 +281,24 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                                 <SelectItem key="complex" value="complex">Complex</SelectItem>
                                                 <SelectItem key="complex_list" value="complex_list">Complex Array</SelectItem>
                                             </Select>
+                                        </div>
+
+                                        {/* Shape */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Shape</label>
+                                            <Input
+                                                placeholder="[]"
+                                                value={(currentParam.type === 'int' || currentParam.type === 'float') ? '[]' : (Array.isArray(currentParam.shape) ? currentParam.shape.join(', ') : '')}
+                                                onChange={(e) => {
+                                                    if (currentParam.type === 'int' || currentParam.type === 'float') return;
+                                                    const parsed = e.target.value.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+                                                    setCurrentParam({ ...currentParam, shape: parsed });
+                                                }}
+                                                isDisabled={currentParam.type === 'int' || currentParam.type === 'float'}
+                                                variant="bordered"
+                                                classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                                description={(currentParam.type === 'int' || currentParam.type === 'float') ? "Scalar types use empty shape" : "Comma-separated dims, e.g. 3, 4, 5"}
+                                            />
                                         </div>
 
                                         {/* Constant Value Input */}
@@ -330,7 +360,11 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                             <Select
                                                 placeholder="Select parameter type"
                                                 selectedKeys={[currentParam.type]}
-                                                onChange={(e) => setCurrentParam({ ...currentParam, type: e.target.value })}
+                                                onSelectionChange={(keys) => {
+                                                    const t = Array.from(keys)[0] || currentParam.type;
+                                                    const isScalar = t === 'int' || t === 'float';
+                                                    setCurrentParam({ ...currentParam, type: t, shape: isScalar ? [] : (currentParam.shape || []) });
+                                                }}
                                                 variant="bordered"
                                                 classNames={{ trigger: "bg-slate-50 dark:bg-slate-800" }}
                                             >
@@ -341,6 +375,24 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                                 <SelectItem key="complex" value="complex">Complex</SelectItem>
                                                 <SelectItem key="complex_list" value="complex_list">Complex Array</SelectItem>
                                             </Select>
+                                        </div>
+
+                                        {/* Shape */}
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Shape</label>
+                                            <Input
+                                                placeholder="[]"
+                                                value={(currentParam.type === 'int' || currentParam.type === 'float') ? '[]' : (Array.isArray(currentParam.shape) ? currentParam.shape.join(', ') : '')}
+                                                onChange={(e) => {
+                                                    if (currentParam.type === 'int' || currentParam.type === 'float') return;
+                                                    const parsed = e.target.value.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+                                                    setCurrentParam({ ...currentParam, shape: parsed });
+                                                }}
+                                                isDisabled={currentParam.type === 'int' || currentParam.type === 'float'}
+                                                variant="bordered"
+                                                classNames={{ inputWrapper: "bg-slate-50 dark:bg-slate-800" }}
+                                                description={(currentParam.type === 'int' || currentParam.type === 'float') ? "Scalar types use empty shape" : "Comma-separated dims, e.g. 3, 4, 5"}
+                                            />
                                         </div>
 
                                         {/* Description Input */}
@@ -373,6 +425,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                                                 id: currentParam.id || "auto_generated",
                                                 name: currentParam.name,
                                                 type: currentParam.type,
+                                                shape: (currentParam.type === 'int' || currentParam.type === 'float') ? [] : (Array.isArray(currentParam.shape) ? currentParam.shape : []),
                                                 is_constant: currentParam.is_constant,
                                                 value: currentParam.is_constant ? currentParam.value : undefined,
                                                 description: currentParam.description

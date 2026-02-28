@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, useInView } from 'framer-motion';
-import { Select, SelectItem } from '@heroui/react';
+import { Select, SelectItem, Button } from '@heroui/react';
 import { LiveView } from './LiveView';
 import { OscilloscopeView } from './OscilloscopeView';
 import { FuturisticBackground } from './FuturisticBackground';
@@ -12,12 +12,11 @@ import EngineEnvsSidebar from './EngineEnvsSidebar';
 import EnvCfgGlassPanel from './EnvCfgGlassPanel';
 import ConfigAccordion from './accordeon';
 import { USER_ID_KEY, SESSION_ID_KEY, getSessionId } from '../auth';
-import { setActiveSession, addSession } from '../store/slices/sessionSlice';
+import { setActiveSession } from '../store/slices/sessionSlice';
 import { setSelectedEnv, selectSelectedEnv } from '../store/slices/envSlice';
 import { clearCurrentEnv, setSelectedGeometry, selectSelectedGeometry } from '../store/slices/appStateSlice';
 import { setLoading as setInjectionLoading } from '../store/slices/injectionSlice';
-import { X, Plus } from 'lucide-react';
-import { Button } from '@heroui/react';
+import { X } from 'lucide-react';
 
 export const LandingPage = ({
     liveData,
@@ -586,8 +585,7 @@ export const LandingPage = ({
                         <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                             <div className="flex-shrink-0 flex flex-col gap-0.5 sm:gap-1">
                                 <span className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest text-black/70">Session</span>
-                                <div className="flex items-center gap-1">
-                                    <Select
+                                <Select
                                     size="sm"
                                     placeholder="Select session"
                                     selectedKeys={activeSession?.id ? [activeSession.id] : (getSessionId() ? [getSessionId()] : [])}
@@ -617,25 +615,6 @@ export const LandingPage = ({
                                         return <SelectItem key={id} textValue={String(label)}>{String(label)}</SelectItem>;
                                     })}
                                 </Select>
-                                    <Button
-                                        aria-label="Create session"
-                                        isIconOnly
-                                        size="sm"
-                                        variant="flat"
-                                        className="min-w-8 w-8 h-8 border border-black/20"
-                                        onPress={() => {
-                                            const newId = `session-${Date.now()}`;
-                                            const newSession = { id: newId, created_at: new Date().toISOString() };
-                                            dispatch(addSession(newSession));
-                                            dispatch(setActiveSession(newSession));
-                                            sessionStorage.setItem(SESSION_ID_KEY, newId);
-                                            sendMessage?.({ type: 'CREATE_SESSION', auth: { user_id: localStorage.getItem(USER_ID_KEY) }, session_id: newId });
-                                        }}
-                                        title="Create session"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                    </Button>
-                                </div>
                             </div>
                             <h2 className="text-lg sm:text-2xl font-black text-black tracking-tighter uppercase flex items-center gap-2 sm:gap-3 truncate">
                                 <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-black flex-shrink-0"></span>
