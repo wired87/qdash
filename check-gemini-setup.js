@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-
+//
 /**
  * Gemini API Setup Checker
  * This script verifies that your Gemini API key is properly configured
