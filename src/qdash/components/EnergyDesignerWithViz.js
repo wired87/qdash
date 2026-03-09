@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { USER_ID_KEY } from '../auth';
-import GlobalConnectionSpinner from './GlobalConnectionSpinner';
+import SubmitConnectionAlarm from './SubmitConnectionAlarm';
 
 // Canvas constants
 const CANVAS_WIDTH = 600;
@@ -35,6 +35,7 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
 
     const [currentInjection, setCurrentInjection] = useState(null);
     const [selectedInjId, setSelectedInjId] = useState(null);
+    const [submitAlarm, setSubmitAlarm] = useState(null);
 
     const isConnected = useSelector(state => state.websocket.isConnected);
 
@@ -225,6 +226,11 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
     // Confirm and save injection
     const handleConfirm = () => {
         if (!currentInjection) return;
+        if (!isConnected) {
+            setSubmitAlarm('Disconnected. Reconnecting…');
+            return;
+        }
+        setSubmitAlarm(null);
 
         const finalId = currentInjection.id.trim() ||
             `inj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -291,6 +297,10 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
                 }
             `}</style>
 
+            <div style={{ padding: '0.5rem 1rem' }}>
+                <SubmitConnectionAlarm message={submitAlarm} onDismiss={() => setSubmitAlarm(null)} />
+            </div>
+
             {/* Header Bar */}
             <div style={{
                 display: 'flex',
@@ -336,11 +346,8 @@ const EnergyDesignerWithViz = ({ initialData, onClose, onSend, sendMessage, envD
                 </button>
             </div>
 
-            {/* Disconnected Overlay */}
             {/* Main Content - Full height 30/70 split */}
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-                {/* Disconnected Overlay */}
-                <GlobalConnectionSpinner inline={true} />
                 {/* Left Panel - 30% - Injection List */}
                 <div style={{
                     width: '30%',

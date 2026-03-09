@@ -9,6 +9,12 @@ const initialState = {
     selectedGeometry: null, // 'rect' | 'triangle' | 'box' when user selects a geometry in right sidebar
     userHistory: [],       // recent actions for agent context { type, payload, timestamp }
     currentEdits: {},      // keyed by entity id, e.g. { env_xyz: { field: value } }
+    /** Rects of hyperdimensions overlays under Recognizes (n-dims) pos; used to set injection positions. */
+    injectionOverlayRects: [],
+    /** Spawnable objects provided by the backend for the control engine. */
+    availableObjects: [],
+    /** Object selected in the 3D engine via raycasting (from threejs-object-selection pattern). */
+    selectedEngineObject: null, // { formId, objectId, formType } | null
 };
 
 const MAX_HISTORY = 50;
@@ -50,6 +56,15 @@ const appStateSlice = createSlice({
         setSelectedGeometry: (state, action) => {
             state.selectedGeometry = action.payload ?? null;
         },
+        setInjectionOverlayRects: (state, action) => {
+            state.injectionOverlayRects = action.payload ?? [];
+        },
+        setAvailableObjects: (state, action) => {
+            state.availableObjects = action.payload ?? [];
+        },
+        setSelectedEngineObject: (state, action) => {
+            state.selectedEngineObject = action.payload ?? null;
+        },
     },
 });
 
@@ -73,11 +88,15 @@ function serializeEnv(env) {
     };
 }
 
-export const { setCurrentEnv, pushHistory, setCurrentEdits, clearCurrentEnv, setSelectedGeometry } = appStateSlice.actions;
+export const { setCurrentEnv, pushHistory, setCurrentEdits, clearCurrentEnv, setSelectedGeometry, setInjectionOverlayRects, setSelectedEngineObject } = appStateSlice.actions;
+export const { setAvailableObjects } = appStateSlice.actions;
 
 export const selectCurrentEnv = (state) => state.appState?.currentEnv ?? null;
 export const selectSelectedGeometry = (state) => state.appState?.selectedGeometry ?? null;
 export const selectUserHistory = (state) => state.appState?.userHistory ?? [];
 export const selectCurrentEdits = (state) => state.appState?.currentEdits ?? {};
+export const selectInjectionOverlayRects = (state) => state.appState?.injectionOverlayRects ?? [];
+export const selectAvailableObjects = (state) => state.appState?.availableObjects ?? [];
+export const selectSelectedEngineObject = (state) => state.appState?.selectedEngineObject ?? null;
 
 export default appStateSlice.reducer;

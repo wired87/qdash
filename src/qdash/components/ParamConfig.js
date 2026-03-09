@@ -3,7 +3,7 @@ import { Button, Input, Select, SelectItem, Textarea, Spinner, Switch } from "@h
 import { Plus, Trash2, Database, Save, X, Loader2 } from "lucide-react";
 import { USER_ID_KEY } from "../auth";
 import { useSelector } from 'react-redux';
-import GlobalConnectionSpinner from './GlobalConnectionSpinner';
+import SubmitConnectionAlarm from './SubmitConnectionAlarm';
 
 const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
     const [params, setParams] = useState([]);
@@ -11,6 +11,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
     const [originalId, setOriginalId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [deletingParams, setDeletingParams] = useState({});
+    const [submitAlarm, setSubmitAlarm] = useState(null);
 
     const isConnected = useSelector(state => state.websocket.isConnected);
 
@@ -104,6 +105,11 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
 
     function handleSave() {
         if (!currentParam) return;
+        if (!isConnected) {
+            setSubmitAlarm('Disconnected. Reconnecting…');
+            return;
+        }
+        setSubmitAlarm(null);
         const userId = localStorage.getItem(USER_ID_KEY);
 
         // Ensure ID exists
@@ -165,8 +171,6 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
 
             {/* Split View */}
             <div className="flex flex-1 overflow-hidden relative">
-                <GlobalConnectionSpinner inline={true} />
-
                 {/* LEFT SIDE (30%) */}
                 <div className="w-[30%] border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
                     {/* Top 20% - Add Button */}
@@ -226,6 +230,7 @@ const ParamConfig = ({ isOpen, onClose, sendMessage }) => {
                 {/* RIGHT SIDE (70%) */}
                 <div className="w-[70%] flex flex-col bg-white dark:bg-slate-900">
                     <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
+                        <SubmitConnectionAlarm message={submitAlarm} onDismiss={() => setSubmitAlarm(null)} />
                         {currentParam ? (
                             <>
                                 {/* Constant Toggle */}

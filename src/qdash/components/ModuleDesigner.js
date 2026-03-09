@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import { Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { Plus, Trash2, Box, Save, X, Grip, Layers } from "lucide-react";
 import { USER_ID_KEY } from "../auth";
-import GlobalConnectionSpinner from './GlobalConnectionSpinner';
+import SubmitConnectionAlarm from './SubmitConnectionAlarm';
 
 const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }) => {
     const [modules, setModules] = useState([]);
@@ -12,6 +13,9 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
     const [originalId, setOriginalId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [paramWarning, setParamWarning] = useState(null);
+    const [submitAlarm, setSubmitAlarm] = useState(null);
+
+    const isConnected = useSelector(state => state.websocket.isConnected);
 
     // WebSocket Listener
     useEffect(() => {
@@ -209,6 +213,11 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
             alert("No module selected.");
             return;
         }
+        if (!isConnected) {
+            setSubmitAlarm('Disconnected. Reconnecting…');
+            return;
+        }
+        setSubmitAlarm(null);
         // Ensure ID exists (auto-generate if somehow missing)
         if (!currentModule.id) {
             currentModule.id = `module_${Date.now()}`;
@@ -245,8 +254,6 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
 
     const innerContent = (
             <div className="flex flex-1 overflow-hidden relative md:flex-row flex-col min-h-0">
-                <GlobalConnectionSpinner inline={true} />
-
                 {/* LEFT SIDE (30%) */}
                 <div className="w-full md:w-[30%] border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
                     <div className="h-[20%] p-4 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
@@ -299,6 +306,7 @@ const ModuleDesigner = ({ isOpen, onClose, sendMessage, user, embedded = false }
                 {/* RIGHT SIDE (70%) */}
                 <div className="w-full md:w-[70%] flex flex-col bg-white dark:bg-slate-900">
                     <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
+                        <SubmitConnectionAlarm message={submitAlarm} onDismiss={() => setSubmitAlarm(null)} />
                         {currentModule ? (
                             <>
                                 {/* Module ID - Hidden */}

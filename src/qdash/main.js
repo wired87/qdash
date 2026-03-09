@@ -29,7 +29,6 @@ import { UserCard } from "./components/UserCard";
 import EnergyDesignerWithViz from "./components/EnergyDesignerWithViz";
 import BillingManager from "./components/BillingManager";
 
-import ModuleDesigner from "./components/ModuleDesigner";
 import MethodDesigner from "./components/MethodDesigner";
 import FieldDesigner from "./components/FieldDesigner";
 import SessionConfig from "./components/SessionConfig";
@@ -53,7 +52,6 @@ export const MainApp = () => {
   const [isNSliderOpen, setIsNSliderOpen] = useState(false);
   const [isBucketOpen, setIsBucketOpen] = useState(false);
   const [isBillingOpen, setIsBillingOpen] = useState(false);
-  const [isModuleDesignerOpen, setIsModuleDesignerOpen] = useState(false);
   const [isMethodDesignerOpen, setIsMethodDesignerOpen] = useState(false);
   const [isFieldDesignerOpen, setIsFieldDesignerOpen] = useState(false);
   const [isSessionConfigOpen, setIsSessionConfigOpen] = useState(false);
@@ -236,7 +234,7 @@ export const MainApp = () => {
   }, []);
 
   // 3. HOOKS THAT DEPEND ON CALLBACKS
-  const { sendMessage, isConnected } = _useWebSocket(
+  const { sendMessage, isConnected, latestFrameRef } = _useWebSocket(
     updateCreds, updateDataset, addEnvs, updateGraph, setClusterData, setLiveData, handleInjectionMessage, addConsoleMessage
   );
 
@@ -292,7 +290,6 @@ export const MainApp = () => {
   const toggleCfgSlider = useCallback(() => setIsCfgSliderOpen(prev => !prev), []);
   const toggleBucket = useCallback(() => setIsBucketOpen(prev => !prev), []);
   const toggleBilling = useCallback(() => setIsBillingOpen(prev => !prev), []);
-  const toggleModuleDesigner = useCallback(() => setIsModuleDesignerOpen(prev => !prev), []);
   const toggleMethodDesigner = useCallback(() => setIsMethodDesignerOpen(prev => !prev), []);
   const toggleFieldDesigner = useCallback(() => setIsFieldDesignerOpen(prev => !prev), []);
   const toggleSessionConfig = useCallback(() => setIsSessionConfigOpen(prev => !prev), []);
@@ -734,6 +731,7 @@ Please tell me your email if you want to receive updates or register for early a
       <div className="dashboard-container w-full h-full overflow-y-auto scroll-smooth" ref={scrollContainerRef}>
         <LandingPage
           liveData={liveData}
+          latestFrameRef={latestFrameRef}
           setTerminalVisible={setIsTerminalVisible}
           isSimRunning={Object.values(envs).some(e => e.status === 'running')}
           isCfgOpen={isCfgSliderOpen}
@@ -750,7 +748,7 @@ Please tell me your email if you want to receive updates or register for early a
           {get_dashboard()}
           {get_ncfgslider()}
         </LandingPage>
-        <TerminalConsole handleSubmit={handleSubmit} isConnected={isConnected} fbIsConnected={fbIsConnected} userProfile={userProfile} inputValue={inputValue} updateInputValue={updateInputValue} messages={messages} toggleCfgSlider={toggleCfgSlider} toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} toggleDashboard={toggleDahboard} toggleNcfgSlider={toggleNcfgSlider} toggleLogSidebar={toggleLogSidebar} toggleClusterModal={toggleClusterModal} toggleInjection={toggleInjection} toggleBilling={toggleBilling} toggleModuleDesigner={toggleModuleDesigner} toggleMethodDesigner={toggleMethodDesigner} toggleFieldDesigner={toggleFieldDesigner} toggleSessionConfig={toggleSessionConfig} toggleParamConfig={toggleParamConfig} envs={envs} toggleBucket={toggleBucket} saveMessage={saveMessage} setMessages={setMessages} isVisible={isTerminalVisible} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive} />
+        <TerminalConsole handleSubmit={handleSubmit} isConnected={isConnected} fbIsConnected={fbIsConnected} userProfile={userProfile} inputValue={inputValue} updateInputValue={updateInputValue} messages={messages} toggleCfgSlider={toggleCfgSlider} toggleDataSlider={toggleDataSlider} sendMessage={sendMessage} toggleDashboard={toggleDahboard} toggleNcfgSlider={toggleNcfgSlider} toggleLogSidebar={toggleLogSidebar} toggleClusterModal={toggleClusterModal} toggleInjection={toggleInjection} toggleBilling={toggleBilling} toggleMethodDesigner={toggleMethodDesigner} toggleFieldDesigner={toggleFieldDesigner} toggleSessionConfig={toggleSessionConfig} toggleParamConfig={toggleParamConfig} envs={envs} toggleBucket={toggleBucket} saveMessage={saveMessage} setMessages={setMessages} isVisible={isTerminalVisible} isVoiceActive={isVoiceActive} setIsVoiceActive={setIsVoiceActive} />
       </div>
       <div className="flex">
         {get_node_panel()}
@@ -762,14 +760,6 @@ Please tell me your email if you want to receive updates or register for early a
       {get_bucket()}
       <ClusterVisualizerModal isOpen={isClusterModalOpen} onClose={toggleClusterModal} data={clusterData} />
       <UserCard user={user} userProfile={userProfile} onLogout={logout} />
-
-      {/* Module Designer */}
-      <ModuleDesigner
-        isOpen={isModuleDesignerOpen}
-        onClose={toggleModuleDesigner}
-        sendMessage={sendMessage}
-        user={user}
-      />
 
       {/* Method Designer */}
       <MethodDesigner

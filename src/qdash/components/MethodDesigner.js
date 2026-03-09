@@ -3,8 +3,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Button, Input, Select, SelectItem, Switch, Textarea } from "@heroui/react";
 import { Plus, Trash2, HelpCircle, FileText, Save, X, ZapOff, Lock } from "lucide-react";
 import { USER_ID_KEY, getSessionId } from "../auth";
-import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 import { setLoading as setMethodLoading } from '../store/slices/methodSlice';
+import SubmitConnectionAlarm from './SubmitConnectionAlarm';
 
 const EQ_CATEGORY_OPTIONS = [
     { eq_category: "Differential Equation", description: "Describes the temporal or spatial dynamics and evolution of the fields (e.g. d/dt psi). Core of the ODE-Solver (Diffrax)." },
@@ -22,6 +22,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
     const [params, setParams] = useState([]);
     const [equationWarning, setEquationWarning] = useState(null);
+    const [submitAlarm, setSubmitAlarm] = useState(null);
 
     const isConnected = useSelector(state => state.websocket.isConnected);
     const { userMethods, loading: isLoading } = useSelector(state => state.methods);
@@ -161,6 +162,11 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
             alert("No method selected.");
             return;
         }
+        if (!isConnected) {
+            setSubmitAlarm('Disconnected. Reconnecting…');
+            return;
+        }
+        setSubmitAlarm(null);
         // Ensure ID exists (auto-generate if somehow missing)
         if (!currentModule.id) {
             currentModule.id = `method_${Date.now()}`;
@@ -234,11 +240,8 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 </Button>
             </div>
 
-            {/* Disconnected Overlay */}
             {/* Split View */}
             <div className="flex flex-1 overflow-hidden relative flex-col md:flex-row">
-                {/* Disconnected Overlay */}
-                <GlobalConnectionSpinner inline={true} />
                 {/* LEFT SIDE (30%) */}
                 <div className="w-full md:w-[30%] border-r-0 md:border-r border-b md:border-b-0 border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
                     {/* Top 20% - Add Button */}
@@ -307,6 +310,7 @@ const MethodDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
                     {/* Bottom 80% - Editor */}
                     <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-4">
+                        <SubmitConnectionAlarm message={submitAlarm} onDismiss={() => setSubmitAlarm(null)} />
                         {currentModule ? (
                             <>
                                 {/* Method ID - Display only, auto-generated */}

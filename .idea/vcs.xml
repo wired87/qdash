@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/qdash" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/threejs-object-selection" vcs="Git" />
   </component>
 </project>

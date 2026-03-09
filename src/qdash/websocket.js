@@ -6,7 +6,8 @@ import { setUserModules, setActiveModuleFields, updateModule } from "./store/sli
 import { setActiveSessionModules, setActiveSessionFields, setSessions, mergeLinkData, removeSessionEnv, removeSessionModule, removeSessionField, removeInjectionFromAllSessions } from "./store/slices/sessionSlice";
 import { setUserFields, updateField } from "./store/slices/fieldSlice";
 import { setUserInjections } from "./store/slices/injectionSlice";
-import {setUserMethods} from "./store/slices/methodSlice";
+import { setUserMethods } from "./store/slices/methodSlice";
+import { setAvailableObjects } from "./store/slices/appStateSlice";
 
 
 
@@ -45,6 +46,8 @@ const _useWebSocket = (
   const messageQueue = useRef([]);
   const ws = useRef(null);
   const handleWebSocketMessageRef = useRef(null);
+  // Dedicated ref for LIVE_DATA: updated in WS callback, read by rAF loop (no render in callback)
+  const latestFrameRef = useRef({ data: null, env_id: null });
 
   const get_ws_endpoint = () => {
     const userId = localStorage.getItem(USER_ID_KEY)
@@ -83,12 +86,16 @@ const _useWebSocket = (
   }, []);
 
   const handleWebSocketMessage = (message) => {
-    // Check for errors as requested: attr includes "error" or type includes "error"
-    console.log("received data", message);
-    const hasErrorAttr = Object.keys(message).some(key => key.toLowerCase().includes("error"));
-    const isErrorType = message.type && typeof message.type === 'string' && message.type.toLowerCase().includes("error");
+    try {
+      if (message == null || typeof message !== 'object') return;
+    } catch (_) { return; }
+    try {
+      // Check for errors as requested: attr includes "error" or type includes "error"
+      console.log("received data", message);
+      const hasErrorAttr = Object.keys(message).some(key => String(key).toLowerCase().includes("error"));
+      const isErrorType = message.type && typeof message.type === 'string' && message.type.toLowerCase().includes("error");
 
-    if ((hasErrorAttr || isErrorType) && addConsoleMessage) {
+      if ((hasErrorAttr || isErrorType) && addConsoleMessage) {
       console.error("WebSocket Error Message Detected:", message);
       // Try to find the error content
       let errorText = message.error || message.err || message.message || message.msg || message.data;
@@ -339,6 +346,10 @@ const _useWebSocket = (
     } else if (message.type === "CLUSTER_DATA") {
       if (message.data) setClusterData(message.data);
     } else if (message.type === "4D_DATA") {
+      latestFrameRef.current = { data: message.data, env_id: message.auth?.env_id };
+      if (message.data && updateLiveData) updateLiveData(message.data);
+    } else if (message.type === "LIVE_DATA") {
+      latestFrameRef.current = { data: message.data, env_id: message.auth?.env_id };
       if (message.data && updateLiveData) updateLiveData(message.data);
     } else if (message.type === "INJ_PATTERN_STRUCT" || message.type === "INJ_PATTERN_STRUCT_ERR") {
       if (handleInjectionMessage) handleInjectionMessage(message);
@@ -604,9 +615,27 @@ const _useWebSocket = (
 
       if (addConsoleMessage) addConsoleMessage(`📦 Loaded details for: ${itemData.id || 'Unknown Item'}`, 'system');
 
+    } else if (message.type === "AVAILABLE_OBJECTS") {
+      // Spawnable objects for control engine sidebar
+      const objects = message.data?.objects || message.objects || [];
+      const count = Array.isArray(objects) ? objects.length : 0;
+      console.log("📦 Available spawnable objects:", count);
+      try {
+        store.dispatch(setAvailableObjects(Array.isArray(objects) ? objects : []));
+      } catch (e) {
+        console.warn("Could not dispatch setAvailableObjects:", e);
+      }
+      if (addConsoleMessage) {
+        if (count === 0) addConsoleMessage("ℹ️ No spawnable objects received", "system");
+        else addConsoleMessage(`📦 Spawnable objects loaded: ${count}`, "system");
+      }
+
     } else {
       // Für alle anderen unbekannten Nachrichtentypen
       console.log("Unbekannte WebSocket-Nachricht:", message);
+    }
+    } catch (e) {
+      console.warn("[WebSocket] message handler error (non-fatal):", e);
     }
   };
   handleWebSocketMessageRef.current = handleWebSocketMessage;
@@ -658,7 +687,7 @@ const _useWebSocket = (
         window.dispatchEvent(new CustomEvent('qdash-ws-message', { detail: receivedMessage }));
         if (handleWebSocketMessageRef.current) handleWebSocketMessageRef.current(receivedMessage);
       } catch (e) {
-        console.log("Fehler beim Parsen der WebSocket-Nachricht:", e);
+        console.warn("[WebSocket] message parse/handler error (non-fatal):", e);
       }
     };
 
@@ -671,14 +700,15 @@ const _useWebSocket = (
         // Attempt Reconnect automatically
         if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
         reconnectTimeout.current = setTimeout(() => {
-          console.log("Attempting WebSocket reconnection...");
+          console.log("[WebSocket] Reconnecting in 3s...");
+          reconnectTimeout.current = null;
           connect();
         }, 3000);
       }
     };
 
     ws.current.onerror = (event) => {
-      console.log("WebSocket Fehler:", event);
+      console.warn("[WebSocket] connection error (will retry on close):", event?.type ?? "error");
       if (isMounted.current) {
         setError(event);
         setIsConnected(false);
@@ -701,7 +731,7 @@ const _useWebSocket = (
     };
   }, [connect]);
    // new
-  return { messages, sendMessage, isConnected, error };
+  return { messages, sendMessage, isConnected, error, latestFrameRef };
 };
 
 

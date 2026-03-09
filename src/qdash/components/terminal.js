@@ -105,8 +105,8 @@ export const TerminalConsole = ({
   userProfile,
   isVoiceActive,
   setIsVoiceActive,
-  toggleModuleDesigner,
   toggleMethodDesigner,
+  // NOTE: Module designer button has been removed per user request; keep prop surface focused on active panels.
   toggleFieldDesigner,
   toggleSessionConfig,
   toggleParamConfig
@@ -122,7 +122,6 @@ export const TerminalConsole = ({
   const commandMap = [
     { keywords: ['session cfg', 'session config', 'sess cfg', 'sess'], action: toggleSessionConfig, name: 'Session Config' },
     { keywords: ['env cfg', 'env config', 'environment', 'world', 'envs'], action: toggleCfgSlider, name: 'Environment Config' },
-    { keywords: ['module', 'modules'], action: toggleModuleDesigner, name: 'Module Designer' },
     { keywords: ['method', 'methods'], action: toggleMethodDesigner, name: 'Method Designer' },
     { keywords: ['field', 'fields'], action: toggleFieldDesigner, name: 'Field Designer' },
     { keywords: ['injection', 'injections'], action: toggleInjection, name: 'Injection Config' },
@@ -285,7 +284,6 @@ export const TerminalConsole = ({
   const actionButtons = [
     { name: "Session Cfg", case: "session_cfg" },
     { name: "Env Cfg", case: "set_config" },
-    { name: "Modules 📦", case: "module" },
     { name: "Methods 🧩", case: "method" },
     { name: "Fields 📊", case: "fields_manager" },
     { name: "Injection ⚡", case: "injection" },
@@ -302,7 +300,6 @@ export const TerminalConsole = ({
     else if (actionCase === "show_cluster") toggleClusterModal();
     else if (actionCase === "injection") toggleInjection();
     else if (actionCase === "method") toggleMethodDesigner();
-    else if (actionCase === "module") toggleModuleDesigner();
     else if (actionCase === "fields_manager") toggleFieldDesigner();
     else if (actionCase === "param_cfg") toggleParamConfig();
     else if (actionCase === "change_plan" || actionCase === "view_billing" || actionCase === "upgrade_plan") toggleBilling();
@@ -310,7 +307,7 @@ export const TerminalConsole = ({
       updateInputValue("get_billings");
     }
     else updateInputValue(`${actionCase}`);
-  }, [updateInputValue, toggleDataSlider, toggleCfgSlider, toggleSessionConfig, toggleBucket, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleInjection, toggleBilling, toggleMethodDesigner, toggleModuleDesigner, toggleFieldDesigner, toggleParamConfig]);
+  }, [updateInputValue, toggleDataSlider, toggleCfgSlider, toggleSessionConfig, toggleBucket, toggleNcfgSlider, toggleLogSidebar, toggleClusterModal, toggleInjection, toggleBilling, toggleMethodDesigner, toggleFieldDesigner, toggleParamConfig]);
 
   const get_env_len = useCallback((_case) => {
     return null;

@@ -3,7 +3,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { Button, Chip, Tooltip, Spinner, Switch } from "@heroui/react";
 import { X, PlayCircle, Plus, Minus, Server, Box, Database, Zap, Layers, FolderGit2, Globe, ZapOff, Loader2 } from "lucide-react";
 import { USER_ID_KEY, getSessionId } from "../auth";
-import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 
 
 import {
@@ -21,6 +20,7 @@ import { setLoading as setEnvLoading } from '../store/slices/envSlice';
 import { setLoading as setModuleLoading } from '../store/slices/moduleSlice';
 import { setLoading as setInjectionLoading } from '../store/slices/injectionSlice';
 import { setUserFields, setLoading as setFieldLoading } from '../store/slices/fieldSlice';
+import SubmitConnectionAlarm from './SubmitConnectionAlarm';
 
 // Color generation function for hierarchical items
 const getHierarchicalColor = (index) => {
@@ -179,6 +179,7 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
     const [itemLoading, setItemLoading] = useState(false);
     const [isDrawing, setIsDrawing] = useState(false); // mouse-drag drawing on grids
     const [drawMode, setDrawMode] = useState(null); // 'assign' | 'unassign' | null
+    const [submitAlarm, setSubmitAlarm] = useState(null);
 
     const selectedPosKeysSet = useMemo(() => new Set(selectedPosKeys), [selectedPosKeys]);
 
@@ -711,6 +712,11 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
 
     const handleStartSim = () => {
         if (!activeSession) return;
+        if (!isConnected) {
+            setSubmitAlarm('Disconnected. Reconnecting…');
+            return;
+        }
+        setSubmitAlarm(null);
 
         // Get the complete session configuration from Redux
         const sessionId = activeSession.id;
@@ -773,12 +779,11 @@ const SessionConfig = ({ isOpen, onClose, sendMessage, user }) => {
                     </div>
                 </div>
 
-                {/* Disconnected Overlay */}
                 {/* Main Layout */}
                 <div className="flex flex-1 overflow-hidden relative">
-                    {/* Disconnected Overlay */}
-                    <GlobalConnectionSpinner inline={true} />
-
+                    <div className="absolute top-2 left-2 right-2 z-20 px-4">
+                        <SubmitConnectionAlarm message={submitAlarm} onDismiss={() => setSubmitAlarm(null)} />
+                    </div>
                     {/* LEFT: Session List */}
                     <div className="w-64 border-r border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900 flex flex-col">
                         <div className="p-4 flex items-center justify-between gap-2">

@@ -148,6 +148,7 @@ function createHeightmapGeometry(data, width, height) {
 function createFormMesh(form) {
     const formType = form.type;
     const id = form.id;
+    const objectId = form.object_id ?? null;
     let geometry;
     const color = new THREE.Color().setHSL(Math.random() * 0.15 + 0.1, 0.6, 0.5);
     const material = new THREE.MeshPhongMaterial({
@@ -195,7 +196,7 @@ function createFormMesh(form) {
             break;
     }
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.userData = { formId: id, formType };
+    mesh.userData = { formId: id, formType, object_id: objectId };
     return mesh;
 }
 
@@ -208,6 +209,9 @@ export const ParticleGridEngine = ({
     droppedForms = [],
     envConfig = null,
     selectedGeometry = null,
+    onObjectMoved = null,
+    onObjectSelected = null,
+    selectedFormId = null,
 }) => {
     const containerRef = useRef(null);
     const sceneRef = useRef(null);
@@ -218,6 +222,8 @@ export const ParticleGridEngine = ({
     const frameRef = useRef(null);
     const droppedMeshesRef = useRef(new Map());
     const dragControlsRef = useRef(null);
+    const raycasterRef = useRef(new THREE.Raycaster());
+    const mouseRef = useRef(new THREE.Vector2());
     const currentPositionsRef = useRef(null);
     const targetPositionsRef = useRef(null);
     const idleVelocitiesRef = useRef(null);
@@ -519,8 +525,13 @@ export const ParticleGridEngine = ({
             dragControls.addEventListener('dragstart', () => {
                 if (orbitControls) orbitControls.enabled = false;
             });
-            dragControls.addEventListener('dragend', () => {
+            dragControls.addEventListener('dragend', (e) => {
                 if (orbitControls) orbitControls.enabled = true;
+                const obj = e?.object;
+                if (obj && onObjectMoved && obj.userData?.object_id) {
+                    const pos = obj.position;
+                    onObjectMoved(obj.userData.object_id, { x: pos.x, y: pos.y, z: pos.z });
+                }
             });
             dragControlsRef.current = dragControls;
         }
@@ -531,7 +542,57 @@ export const ParticleGridEngine = ({
                 dragControlsRef.current = null;
             }
         };
-    }, [droppedForms]);
+    }, [droppedForms, onObjectMoved]);
+
+    // Raycasting-based object selection (from threejs-object-selection pattern)
+    useEffect(() => {
+        const canvas = rendererRef.current?.domElement;
+        const camera = cameraRef.current;
+        const scene = sceneRef.current;
+        if (!canvas || !camera || !scene || !onObjectSelected) return;
+
+        const raycaster = raycasterRef.current;
+        const mouse = mouseRef.current;
+
+        const onPointerDown = (event) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+
+            const objects = Array.from(droppedMeshesRef.current.values());
+            if (objects.length === 0) {
+                onObjectSelected(null);
+                return;
+            }
+            const intersections = raycaster.intersectObjects(objects, true);
+            if (intersections.length > 0) {
+                const obj = intersections[0].object;
+                const { formId, formType, object_id: objectId } = obj.userData || {};
+                if (formId != null) {
+                    onObjectSelected({ formId, objectId: objectId ?? null, formType: formType ?? null });
+                } else {
+                    onObjectSelected(null);
+                }
+            } else {
+                onObjectSelected(null);
+            }
+        };
+
+        canvas.addEventListener('pointerdown', onPointerDown);
+        return () => canvas.removeEventListener('pointerdown', onPointerDown);
+    }, [onObjectSelected]);
+
+    // Visual feedback: highlight selected mesh (emissive glow)
+    useEffect(() => {
+        const map = droppedMeshesRef.current;
+        map.forEach((mesh, formId) => {
+            if (!mesh.material) return;
+            const isSelected = formId === selectedFormId;
+            mesh.material.emissive = isSelected ? new THREE.Color(0x4488ff) : new THREE.Color(0x000000);
+            mesh.material.emissiveIntensity = isSelected ? 0.4 : 0;
+        });
+    }, [selectedFormId, droppedForms]);
 
     return (
         <div

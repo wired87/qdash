@@ -5,7 +5,6 @@ import ModuleDesigner from "./ModuleDesigner";
 import { Button, Switch } from "@heroui/react";
 import { Trash2, Globe, Server, X, PlusCircle, Download, Activity, Box } from "lucide-react";
 import { USER_ID_KEY, getSessionId } from "../auth";
-import GlobalConnectionSpinner from './GlobalConnectionSpinner';
 import { updateLogs, updateVisData } from "../store/slices/envSlice";
 import { addModelEnv, removeModelEnv } from "../store/slices/conversationSlice";
 
@@ -305,8 +304,6 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
-        <GlobalConnectionSpinner inline={true} />
-
         {/* EXISTING LEFT SIDE (Environment List) - Preserved but maybe condensed or just left as 30%? Prompt says "Split Top 80% into 2 cols (30% and 70%)".
             If I follow the interpretation of modifying the RIGHT panel (Config Area), then this Left List is fine.
         */}

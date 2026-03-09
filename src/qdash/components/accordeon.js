@@ -34,16 +34,38 @@ const filteredCfg = {
 
 const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig, listenToUserWorldConfig, userProfile, shouldShowDefault }) => {
     const userFields = useSelector((state) => state.fields.userFields) || [];
+    const userMethods = useSelector((state) => state.methods.userMethods) || [];
     const [completed, setCompleted] = useState(false);
     const [cfg, setCfg] = useState(filteredCfg);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [selectedFieldId, setSelectedFieldId] = useState("");
+    const [selectedFieldIds, setSelectedFieldIds] = useState(new Set());
+    const [selectedMethodIds, setSelectedMethodIds] = useState(new Set());
 
     // Initialize from props
     useEffect(() => {
         if (initialValues) {
             const fieldId = initialValues.field_id ?? initialValues.field ?? "";
-            setSelectedFieldId(fieldId);
+            const fieldIdsFromInitial = Array.isArray(initialValues.field_ids)
+                ? initialValues.field_ids
+                : (Array.isArray(initialValues.fields) ? initialValues.fields : null);
+            const methodsFromInitial = Array.isArray(initialValues.method_ids)
+                ? initialValues.method_ids
+                : (Array.isArray(initialValues.methods) ? initialValues.methods : null);
+
+            if (fieldIdsFromInitial && fieldIdsFromInitial.length > 0) {
+                setSelectedFieldIds(new Set(fieldIdsFromInitial.filter(Boolean)));
+            } else if (fieldId) {
+                setSelectedFieldIds(new Set([fieldId]));
+            } else {
+                setSelectedFieldIds(new Set());
+            }
+
+            if (methodsFromInitial && methodsFromInitial.length > 0) {
+                setSelectedMethodIds(new Set(methodsFromInitial.filter(Boolean)));
+            } else {
+                setSelectedMethodIds(new Set());
+            }
+
             if (Object.keys(initialValues).length > 0) {
                 setCfg((prevCfg) => {
                     const updatedCfg = { ...prevCfg };
@@ -168,12 +190,18 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
         // Clear local environments as requested
         useEnvStore.getState().clearEnvs();
 
+        const fields = Array.from(selectedFieldIds || []);
+        const methods = Array.from(selectedMethodIds || []);
+
         const dataPayload = {
             env: {
                 ...filteredConfig,
                 id: env_id // Ensure ID is consistent
             },
-            field: selectedFieldId || undefined
+            // Backwards-compatible primary field (first selection), plus full lists
+            field: fields[0] || undefined,
+            fields,
+            methods,
         };
         sendMessage({
             type: "SET_ENV",
@@ -193,6 +221,8 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             // configValues.amount_of_nodes = configValues.amount_of_nodes;
             // configValues.sim_time = configValues.sim_time;
             configValues.env = env_id;
+            configValues.fields = fields;
+            configValues.methods = methods;
             saveUserWorldConfig(user.uid, configValues);
         }
 
@@ -310,17 +340,59 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                 }
             >
                 <div className="flex flex-col gap-4 py-2">
-                    {/* Field dropdown: user fields from Redux (include store) */}
+                    {/* Methods dropdown: user methods from Redux */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 uppercase tracking-wider">
-                            Field
+                            Methods
                         </label>
                         <Select
-                            placeholder="Select field"
-                            selectedKeys={selectedFieldId ? [selectedFieldId] : []}
+                            selectionMode="multiple"
+                            placeholder="Select methods"
+                            selectedKeys={selectedMethodIds}
                             onSelectionChange={(keys) => {
-                                const key = Array.from(keys)[0];
-                                setSelectedFieldId(key ?? "");
+                                if (keys === 'all') {
+                                    const allIds = userMethods
+                                        .map((m) => (typeof m === 'string' ? m : m?.id))
+                                        .filter(Boolean);
+                                    setSelectedMethodIds(new Set(allIds));
+                                } else {
+                                    setSelectedMethodIds(new Set(keys));
+                                }
+                            }}
+                            className="max-w-full"
+                            size="sm"
+                            variant="bordered"
+                            classNames={{
+                                trigger: "bg-white dark:bg-slate-800",
+                                value: "text-slate-800 dark:text-slate-200"
+                            }}
+                        >
+                            {userMethods.map((m) => {
+                                const id = typeof m === "string" ? m : m?.id;
+                                const label = typeof m === "string" ? m : (m?.description ?? m?.id ?? id);
+                                return id ? <SelectItem key={id} textValue={String(label)}>{String(label)}</SelectItem> : null;
+                            })}
+                        </Select>
+                    </div>
+
+                    {/* Fields dropdown: user fields from Redux (multi-select) */}
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 uppercase tracking-wider">
+                            Fields
+                        </label>
+                        <Select
+                            selectionMode="multiple"
+                            placeholder="Select fields"
+                            selectedKeys={selectedFieldIds}
+                            onSelectionChange={(keys) => {
+                                if (keys === 'all') {
+                                    const allIds = userFields
+                                        .map((f) => (typeof f === 'string' ? f : f?.id))
+                                        .filter(Boolean);
+                                    setSelectedFieldIds(new Set(allIds));
+                                } else {
+                                    setSelectedFieldIds(new Set(keys));
+                                }
                             }}
                             className="max-w-full"
                             size="sm"
@@ -337,6 +409,23 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                             })}
                         </Select>
                     </div>
+
+                    {/* Live JSON preview of env + selected fields/methods */}
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 uppercase tracking-wider">
+                            Live Env JSON
+                        </label>
+                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-950/90 text-emerald-300 text-[11px] font-mono p-3 max-h-40 overflow-auto">
+                            <pre className="whitespace-pre-wrap break-all">
+{JSON.stringify({
+    env: Object.fromEntries(Object.entries(cfg).map(([key, val]) => [key, val.value])),
+    fields: Array.from(selectedFieldIds || []),
+    methods: Array.from(selectedMethodIds || []),
+}, null, 2)}
+                            </pre>
+                        </div>
+                    </div>
+
                     {Object.entries(cfg).map(([sid, attrs]) => get_input(sid, attrs))}
                 </div>
                 <Button

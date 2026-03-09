@@ -3,8 +3,7 @@ import { useSelector } from 'react-redux';
 import { Button, Input, Select, SelectItem, Textarea } from "@heroui/react";
 import { Plus, Trash2, Database, Save, X } from "lucide-react";
 import { USER_ID_KEY } from "../auth";
-import GlobalConnectionSpinner from './GlobalConnectionSpinner';
-
+import SubmitConnectionAlarm from './SubmitConnectionAlarm';
 
 const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     const [fields, setFields] = useState([]);
@@ -15,6 +14,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
     const [linkedFields, setLinkedFields] = useState(new Set());
     const [selectedModuleId, setSelectedModuleId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [submitAlarm, setSubmitAlarm] = useState(null);
 
     const userFields = useSelector(state => state.fields.userFields);
     const userModules = useSelector(state => state.modules.userModules);
@@ -151,6 +151,11 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
     function handleSave() {
         if (!currentField) return;
+        if (!isConnected) {
+            setSubmitAlarm('Disconnected. Reconnecting…');
+            return;
+        }
+        setSubmitAlarm(null);
         const userId = localStorage.getItem(USER_ID_KEY);
 
         const finalId = currentField.id?.trim() ||
@@ -212,8 +217,6 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
 
             {/* Split View */}
             <div className="flex flex-1 overflow-hidden relative">
-                <GlobalConnectionSpinner inline={true} />
-
                 {/* LEFT SIDE (30%) */}
                 <div className="w-[30%] border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
                     <div className="h-[20%] p-4 flex items-center justify-center border-b border-slate-200 dark:border-slate-800">
@@ -266,6 +269,7 @@ const FieldDesigner = ({ isOpen, onClose, sendMessage, user }) => {
                 {/* RIGHT SIDE (70%) */}
                 <div className="w-[70%] flex flex-col bg-white dark:bg-slate-900">
                     <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-6">
+                        <SubmitConnectionAlarm message={submitAlarm} onDismiss={() => setSubmitAlarm(null)} />
                         {currentField ? (
                             <>
                                 <div className="space-y-2 hidden">

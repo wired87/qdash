@@ -2,24 +2,86 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { motion, useInView } from 'framer-motion';
 import { Select, SelectItem, Button } from '@heroui/react';
-import { LiveView } from './LiveView';
-import { OscilloscopeView } from './OscilloscopeView';
-import { FuturisticBackground } from './FuturisticBackground';
+import { X } from 'lucide-react';
+import { LiveMatplotView } from './LiveMatplotView';
 import { ParticleGridEngine } from './ParticleGridEngine';
+import { FuturisticBackground } from './FuturisticBackground';
 import EngineFormsSidebar from './EngineFormsSidebar';
 import ImageTo3DModal, { processImageFile } from './ImageTo3DModal';
 import EngineEnvsSidebar from './EngineEnvsSidebar';
 import EnvCfgGlassPanel from './EnvCfgGlassPanel';
 import ConfigAccordion from './accordeon';
+import ConnectionStatusBadge from './ConnectionStatusBadge';
 import { USER_ID_KEY, SESSION_ID_KEY, getSessionId } from '../auth';
 import { setActiveSession } from '../store/slices/sessionSlice';
 import { setSelectedEnv, selectSelectedEnv } from '../store/slices/envSlice';
-import { clearCurrentEnv, setSelectedGeometry, selectSelectedGeometry } from '../store/slices/appStateSlice';
+import { clearCurrentEnv, setSelectedGeometry, selectSelectedGeometry, setInjectionOverlayRects, selectAvailableObjects, setSelectedEngineObject, selectSelectedEngineObject } from '../store/slices/appStateSlice';
 import { setLoading as setInjectionLoading } from '../store/slices/injectionSlice';
-import { X } from 'lucide-react';
+
+/** Resizable iframe for a hyperdimensions animation; transparent background, sets injection region by bounds. */
+function ResizableHyperdimensionsFrame({ item, onUpdate, onRemove }) {
+    const { id, url, label, width, height, left, top } = item;
+    const [size, setSize] = useState({ w: width, h: height });
+    const position = { x: left, y: top };
+    const lastSizeRef = useRef(size);
+
+    const handleResizeStart = useCallback((e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW = size.w;
+        const startH = size.h;
+        const onMove = (e2) => {
+            const w = Math.max(160, Math.min(600, startW + (e2.clientX - startX)));
+            const h = Math.max(120, Math.min(400, startH + (e2.clientY - startY)));
+            lastSizeRef.current = { w, h };
+            setSize({ w, h });
+        };
+        const onUp = () => {
+            const { w, h } = lastSizeRef.current;
+            onUpdate?.({ ...item, width: w, height: h, left: position.x, top: position.y });
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    }, [item, onUpdate, position.x, position.y, size.w, size.h]);
+
+    return (
+        <div
+            className="relative rounded-lg overflow-hidden border border-amber-500/40 bg-slate-900/95 shadow-lg flex-shrink-0"
+            style={{ width: size.w, height: size.h }}
+        >
+            <iframe
+                title={label}
+                src={url}
+                className="w-full h-full bg-transparent"
+                style={{ background: 'transparent' }}
+                sandbox="allow-scripts allow-same-origin"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            />
+            <button
+                type="button"
+                aria-label="Remove animation"
+                className="absolute top-1 right-1 w-6 h-6 rounded bg-slate-800/90 hover:bg-red-500/80 text-white flex items-center justify-center z-10"
+                onClick={() => onRemove?.(id)}
+            >
+                <X className="w-3 h-3" />
+            </button>
+            <div
+                role="button"
+                tabIndex={0}
+                aria-label="Resize animation"
+                className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize bg-amber-500/60 hover:bg-amber-400/80 rounded-tl"
+                onMouseDown={handleResizeStart}
+            />
+        </div>
+    );
+}
 
 export const LandingPage = ({
     liveData,
+    latestFrameRef,
     setTerminalVisible,
     isSimRunning,
     isCfgOpen,
@@ -36,12 +98,16 @@ export const LandingPage = ({
     const heroRef = useRef(null);
     const instructionsSectionRef = useRef(null); // Rename to avoid conflict with instructionsRef used for InView
     const engineRef = useRef(null);
+    const emptyFrameRef = useRef({ current: { data: {}, env_id: null } });
+    const matplotFrameRef = latestFrameRef ?? emptyFrameRef;
 
     const dispatch = useDispatch();
     const sessions = useSelector((state) => state.sessions.sessions) || [];
     const activeSession = useSelector((state) => state.sessions.activeSession);
     const selectedEnv = useSelector(selectSelectedEnv);
     const selectedGeometry = useSelector(selectSelectedGeometry);
+    const selectedEngineObject = useSelector(selectSelectedEngineObject);
+    const availableObjects = useSelector(selectAvailableObjects);
     const userInjections = useSelector((state) => state.injections.userInjections || []);
     const injectionsLoading = useSelector((state) => state.injections.loading);
     const isInstructionsInView = useInView(instructionsSectionRef, { amount: 0.3 });
@@ -64,9 +130,18 @@ export const LandingPage = ({
                     auth: { user_id: userId },
                     timestamp: new Date().toISOString()
                 });
+                // Spawnable objects catalogue for right control engine sidebar
+                sendMessage({
+                    type: 'GET_AVAILABLE_OBJECTS',
+                    auth: {
+                        user_id: userId,
+                        env_id: selectedEnv?.id ?? selectedEnv?.env_id ?? null
+                    },
+                    timestamp: new Date().toISOString()
+                });
             }
         }
-    }, [isEngineInView, sendMessage]);
+    }, [isEngineInView, sendMessage, selectedEnv]);
 
     const requestSessionsList = () => {
         if (!sendMessage) return;
@@ -85,22 +160,70 @@ export const LandingPage = ({
     const FIRST_VISIT_KEY = 'qdash_welcome_shown';
     const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(FIRST_VISIT_KEY));
     const [droppedForms, setDroppedForms] = useState([]);
+    /** Hyperdimensions animations dropped under Recognizes (n-dims) pos; each is resizable and sets injection region. */
+    const [droppedHyperdimensions, setDroppedHyperdimensions] = useState([]);
     const [isDragOverEnv, setIsDragOverEnv] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [hoverEnv, setHoverEnv] = useState(null);
+
+    useEffect(() => {
+        const onDragStart = () => setIsDragging(true);
+        const onDragEnd = () => {
+            setIsDragging(false);
+            setIsDragOverEnv(false);
+        };
+        document.addEventListener('dragstart', onDragStart);
+        document.addEventListener('dragend', onDragEnd);
+        return () => {
+            document.removeEventListener('dragstart', onDragStart);
+            document.removeEventListener('dragend', onDragEnd);
+        };
+    }, []);
+
     const [hoverInjectionType, setHoverInjectionType] = useState(null);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
+    const handleObjectMoved = useCallback((objectId, position) => {
+        if (!sendMessage || !objectId) return;
+        const userId = localStorage.getItem(USER_ID_KEY);
+        const envId = selectedEnv?.id ?? selectedEnv?.env_id ?? null;
+        sendMessage({
+            type: "UPDATE_OBJECT_POSITION",
+            auth: { user_id: userId, env_id: envId },
+            data: { object_id: objectId, position },
+            timestamp: new Date().toISOString(),
+        });
+    }, [sendMessage, selectedEnv]);
+
     const handleEnvDragOver = useCallback((e) => {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
+        try {
+            e.dataTransfer.dropEffect = 'copy';
+        } catch {
+            // Some environments may not allow modifying dropEffect; ignore.
+        }
+        if (!isDragOverEnv) {
+            console.debug('[LandingPage] dragover engine drop zone', {
+                types: e.dataTransfer?.types,
+            });
+        }
         setIsDragOverEnv(true);
-    }, []);
+    }, [isDragOverEnv]);
     const handleEnvDragLeave = useCallback((e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOverEnv(false);
+        // For dragleave events relatedTarget is often null; rely on bounding box
+        const related = e.relatedTarget;
+        if (related && e.currentTarget.contains(related)) return;
+        setIsDragOverEnv(false);
+        console.debug('[LandingPage] dragleave engine drop zone');
     }, []);
     const handleEnvDrop = useCallback((e) => {
         e.preventDefault();
         setIsDragOverEnv(false);
+
+        console.debug('[LandingPage] drop on engine', {
+            types: e.dataTransfer?.types,
+            hasFiles: !!(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length),
+        });
 
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
@@ -114,15 +237,108 @@ export const LandingPage = ({
             }
         }
 
-        const formType = e.dataTransfer.getData('application/x-qdash-form') || e.dataTransfer.getData('text/plain');
-        if (!formType) return;
-        if (formType === 'image_3d') {
-            setIsImageModalOpen(true);
+        const objectData = e.dataTransfer.getData('application/x-qdash-object');
+        if (objectData) {
+            try {
+                const payload = JSON.parse(objectData);
+                const objectId = payload.object_id || payload.id;
+                if (objectId && sendMessage) {
+                    const rect = engineRef.current?.getBoundingClientRect();
+                    let position = { x: 0, y: 0, z: 0 };
+                    if (rect) {
+                        const nx = (e.clientX - rect.left) / rect.width - 0.5;
+                        const ny = (e.clientY - rect.top) / rect.height - 0.5;
+                        const SCALE_XZ = 40;
+                        position = {
+                            x: nx * SCALE_XZ,
+                            y: 0,
+                            z: ny * SCALE_XZ,
+                        };
+                    }
+                    const userId = localStorage.getItem(USER_ID_KEY);
+                    const envId = selectedEnv?.id ?? selectedEnv?.env_id ?? null;
+                    sendMessage({
+                        type: "SPAWN_OBJECT",
+                        auth: { user_id: userId, env_id: envId },
+                        data: {
+                            object_id: objectId,
+                            position,
+                        },
+                        timestamp: new Date().toISOString(),
+                    });
+                    const id = `spawn-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                    const visualShape = payload.visual && payload.visual.shape;
+                    const formType = ['rect', 'triangle', 'box', 'image_3d'].includes(visualShape) ? visualShape : 'box';
+                    setDroppedForms((prev) => [...prev, { id, type: formType, object_id: objectId }]);
+                    console.debug('[LandingPage] drop spawn object', { objectId, position });
+                }
+            } catch (err) {
+                console.warn('[LandingPage] failed to parse SPAWN_OBJECT payload', err);
+            }
             return;
         }
-        if (!['rect', 'triangle', 'box'].includes(formType)) return;
-        setDroppedForms((prev) => [...prev, { id: `form-${Date.now()}-${Math.random().toString(36).slice(2)}`, type: formType }]);
-    }, []);
+
+        const hyperdimensionsData = e.dataTransfer.getData('application/x-qdash-hyperdimensions');
+        const hyperdimensionsText = e.dataTransfer.getData('text/plain');
+        const hyperdimensionsBase = 'https://cdn.jsdelivr.net/gh/MaxRobinsonTheGreat/hyperdimensions@main';
+        const hyperdimensionsUrls = {
+            index: 'index.html',
+            biomorphs: 'biomorphs.html',
+            picbreeder: 'picbreeder.html',
+            tree_viewer: 'tree_viewer.html',
+            // Experimental mathematical-equation view, reusing index with a mode flag.
+            equation: 'index.html?mode=equation',
+        };
+        let hyperPayload = null;
+        if (hyperdimensionsData) {
+            try {
+                hyperPayload = JSON.parse(hyperdimensionsData);
+            } catch (err) {
+                console.warn('[LandingPage] failed to parse hyperdimensions payload', err);
+            }
+        } else if (hyperdimensionsText && hyperdimensionsText.startsWith('hyperdimensions:')) {
+            const variant = hyperdimensionsText.replace('hyperdimensions:', '').trim();
+            const path = hyperdimensionsUrls[variant];
+            if (path) hyperPayload = { id: variant, label: variant, url: `${hyperdimensionsBase}/${path}` };
+        }
+        if (hyperPayload && hyperPayload.url) {
+            const uid = `hd-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            setDroppedHyperdimensions((prev) => [...prev, {
+                id: uid,
+                variant: hyperPayload.id,
+                label: hyperPayload.label || hyperPayload.id,
+                url: hyperPayload.url,
+                width: 320,
+                height: 220,
+                left: 16,
+                top: 12,
+            }]);
+            console.debug('[LandingPage] drop hyperdimensions', {
+                id: hyperPayload.id,
+                label: hyperPayload.label,
+                url: hyperPayload.url,
+            });
+            return;
+        }
+
+        const formType = e.dataTransfer.getData('application/x-qdash-form') || e.dataTransfer.getData('text/plain');
+        if (!formType) {
+            console.debug('[LandingPage] drop with no recognized form type');
+            return;
+        }
+        if (formType === 'image_3d') {
+            setIsImageModalOpen(true);
+            console.debug('[LandingPage] drop image_3d trigger');
+            return;
+        }
+        if (!['rect', 'triangle', 'box'].includes(formType)) {
+            console.debug('[LandingPage] drop form with unsupported type', { formType });
+            return;
+        }
+        const id = `form-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        console.debug('[LandingPage] drop geometry form', { formType, id });
+        setDroppedForms((prev) => [...prev, { id, type: formType }]);
+    }, [sendMessage, selectedEnv]);
     // const [showArrow, setShowArrow] = useState(true); // Removed floating arrow logic as we have full sections now
     const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -164,6 +380,11 @@ export const LandingPage = ({
         setShowWelcome(false);
         localStorage.setItem(FIRST_VISIT_KEY, '1');
     };
+
+    // Sync hyperdimensions overlay rects to store so injection positions can use them
+    useEffect(() => {
+        dispatch(setInjectionOverlayRects(droppedHyperdimensions.map(({ id, width, height, left, top }) => ({ id, width, height, left, top }))));
+    }, [droppedHyperdimensions, dispatch]);
 
     // When hovering a geometry icon on the right, ensure injections are loaded
     useEffect(() => {
@@ -346,18 +567,20 @@ export const LandingPage = ({
                     transition={{ duration: 0.8 }}
                     className="w-full h-full flex flex-col min-h-0 relative"
                 >
-                    {/* Engine viewport full width with absolute side views – drop zone covers entire area including sidebars */}
+                    {/* Engine area: flex layout so sidebars are siblings of 3D viewport – prevents overlap and keeps sidebars clickable */}
                     <div
-                        className={`absolute inset-0 z-0 transition-all duration-200 ${isDragOverEnv ? 'ring-4 ring-amber-500/60 ring-inset' : ''}`}
+                        className={`absolute inset-0 z-10 flex flex-row transition-all duration-200 ${isDragOverEnv ? 'ring-4 ring-amber-500/70 ring-offset-2 ring-offset-slate-900/70 ring-inset bg-slate-950/40' : ''} ${!isDragging ? 'pointer-events-none' : ''}`}
                         onDragOver={handleEnvDragOver}
                         onDragLeave={handleEnvDragLeave}
                         onDrop={handleEnvDrop}
                     >
                         {isDragOverEnv && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                                <span className="px-4 py-2 bg-stone-900/90 text-amber-400 font-mono text-sm uppercase tracking-widest rounded border border-amber-500/50 shadow-lg">
-                                    Drop form here
-                                </span>
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                                <div className="flex flex-col items-center gap-3">
+                                    <span className="px-4 py-2 bg-stone-900/95 text-amber-300 font-mono text-xs sm:text-sm uppercase tracking-[0.25em] rounded border border-amber-400/70 shadow-xl">
+                                        Drop geometry or Hyperdimensions here
+                                    </span>
+                                </div>
                             </div>
                         )}
                         {/* Left env cfg glass panel when open */}
@@ -375,15 +598,64 @@ export const LandingPage = ({
                             </div>
                         )}
 
-                        {/* Engine viewport – rounded card, takes full width */}
-                        <div className="w-full h-full relative transition-all duration-200 px-1 sm:px-2">
-                            <div className="w-full h-full rounded-xl sm:rounded-2xl overflow-hidden border border-slate-800/40 shadow-[0_18px_45px_rgba(0,0,0,0.45)] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-                                <ParticleGridEngine
-                                    className="w-full h-full"
-                                    droppedForms={droppedForms}
-                                    envConfig={selectedEnv ? { dims: selectedEnv.dims, amount_of_nodes: selectedEnv.amount_of_nodes ?? selectedEnv.cluster_dim, distance: selectedEnv.distance ?? 0 } : null}
-                                    selectedGeometry={selectedGeometry}
-                                />
+                        {/* Left env dock – flex column, never overlapped by 3D scene */}
+                        <div className="flex-shrink-0 flex items-center justify-center w-16 sm:w-[200px] md:w-[260px] pointer-events-auto">
+                            <EngineEnvsSidebar
+                                className="w-full max-h-[60vh]"
+                                sendMessage={sendMessage}
+                                onOpenEnvCfg={onOpenEnvCfg}
+                                isVisible={isEngineInView}
+                                onHoverEnv={setHoverEnv}
+                            />
+                        </div>
+
+                        {/* Engine viewport – center column only; 3D scene does not extend under sidebars */}
+                        <div className="flex-1 min-w-0 h-full relative transition-all duration-200 px-1 sm:px-2 pointer-events-auto">
+                            <div className="w-full h-full rounded-xl sm:rounded-2xl overflow-hidden border border-slate-800/40 shadow-[0_18px_45px_rgba(0,0,0,0.45)] bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 relative">
+                                <div className="absolute inset-0">
+                                    <ParticleGridEngine
+                                        droppedForms={droppedForms}
+                                        envConfig={selectedEnv}
+                                        selectedGeometry={selectedGeometry}
+                                        onObjectMoved={handleObjectMoved}
+                                        onObjectSelected={(obj) => dispatch(setSelectedEngineObject(obj))}
+                                        selectedFormId={selectedEngineObject?.formId ?? null}
+                                        className="w-full h-full"
+                                    />
+                                </div>
+                                <div className="absolute bottom-2 right-2 w-40 h-28 rounded-lg overflow-hidden border border-slate-700/60 z-10 bg-slate-900/90">
+                                    <LiveMatplotView
+                                        latestFrameRef={matplotFrameRef}
+                                        selectedEnvId={selectedEnv?.id ?? selectedEnv?.env_id}
+                                        isVisible={true}
+                                        fillParent={true}
+                                        className="w-full h-full"
+                                    />
+                                </div>
+                                {/* Recognizes (n-dims) pos: dropped hyperdimensions animations (resizable, sets injection positions) */}
+                                <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none">
+                                    <div className="pointer-events-auto bg-slate-900/90 backdrop-blur border-t border-amber-500/30 rounded-t-xl p-2 min-h-[52px]">
+                                        <div className="text-[10px] font-bold uppercase tracking-widest text-amber-400/95 mb-2 px-1">
+                                            Recognizes (n-dims) pos
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 items-end">
+                                            {droppedHyperdimensions.map((hd) => (
+                                                <ResizableHyperdimensionsFrame
+                                                    key={hd.id}
+                                                    item={hd}
+                                                    onUpdate={(next) => {
+                                                        setDroppedHyperdimensions((prev) =>
+                                                            prev.map((x) => (x.id === next.id ? next : x))
+                                                        );
+                                                    }}
+                                                    onRemove={(removeId) => {
+                                                        setDroppedHyperdimensions((prev) => prev.filter((x) => x.id !== removeId));
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             {/* Env cfg modal: backdrop shows engine; centered modal with config */}
                             {selectedEnv && (
@@ -454,33 +726,20 @@ export const LandingPage = ({
                             )}
                         </div>
 
-                        {/* Left env dock – absolute over engine, mid-left; z-50 so it stays above overlays and remains clickable */}
-                        <div className="absolute inset-y-0 left-0 flex items-center justify-center z-50">
-                            <div className="w-16 sm:w-[200px] md:w-[260px]">
-                                <EngineEnvsSidebar
-                                    className="w-full max-h-[60vh]"
-                                    sendMessage={sendMessage}
-                                    onOpenEnvCfg={onOpenEnvCfg}
-                                    isVisible={isEngineInView}
-                                    onHoverEnv={setHoverEnv}
-                                />
-                            </div>
+                        {/* Right forms sidebar – flex column, never overlapped by 3D scene */}
+                        <div className="flex-shrink-0 hidden md:flex items-center justify-center w-16 sm:w-[220px] md:w-[260px] pointer-events-auto">
+                            <EngineFormsSidebar
+                                className="h-full"
+                                selectedGeometry={selectedGeometry}
+                                selectedEngineObject={selectedEngineObject}
+                                onSelectType={(id) => dispatch(setSelectedGeometry(id ?? null))}
+                                onHoverType={setHoverInjectionType}
+                                onOpenImageModal={() => setIsImageModalOpen(true)}
+                                availableObjects={availableObjects}
+                            />
                         </div>
 
-                        {/* Right forms sidebar – absolute over engine, mid-right; z-50 so it stays above hover panels (z-40) and remains clickable/draggable */}
-                        <div className="absolute inset-y-0 right-0 hidden md:flex items-center justify-center z-50">
-                            <div className="w-16 sm:w-[220px] md:w-[260px]">
-                                <EngineFormsSidebar
-                                    className="h-full"
-                                    selectedGeometry={selectedGeometry}
-                                    onSelectType={(id) => dispatch(setSelectedGeometry(id ?? null))}
-                                    onHoverType={setHoverInjectionType}
-                                    onOpenImageModal={() => setIsImageModalOpen(true)}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Hover cfg panel: full height, right side 40% width (env cfg) */}
+                        
                         {hoverEnv && (
                             <div className="fixed inset-y-0 right-0 z-40 w-[40vw] min-w-[320px] max-w-xl border-l border-slate-200/40 bg-slate-950/90 text-slate-100 shadow-2xl flex flex-col">
                                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
@@ -580,9 +839,12 @@ export const LandingPage = ({
                         )}
                     </div>
 
-                    {/* Top bar overlay – responsive */}
-                    <header className="relative z-10 flex-shrink-0 flex items-center justify-between border-b border-black/20 px-4 sm:px-6 py-3 sm:py-4 gap-3 sm:gap-4 flex-wrap bg-white/90 backdrop-blur-sm">
-                        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    {/* Engine control: header + content; status badge absolute top-right here */}
+                    <div className="relative flex flex-col flex-1 min-h-0">
+                        <ConnectionStatusBadge inline />
+                        {/* Top bar overlay – responsive */}
+                        <header className="relative z-10 flex-shrink-0 flex items-center justify-between border-b border-black/20 px-4 sm:px-6 py-3 sm:py-4 gap-3 sm:gap-4 flex-wrap bg-white/90 backdrop-blur-sm">
+                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                             <div className="flex-shrink-0 flex flex-col gap-0.5 sm:gap-1">
                                 <span className="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest text-black/70">Session</span>
                                 <Select
@@ -622,10 +884,6 @@ export const LandingPage = ({
                             </h2>
                         </div>
                         <div className="flex gap-2 sm:gap-3 flex-shrink-0">
-                            <span className="px-2 py-1 border border-black text-black text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest flex items-center gap-1.5 sm:gap-2">
-                                <span className="w-1 h-1 bg-black"></span>
-                                ONLINE
-                            </span>
                             <span className="px-2 py-1 bg-black text-white text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-widest flex items-center gap-1.5 sm:gap-2">
                                 <span className="w-1 h-1 bg-white animate-pulse"></span>
                                 TERMINAL
@@ -651,35 +909,9 @@ export const LandingPage = ({
                             {children}
                         </div>
                     </div>
-
-                    {/* Background LiveView - Active only when Sim Running and NOT in Config */}
-                    {(isSimRunning && !isCfgOpen) && (
-                        <div className="absolute inset-0 z-0 opacity-10 pointer-events-none grayscale" aria-hidden>
-                            <LiveView
-                                data={liveData}
-                                isDarkMode={false}
-                                onToggleDarkMode={() => { }}
-                            />
-                        </div>
-                    )}
-
-                    {/* Oscilloscope-style visualization (retro n-D params) - when sim running */}
-                    {(isSimRunning && !isCfgOpen) && liveData && liveData.length > 0 && (
-                        <div className="absolute bottom-4 left-4 right-4 z-20 max-w-4xl mx-auto pointer-events-none">
-                            <OscilloscopeView
-                                data={liveData}
-                                isDarkMode={true}
-                                maxSamples={120}
-                                showGrid={true}
-                                showGlow={true}
-                                height={200}
-                                className="bg-slate-950/90 shadow-2xl"
-                            />
-                        </div>
-                    )}
+                    </div>
                 </motion.div>
             </div>
-
             <ImageTo3DModal
                 isOpen={isImageModalOpen}
                 onClose={() => setIsImageModalOpen(false)}
