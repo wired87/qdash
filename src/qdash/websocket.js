@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { USER_ID_KEY } from "./auth";
+import { USER_ID_KEY, getSessionId } from "./auth";
 import { useEnvStore } from "./env_store";
 import { store } from "./store";
 import { setUserModules, setActiveModuleFields, updateModule } from "./store/slices/moduleSlice";
@@ -8,6 +8,9 @@ import { setUserFields, updateField } from "./store/slices/fieldSlice";
 import { setUserInjections } from "./store/slices/injectionSlice";
 import { setUserMethods } from "./store/slices/methodSlice";
 import { setAvailableObjects } from "./store/slices/appStateSlice";
+// Slice that stores the initial USER_DATA bundle (envs, sessions, modules, method_ids, param_ids)
+import { setUserData, setLoading as setUserDataLoading } from "./store/slices/userDataSlice";
+import { setUserEnvs } from "./store/slices/envSlice";
 
 
 
@@ -630,9 +633,64 @@ const _useWebSocket = (
         else addConsoleMessage(`📦 Spawnable objects loaded: ${count}`, "system");
       }
 
+    } else if (message.type === "USER_DATA") {
+      // ── Issue #1: Engine Control Center Initial Fetch ──────────────────────
+      // The backend returns the full user data bundle in response to the
+      // USER_DATA request sent right after connecting (see onopen handler).
+      // Expected payload:
+      //   { envs, sessions, modules, method_ids, param_ids }
+      //
+      // 1. Store the raw bundle in the dedicated userData slice.
+      // 2. Also seed the individual feature slices so components work
+      //    immediately without additional round-trips.
+
+      // If the backend signals an error, log it and bail out early
+      if (message.status?.state === 'error' || message.error) {
+        const errMsg = message.error || message.status?.message || 'Unknown USER_DATA error';
+        console.error('[QDash] USER_DATA error from backend:', errMsg);
+        if (addConsoleMessage) addConsoleMessage(`❌ Failed to load user data: ${errMsg}`, 'system');
+        store.dispatch({ type: 'userData/setError', payload: errMsg });
+        return;
+      }
+
+      const payload = message.data || message; // tolerate both wrapped and flat payloads
+
+      console.log('[QDash] USER_DATA received – seeding Redux state');
+
+      // 1. Store the complete bundle
+      store.dispatch(setUserData({
+        envs:       payload.envs       ?? [],
+        sessions:   payload.sessions   ?? [],
+        modules:    payload.modules    ?? [],
+        method_ids: payload.method_ids ?? [],
+        param_ids:  payload.param_ids  ?? [],
+      }));
+
+      // 2. Seed the individual feature slices for immediate UI availability.
+      // Log when arrays are empty so an unexpectedly empty response can be spotted.
+      if (Array.isArray(payload.envs) && payload.envs.length) {
+        store.dispatch(setUserEnvs(payload.envs));
+      } else {
+        console.log('[QDash] USER_DATA: no envs received (new user or empty account)');
+      }
+      if (Array.isArray(payload.sessions) && payload.sessions.length) {
+        store.dispatch(setSessions(payload.sessions));
+      } else {
+        console.log('[QDash] USER_DATA: no sessions received');
+      }
+      if (Array.isArray(payload.modules) && payload.modules.length) {
+        store.dispatch(setUserModules(payload.modules));
+      } else {
+        console.log('[QDash] USER_DATA: no modules received');
+      }
+
+      if (addConsoleMessage) {
+        addConsoleMessage('✅ User data loaded', 'system');
+      }
+
     } else {
-      // Für alle anderen unbekannten Nachrichtentypen
-      console.log("Unbekannte WebSocket-Nachricht:", message);
+      // Unknown message type – log for debugging
+      console.log("Unknown WebSocket message:", message);
     }
     } catch (e) {
       console.warn("[WebSocket] message handler error (non-fatal):", e);
@@ -679,6 +737,21 @@ const _useWebSocket = (
       };
 
       flushQueue();
+
+      // ── Initial fetch (Issue #1) ────────────────────────────────────────────
+      // As soon as the connection is open, request the full user data bundle.
+      // The backend responds with type "USER_DATA" carrying:
+      //   envs, sessions, modules, method_ids, param_ids
+      // These are stored in the Redux userData slice so every component can
+      // read them without extra round-trips.
+      const userId    = localStorage.getItem(USER_ID_KEY);
+      const sessionId = getSessionId();
+      store.dispatch(setUserDataLoading(true)); // mark fetch as in-flight
+      ws.current.send(JSON.stringify({
+        type: 'USER_DATA',
+        auth: { user_id: userId, session_id: sessionId },
+      }));
+      console.log('[QDash] USER_DATA request sent for user:', userId);
     };
 
     ws.current.onmessage = (event) => {
