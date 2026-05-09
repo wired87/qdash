@@ -2,7 +2,7 @@ import { Accordion, AccordionItem, Button, Input, Select, SelectItem, Switch } f
 import { useCallback, useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useEnvStore } from "../env_store";
-import { USER_ID_KEY } from "../auth";
+import { USER_ID_KEY, getSessionId } from "../auth";
 import ParticleChoice from "./node_cfg/particle_choice_dd";
 import { CheckCircle2, Info } from "lucide-react";
 
@@ -30,9 +30,64 @@ const filteredCfg = {
         description: "Distance in nanometers (nm).",
         label: "distance (nm)",
     },
+    gpu_processing: {
+        value: false,
+        description: "Enable GPU processing for this environment.",
+        label: "gpu processing",
+    },
+    cloud_provider: {
+        value: "gcp",
+        description: "Select the cloud execution profile for this environment.",
+        label: "cloud bar",
+    },
 };
 
-const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig, listenToUserWorldConfig, userProfile, shouldShowDefault }) => {
+const CLOUD_OPTIONS = [
+    { key: "gcp", label: "GCP" },
+    { key: "aws", label: "AWS" },
+    { key: "az", label: "AZ" },
+    { key: "cloud_heat", label: "Cloud & Heat" },
+];
+
+const getEngineBaseUrl = () => {
+    const custom = process.env.REACT_APP_ENGINE_HTTP_BASE;
+    if (custom) return custom.replace(/\/$/, "");
+    return process.env.NODE_ENV === "production"
+        ? "https://www.bestbrain.tech"
+        : "http://127.0.0.1:8000";
+};
+
+const toEnvVarKey = (key) => `Q_ENV_${String(key).toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
+
+const transformCfgToEnvVars = ({ envConfig, envId, sessionId, fields, methods }) => {
+    const envVars = {
+        Q_ENV_ID: envId,
+        Q_SESSION_ID: sessionId || "default",
+        Q_SELECTED_FIELDS: fields.join(","),
+        Q_SELECTED_METHODS: methods.join(","),
+    };
+
+    Object.entries(envConfig || {}).forEach(([key, value]) => {
+        if (value === undefined || value === null) return;
+        if (Array.isArray(value)) {
+            envVars[toEnvVarKey(key)] = value.join(",");
+            return;
+        }
+        if (typeof value === "boolean") {
+            envVars[toEnvVarKey(key)] = value ? "true" : "false";
+            return;
+        }
+        if (typeof value === "object") {
+            envVars[toEnvVarKey(key)] = JSON.stringify(value);
+            return;
+        }
+        envVars[toEnvVarKey(key)] = String(value);
+    });
+
+    return envVars;
+};
+
+const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig, saveUserSessionConfig, listenToUserWorldConfig, userProfile, shouldShowDefault }) => {
     const userFields = useSelector((state) => state.fields.userFields) || [];
     const userMethods = useSelector((state) => state.methods.userMethods) || [];
     const [completed, setCompleted] = useState(false);
@@ -40,6 +95,8 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [selectedFieldIds, setSelectedFieldIds] = useState(new Set());
     const [selectedMethodIds, setSelectedMethodIds] = useState(new Set());
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitStatus, setSubmitStatus] = useState("");
 
     // Initialize from props
     useEffect(() => {
@@ -179,16 +236,15 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
         return maxValues;
     };
 
-    const send = () => {
-        // 1. Send to Simulation via set_env
-        const filteredConfig = filter_cfg();
-        // Use user ID from storage
-        const userId = localStorage.getItem(USER_ID_KEY);
-        // Note: env_id generation is here, sending 'env_' prefix as per valid ID logic
-        const env_id = 'env_' + filteredConfig.id;
+    const send = async () => {
+        setIsSubmitting(true);
+        setSubmitStatus("Transforming config...");
 
-        // Clear local environments as requested
-        useEnvStore.getState().clearEnvs();
+        // 1. Build local config payload
+        const filteredConfig = filter_cfg();
+        const userId = localStorage.getItem(USER_ID_KEY);
+        const sessionId = getSessionId() || "default";
+        const env_id = 'env_' + filteredConfig.id;
 
         const fields = Array.from(selectedFieldIds || []);
         const methods = Array.from(selectedMethodIds || []);
@@ -203,30 +259,111 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
             fields,
             methods,
         };
-        sendMessage({
-            type: "SET_ENV",
-            // Payload structure: data={env: ..., field?: field_id}, auth={user_id: ...}
-            data: dataPayload,
-            auth: {
-                user_id: userId
-            },
-            timestamp: new Date().toISOString(),
-        });
 
-        // 2. Save to Firebase
-        if (user && user.uid && saveUserWorldConfig) {
-            const configValues = Object.fromEntries(
-                Object.entries(cfg).map(([key, val]) => [key, val.value])
-            );
-            // configValues.amount_of_nodes = configValues.amount_of_nodes;
-            // configValues.sim_time = configValues.sim_time;
-            configValues.env = env_id;
-            configValues.fields = fields;
-            configValues.methods = methods;
-            saveUserWorldConfig(user.uid, configValues);
+        try {
+            // Keep local view in sync before post-processes
+            useEnvStore.getState().clearEnvs();
+
+            // 2. Send env config to engine transport
+            setSubmitStatus("Submitting env config...");
+            await sendMessage({
+                type: "SET_ENV",
+                data: dataPayload,
+                auth: {
+                    user_id: userId
+                },
+                timestamp: new Date().toISOString(),
+            });
+
+            // 3. Persist world cfg and session cfg in Firebase RTDB
+            if (user && user.uid && saveUserWorldConfig) {
+                const configValues = Object.fromEntries(
+                    Object.entries(cfg).map(([key, val]) => [key, val.value])
+                );
+                configValues.env = env_id;
+                configValues.fields = fields;
+                configValues.methods = methods;
+                configValues.session_id = sessionId;
+
+                setSubmitStatus("Saving world config to Firebase...");
+                await saveUserWorldConfig(user.uid, configValues);
+
+                const envVars = transformCfgToEnvVars({
+                    envConfig: dataPayload.env,
+                    envId: env_id,
+                    sessionId,
+                    fields,
+                    methods,
+                });
+
+                if (saveUserSessionConfig) {
+                    setSubmitStatus("Saving session config to Firebase...");
+                    await saveUserSessionConfig(user.uid, sessionId, env_id, {
+                        env: dataPayload.env,
+                        fields,
+                        methods,
+                        env_vars: envVars,
+                        cloud_provider: dataPayload.env.cloud_provider || "gcp",
+                        gpu_processing: !!dataPayload.env.gpu_processing,
+                        updated_at: new Date().toISOString(),
+                    });
+                }
+
+                // 4. Deploy process (currently only GCP)
+                if ((dataPayload.env.cloud_provider || "gcp") === "gcp") {
+                    const gpuEnabled = !!dataPayload.env.gpu_processing;
+                    const resources = {
+                        gpu_count: gpuEnabled ? 1 : 0,
+                        cpu_cores: gpuEnabled ? 0 : 4,
+                        disk_gb: 40,
+                        ram_gb: 16,
+                    };
+
+                    const image = process.env.REACT_APP_GCP_ARTIFACT_IMAGE || "europe-west1-docker.pkg.dev/local-project/qdash/engine:latest";
+                    const deployEndpoint = `${getEngineBaseUrl()}/engine/deploy-gcp-vm`;
+
+                    setSubmitStatus("Deploying VM + Docker from GCP Artifact Registry...");
+                    
+                    // ===== GHOST MODE: Skip actual GCP deployment =====
+                    const DEPLOY_GHOST_MODE = true; // Set to false to enable actual GCP deployment
+                    if (DEPLOY_GHOST_MODE) {
+                        console.debug(`[GHOST MODE] Deploy request skipped (ghosted)`, { env_id, cloud_provider: "gcp" });
+                    } else {
+                        // ===== END GHOST MODE =====
+                        const deployRes = await fetch(deployEndpoint, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                user_id: userId,
+                                session_id: sessionId,
+                                env_id,
+                                cloud_provider: "gcp",
+                                docker: {
+                                    image,
+                                    env_vars: envVars,
+                                },
+                                resources,
+                            }),
+                        });
+
+                        if (!deployRes.ok) {
+                            const detail = await deployRes.text().catch(() => "");
+                            throw new Error(`Deploy failed: HTTP ${deployRes.status}${detail ? ` - ${detail}` : ""}`);
+                        }
+                    }
+                }
+            }
+
+            setCompleted(true);
+            setSubmitStatus("Configuration saved and deployment triggered.");
+        } catch (err) {
+            console.error("Config submit/deploy failed:", err);
+            setCompleted(false);
+            setSubmitStatus(`Failed: ${err?.message || "unknown error"}`);
+            alert(`Failed to confirm config: ${err?.message || "Unknown error"}`);
+        } finally {
+            setIsSubmitting(false);
         }
-
-        // Note: setCompleted will be called via WebSocket response handler
     }
 
     const validate_input = useCallback((key) => {
@@ -248,15 +385,37 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                 </Select>
             );
         }
-        if (key === "enable_sm") {
+        if (key === "enable_sm" || key === "gpu_processing") {
             return (
                 <Switch
-                    aria-label="Enable Standard Model"
+                    aria-label={key === "gpu_processing" ? "Enable GPU Processing" : "Enable Standard Model"}
                     isSelected={cfg[key]?.value}
                     onValueChange={(isSelected) => handleValueChange(key, isSelected)}
                     size="sm"
                     color="primary"
                 />
+            );
+        }
+        if (key === "cloud_provider") {
+            const selected = String(cfg[key]?.value || "gcp");
+            return (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {CLOUD_OPTIONS.map((opt) => {
+                        const active = selected === opt.key;
+                        return (
+                            <Button
+                                key={opt.key}
+                                size="sm"
+                                variant={active ? "solid" : "bordered"}
+                                color={active ? "primary" : "default"}
+                                className="font-semibold tracking-wide"
+                                onPress={() => handleValueChange(key, opt.key)}
+                            >
+                                {opt.label}
+                            </Button>
+                        );
+                    })}
+                </div>
             );
         }
         if (key !== "particle") {
@@ -432,11 +591,15 @@ const ConfigAccordion = ({ sendMessage, initialValues, user, saveUserWorldConfig
                     color="primary"
                     variant="shadow"
                     onPress={() => send()}
-                    className="mt-6 mb-8 w-full font-semibold"
+                    className="mt-6 mb-2 w-full font-semibold"
+                    isDisabled={isSubmitting}
                     endContent={completed ? <CheckCircle2 size={18} /> : null}
                 >
-                    {completed ? "Update Configuration" : "Confirm Configuration"}
+                    {isSubmitting ? "Processing..." : (completed ? "Update Configuration" : "Confirm Configuration")}
                 </Button>
+                {submitStatus && (
+                    <p className="mb-6 text-xs text-slate-500 dark:text-slate-400">{submitStatus}</p>
+                )}
             </AccordionItem>
         </Accordion>
     );

@@ -9,6 +9,13 @@ import { setUserInjections } from "./store/slices/injectionSlice";
 import { setUserMethods } from "./store/slices/methodSlice";
 import { setAvailableObjects } from "./store/slices/appStateSlice";
 
+// ========================================================================================
+// GHOST MODE: Disables actual WebSocket/HTTP attempts while preserving all code
+// Set to TRUE to disable WebSocket workflow and prevent connection errors
+// Set to FALSE to enable actual WebSocket connections
+// ========================================================================================
+const WEBSOCKET_GHOST_MODE = true;
+
 
 
 
@@ -27,6 +34,11 @@ const handleDownload = (data, filename = "data.json") => {
   URL.revokeObjectURL(url);
 };
 
+/**
+ * @param {object} [firebaseSaveCallbacks]  Optional RTDB persistence hooks.
+ *   Shape: { saveEntity(collection, id, data), deleteEntity(collection, id) }
+ *   Provided by useFirebaseListeners.  When absent, RTDB mirroring is skipped.
+ */
 const _useWebSocket = (
   updateCreds,
   updateDataset,
@@ -35,55 +47,150 @@ const _useWebSocket = (
   setClusterData,
   updateLiveData, // New callback
   handleInjectionMessage, // Callback for injection messages
-  addConsoleMessage // New callback for general console messages
+  addConsoleMessage, // New callback for general console messages
+  firebaseSaveCallbacks // { saveEntity, deleteEntity } – optional
 ) => {
   const [messages] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
   const [error, setError] = useState(null);
-  // const [deactivate, setDeactivate] = useState(false); // unused
 
-  // useRef for message queue when offline
-  const messageQueue = useRef([]);
-  const ws = useRef(null);
   const handleWebSocketMessageRef = useRef(null);
   // Dedicated ref for LIVE_DATA: updated in WS callback, read by rAF loop (no render in callback)
   const latestFrameRef = useRef({ data: null, env_id: null });
 
-  const get_ws_endpoint = () => {
-    const userId = localStorage.getItem(USER_ID_KEY)
-    const quey_str = `?user_id=${userId}&mode=demo`;
+  const getHttpBase = () => {
+    const custom = process.env.REACT_APP_ENGINE_HTTP_BASE;
+    if (custom) return custom.replace(/\/$/, "");
+    return process.env.NODE_ENV === "production"
+      ? "https://www.bestbrain.tech"
+      : "http://127.0.0.1:8000";
+  };
 
-    // const backendEndpoint = process.env.REACT_APP_BACKEND_ENDPOINT || process.env.BACKEND_ENDPOINT; // unused
+  const getHttpEndpoint = (messageType) => {
+    const base = getHttpBase();
+    if (messageType === "START_SIM") return `${base}/engine/start`;
+    return `${base}/engine/command`;
+  };
 
-    /*
-    if (backendEndpoint) {
-      const url = `wss://${backendEndpoint}/run/${quey_str}`;
-      console.log("url", url)
-      return url
+  const emitIncoming = useCallback((payload) => {
+    if (!payload) return;
+    const emit = (msg) => {
+      if (!msg || typeof msg !== "object") return;
+      window.dispatchEvent(new CustomEvent("qdash-ws-message", { detail: msg }));
+      if (handleWebSocketMessageRef.current) handleWebSocketMessageRef.current(msg);
+    };
+
+    if (Array.isArray(payload)) {
+      payload.forEach(emit);
+      return;
     }
-    */
-
-    const WS_URL_PROD = `wss://www.bestbrain.tech/run/${quey_str}`;
-    const WS_URL_LOCAL = `ws://127.0.0.1:8000/run/${quey_str}`;
-
-    const isProd = process.env.NODE_ENV === 'production';
-    const targetUrl = isProd ? WS_URL_PROD : WS_URL_LOCAL;
-
-    console.log("WebSocket Target URL:", targetUrl);
-    return targetUrl;
-  }
-
-
-  // useCallback, um die send-Funktion zu memoizen
-  const sendMessage = useCallback((message) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify(message));
-      console.log("Send message:", message);
-    } else {
-      console.warn("WebSocket ist nicht verbunden. Nachricht wird in Warteschlange gelegt:", message);
-      messageQueue.current.push(message);
+    if (Array.isArray(payload.messages)) {
+      payload.messages.forEach(emit);
+      return;
     }
+    emit(payload);
   }, []);
+
+  const buildStartSimCommit = (message) => {
+    const incoming = message?.data || {};
+    if (incoming.config && typeof incoming.config === "object") {
+      return incoming.config;
+    }
+
+    const state = store.getState();
+    const activeSessionId = state.sessions?.activeSessionId || state.sessions?.activeSession?.id;
+    const sessionConfig = activeSessionId
+      ? state.sessions?.sessionData?.[activeSessionId]?.config?.envs
+      : null;
+
+    if (sessionConfig && Object.keys(sessionConfig).length > 0) {
+      return sessionConfig;
+    }
+
+    const envIds = Array.isArray(incoming.env_ids) ? incoming.env_ids : [];
+    return envIds.reduce((acc, envId) => {
+      acc[envId] = { modules: [], injections: {} };
+      return acc;
+    }, {});
+  };
+
+  const sendMessage = useCallback(async (message) => {
+    // ===== GHOST MODE: Skip actual HTTP requests =====
+    if (WEBSOCKET_GHOST_MODE) {
+      console.debug(`[GHOST MODE] WebSocket message skipped:`, message?.type);
+      // Still emit a fake ACK to prevent UI hangs
+      emitIncoming({
+        type: `${message?.type || "UNKNOWN"}_ACK`,
+        data: { ok: true, ghosted: true },
+        auth: message?.auth,
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+    // ===== END GHOST MODE =====
+
+    const endpoint = getHttpEndpoint(message?.type);
+    const userId = localStorage.getItem(USER_ID_KEY);
+
+    const outgoing = {
+      ...message,
+      auth: {
+        ...(message?.auth || {}),
+        user_id: message?.auth?.user_id || userId,
+      },
+      timestamp: message?.timestamp || new Date().toISOString(),
+    };
+
+    if (outgoing.type === "START_SIM") {
+      outgoing.data = {
+        ...(outgoing.data || {}),
+        config: buildStartSimCommit(outgoing),
+      };
+    }
+
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(outgoing),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}: ${text || "request failed"}`);
+      }
+
+      const payload = await res.json().catch(() => null);
+      if (payload) {
+        emitIncoming(payload);
+      } else {
+        emitIncoming({
+          type: `${outgoing.type}_ACK`,
+          data: { ok: true },
+          auth: outgoing.auth,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      const serializable = {
+        message: err?.message || "HTTP engine request failed",
+        type: "http-error",
+      };
+      setError(serializable);
+      setIsConnected(false);
+      window.dispatchEvent(new CustomEvent("qdash-ws-status", {
+        detail: { status: "error", isConnected: false, error: serializable }
+      }));
+      emitIncoming({
+        type: "ENGINE_POST_ERROR",
+        error: serializable.message,
+        data: { originalType: message?.type },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [emitIncoming]);
 
   const handleWebSocketMessage = (message) => {
     try {
@@ -126,6 +233,8 @@ const _useWebSocket = (
           }
         };
         addEnvs(newEnv);
+        // Mirror to RTDB
+        firebaseSaveCallbacks?.saveEntity?.('envs', message.env_id, { id: message.env_id, ...message.config, status: 'configured' });
       }
     } else if (message.type === "SET_ENV_ERROR") {
       // Handle set_env error
@@ -231,6 +340,11 @@ const _useWebSocket = (
       console.log("📋 Received user injections:", injections.length);
       store.dispatch(setUserInjections(injections));
 
+      // Mirror to RTDB
+      if (firebaseSaveCallbacks?.saveEntity) {
+        injections.forEach((inj) => { if (inj?.id) firebaseSaveCallbacks.saveEntity('injections', inj.id, inj); });
+      }
+
       if (addConsoleMessage) {
         const count = injections.length;
         if (count === 0) addConsoleMessage('ℹ️ No injections found', 'system');
@@ -239,16 +353,21 @@ const _useWebSocket = (
       // Data is handled by the component's event listener
 
     } else if (message.type === "LIST_USERS_METHODS") {
-      // Handle user injection list response
+      // Handle user methods list response
       const methods = message.data?.methods || message.methods || [];
 
       console.log("📋 Received user Methods:", methods.length);
       store.dispatch(setUserMethods(methods));
 
+      // Mirror to RTDB
+      if (firebaseSaveCallbacks?.saveEntity) {
+        methods.forEach((m) => { if (m?.id) firebaseSaveCallbacks.saveEntity('methods', m.id, m); });
+      }
+
       if (addConsoleMessage) {
         const count = methods.length;
-        if (count === 0) addConsoleMessage('ℹ️ No injections found', 'system');
-        else addConsoleMessage(`📋 Loaded ${count} methods${count !== 1 ? 's' : ''}`, 'system');
+        if (count === 0) addConsoleMessage('ℹ️ No methods found', 'system');
+        else addConsoleMessage(`📋 Loaded ${count} method${count !== 1 ? 's' : ''}`, 'system');
       }
       // Data is handled by the component's event listener
 
@@ -260,6 +379,10 @@ const _useWebSocket = (
         console.log("✅ Injection saved:", injId);
         if (addConsoleMessage) {
           addConsoleMessage(`✅ Injection saved: ${injId}`, 'system');
+        }
+        // Mirror to RTDB
+        if (injId && message.data && firebaseSaveCallbacks?.saveEntity) {
+          firebaseSaveCallbacks.saveEntity('injections', injId, message.data);
         }
       } else if (message.status?.state === "error") {
         console.error("❌ Injection save error:", message.status?.error);
@@ -279,6 +402,9 @@ const _useWebSocket = (
         if (injId) {
           store.dispatch(removeInjectionFromAllSessions({ injectionId: injId }));
         }
+
+        // Remove from RTDB
+        firebaseSaveCallbacks?.deleteEntity?.('injections', injId);
 
         if (addConsoleMessage) {
           addConsoleMessage(`🗑️ Injection deleted: ${injId}`, 'system');
@@ -389,6 +515,20 @@ const _useWebSocket = (
       console.log(`📦 User Modules update (${message.type}):`, safeModules.length);
       store.dispatch(setUserModules(safeModules));
 
+      // Mirror to RTDB
+      if (firebaseSaveCallbacks?.saveEntity) {
+        if (message.type === 'DEL_MODULE') {
+          const delId = message.data?.id || message.id;
+          if (delId) firebaseSaveCallbacks.deleteEntity?.('modules', delId);
+        } else if (message.type === 'SET_MODULE') {
+          const mod = message.data;
+          if (mod?.id) firebaseSaveCallbacks.saveEntity('modules', mod.id, mod);
+        } else {
+          // LIST: mirror entire collection
+          safeModules.forEach((m) => { if (m?.id) firebaseSaveCallbacks.saveEntity('modules', m.id, m); });
+        }
+      }
+
       if (addConsoleMessage) {
         if (message.type === "DEL_MODULE") addConsoleMessage('🗑️ Module deleted', 'system');
         else if (message.type === "SET_MODULE") addConsoleMessage('✅ Module saved', 'system');
@@ -414,6 +554,11 @@ const _useWebSocket = (
 
       console.log(`📋 User Sessions update (${message.type}):`, safeSessions.length);
       store.dispatch(setSessions(safeSessions));
+
+      // Mirror to RTDB
+      if (firebaseSaveCallbacks?.saveEntity) {
+        safeSessions.forEach((s) => { if (s?.id) firebaseSaveCallbacks.saveEntity('sessions', s.id, s); });
+      }
 
       // Also merge hierarchical link data if present
       if (message.data?.sessions && typeof message.data.sessions === 'object') {
@@ -492,6 +637,19 @@ const _useWebSocket = (
 
       console.log(`🌾 User Fields update (${message.type}):`, safeFields.length);
       store.dispatch(setUserFields(safeFields));
+
+      // Mirror to RTDB
+      if (firebaseSaveCallbacks?.saveEntity) {
+        if (message.type === 'DEL_FIELD') {
+          const delId = message.data?.id || message.id;
+          if (delId) firebaseSaveCallbacks.deleteEntity?.('fields', delId);
+        } else if (message.type === 'SET_FIELD') {
+          const fld = message.data;
+          if (fld?.id) firebaseSaveCallbacks.saveEntity('fields', fld.id, fld);
+        } else {
+          safeFields.forEach((f) => { if (f?.id) firebaseSaveCallbacks.saveEntity('fields', f.id, f); });
+        }
+      }
 
       if (addConsoleMessage) {
         if (message.type === "DEL_FIELD") addConsoleMessage('🗑️ Field deleted', 'system');
@@ -640,96 +798,13 @@ const _useWebSocket = (
   };
   handleWebSocketMessageRef.current = handleWebSocketMessage;
 
-  // Reconnection refs
-  const reconnectTimeout = useRef(null);
-  const isMounted = useRef(true);
-
-  const connect = useCallback(() => {
-    if (ws.current?.readyState === WebSocket.OPEN || ws.current?.readyState === WebSocket.CONNECTING) return;
-
-    ws.current = new WebSocket(get_ws_endpoint());
-
-    ws.current.onopen = () => {
-      console.log("WebSocket verbunden");
-      if (isMounted.current) {
-        setIsConnected(true);
-        setError(null);
-        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'connected', isConnected: true } }));
-      }
-
-      // Flush message queue safely
-      const flushQueue = () => {
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          if (messageQueue.current.length > 0) {
-            console.log(`Flushing ${messageQueue.current.length} queued messages...`);
-            while (messageQueue.current.length > 0) {
-              const msg = messageQueue.current.shift();
-              try {
-                ws.current.send(JSON.stringify(msg));
-                console.log("Sent queued message:", msg);
-              } catch (err) {
-                console.error("Failed to send queued message:", err);
-                break;
-              }
-            }
-          }
-        } else {
-          setTimeout(flushQueue, 50);
-        }
-      };
-
-      flushQueue();
-    };
-
-    ws.current.onmessage = (event) => {
-      try {
-        const receivedMessage = JSON.parse(event.data);
-        window.dispatchEvent(new CustomEvent('qdash-ws-message', { detail: receivedMessage }));
-        if (handleWebSocketMessageRef.current) handleWebSocketMessageRef.current(receivedMessage);
-      } catch (e) {
-        console.warn("[WebSocket] message parse/handler error (non-fatal):", e);
-      }
-    };
-
-    ws.current.onclose = (event) => {
-      console.log("WebSocket getrennt", event.code, event.reason);
-      if (isMounted.current) {
-        setIsConnected(false);
-        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'disconnected', isConnected: false, code: event.code } }));
-
-        // Attempt Reconnect automatically
-        if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
-        reconnectTimeout.current = setTimeout(() => {
-          console.log("[WebSocket] Reconnecting in 3s...");
-          reconnectTimeout.current = null;
-          connect();
-        }, 3000);
-      }
-    };
-
-    ws.current.onerror = (event) => {
-      console.warn("[WebSocket] connection error (will retry on close):", event?.type ?? "error");
-      if (isMounted.current) {
-        setError(event);
-        setIsConnected(false);
-        const serializableError = { message: 'WebSocket connection error', type: event?.type || 'error' };
-        window.dispatchEvent(new CustomEvent('qdash-ws-status', { detail: { status: 'error', isConnected: false, error: serializableError } }));
-      }
-    };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handler kept in ref to avoid reconnect loops
-  }, []);
-
   useEffect(() => {
-    isMounted.current = true;
-    connect();
-
-    return () => {
-      isMounted.current = false;
-      if (ws.current) ws.current.close();
-      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
-    };
-  }, [connect]);
+    setIsConnected(true);
+    setError(null);
+    window.dispatchEvent(new CustomEvent("qdash-ws-status", {
+      detail: { status: "connected", isConnected: true }
+    }));
+  }, []);
    // new
   return { messages, sendMessage, isConnected, error, latestFrameRef };
 };

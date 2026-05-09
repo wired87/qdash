@@ -25,15 +25,65 @@ import {
   Input,
 } from "@heroui/react";
 import { MoreVertical } from "lucide-react";
+import { MathJax, MathJaxContext } from "better-react-mathjax";
+import { get, ref } from "firebase/database";
 import SliderPanel from "./common/SliderPanel";
 import "../../index.css";
 
-export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, envData, sendMessage, setEnvData }) => {
+const mathJaxConfig = {
+  loader: { load: ["input/tex", "output/chtml"] },
+  tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]] },
+};
+
+const normalizeNumericPoints = (value) => {
+  const points = [];
+  const walk = (node) => {
+    if (typeof node === "number" && Number.isFinite(node)) {
+      points.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach((n) => walk(n));
+      return;
+    }
+    if (node && typeof node === "object") {
+      const hasXY = Number.isFinite(node.x) && Number.isFinite(node.y);
+      if (hasXY) {
+        points.push(node.y);
+        return;
+      }
+      Object.values(node).forEach((n) => walk(n));
+    }
+  };
+  walk(value);
+  return points;
+};
+
+const makeSvgPolyline = (points, width = 760, height = 260) => {
+  if (!points.length) return "";
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  return points
+    .map((v, i) => {
+      const x = (i / Math.max(points.length - 1, 1)) * width;
+      const y = height - ((v - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(" ");
+};
+
+export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, envData, sendMessage, setEnvData, envs, user, firebaseDb }) => {
   const [activeTab, setActiveTab] = useState("data");
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [showNcfgModal, setShowNcfgModal] = useState(false);
   const [ncfgValue, setNcfgValue] = useState(50);
   const [showCheckboxActions, setShowCheckboxActions] = useState(false);
+  const [resultModalOpen, setResultModalOpen] = useState(false);
+  const [resultLoading, setResultLoading] = useState(false);
+  const [resultError, setResultError] = useState(null);
+  const [activeResultEnvId, setActiveResultEnvId] = useState(null);
+  const [resultPayload, setResultPayload] = useState(null);
 
   // Handler for get_data button click
   const handleGetEnvData = (envId) => {
@@ -42,6 +92,54 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
       env_id: envId,
       timestamp: new Date().toISOString(),
     });
+  };
+
+  const getEnvStatus = (envId) => {
+    const state = envs?.[envId]?.status?.state || envs?.[envId]?.status || "";
+    return String(state).toLowerCase();
+  };
+
+  const isCompletedEnv = (envId) => {
+    const status = getEnvStatus(envId);
+    return status === "completed" || status === "complete" || status === "done";
+  };
+
+  const handleVisualizeCompletedEnv = async (envId) => {
+    if (!isCompletedEnv(envId)) return;
+    if (!firebaseDb?.current || !user?.uid) {
+      setResultError("Firebase/Benutzer nicht verfügbar.");
+      setResultModalOpen(true);
+      return;
+    }
+
+    setActiveResultEnvId(envId);
+    setResultError(null);
+    setResultLoading(true);
+    setResultPayload(null);
+    setResultModalOpen(true);
+
+    try {
+      const primaryPath = ref(firebaseDb.current, `users/${user.uid}/results/${envId}`);
+      const fallbackPath = ref(firebaseDb.current, `users/${user.uid}/result/${envId}`);
+
+      const primarySnap = await get(primaryPath);
+      let payload = primarySnap.exists() ? primarySnap.val() : null;
+
+      if (!payload) {
+        const fallbackSnap = await get(fallbackPath);
+        payload = fallbackSnap.exists() ? fallbackSnap.val() : null;
+      }
+
+      if (!payload) {
+        throw new Error("Keine Result-Daten für diese Environment gefunden.");
+      }
+
+      setResultPayload(payload);
+    } catch (err) {
+      setResultError(err?.message || "Result-Laden fehlgeschlagen.");
+    } finally {
+      setResultLoading(false);
+    }
   };
 
   // Handler for checkbox selection
@@ -237,6 +335,13 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
     { key: "actions", label: "" },
   ];
 
+  const resultSeries = normalizeNumericPoints(resultPayload);
+  const seriesCount = resultSeries.length;
+  const mean = seriesCount ? resultSeries.reduce((a, b) => a + b, 0) / seriesCount : 0;
+  const min = seriesCount ? Math.min(...resultSeries) : 0;
+  const max = seriesCount ? Math.max(...resultSeries) : 0;
+  const polylinePoints = makeSvgPolyline(resultSeries);
+
   return (
     <>
       <SliderPanel
@@ -319,58 +424,71 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
                       <TableColumn>Action</TableColumn>
                     </TableHeader>
                     <TableBody>
-                      {envsList.map((envId, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <Checkbox
-                              isSelected={selectedRows.has(envId)}
-                              onValueChange={(isSelected) => handleRowSelection(envId, isSelected)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              size="sm"
-                              color={index === 0 ? "success" : "default"}
-                              variant="flat"
-                            >
-                              {index === 0 ? "✓" : "○"}
-                            </Chip>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-primary font-medium">{envId}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Dropdown>
-                                <DropdownTrigger>
-                                  <Button
-                                    aria-label="Environment actions"
-                                    size="sm"
-                                    variant="light"
-                                    isIconOnly
-                                  >
-                                    <MoreVertical size={18} />
-                                  </Button>
-                                </DropdownTrigger>
-                                <DropdownMenu aria-label="Environment Actions">
-                                  <DropdownItem key="start" startContent={<span>▶</span>}>Start/Resume</DropdownItem>
-                                  <DropdownItem key="stop">Stop</DropdownItem>
-                                  <DropdownItem key="suspend">Suspend</DropdownItem>
-                                  <DropdownItem key="reset" startContent={<span>⟲</span>}>Reset</DropdownItem>
-                                </DropdownMenu>
-                              </Dropdown>
-                              <Button
+                      {envsList.map((envId, index) => {
+                        const status = getEnvStatus(envId);
+                        const completed = isCompletedEnv(envId);
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <Checkbox
+                                isSelected={selectedRows.has(envId)}
+                                onValueChange={(isSelected) => handleRowSelection(envId, isSelected)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Chip
                                 size="sm"
-                                color="primary"
+                                color={completed ? "success" : "default"}
                                 variant="flat"
-                                onPress={() => handleGetEnvData(envId)}
                               >
-                                Get Data
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                                {completed ? "completed" : (status || "pending")}
+                              </Chip>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-primary font-medium">{envId}</span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Dropdown>
+                                  <DropdownTrigger>
+                                    <Button
+                                      aria-label="Environment actions"
+                                      size="sm"
+                                      variant="light"
+                                      isIconOnly
+                                    >
+                                      <MoreVertical size={18} />
+                                    </Button>
+                                  </DropdownTrigger>
+                                  <DropdownMenu aria-label="Environment Actions">
+                                    <DropdownItem key="start" startContent={<span>▶</span>}>Start/Resume</DropdownItem>
+                                    <DropdownItem key="stop">Stop</DropdownItem>
+                                    <DropdownItem key="suspend">Suspend</DropdownItem>
+                                    <DropdownItem key="reset" startContent={<span>⟲</span>}>Reset</DropdownItem>
+                                  </DropdownMenu>
+                                </Dropdown>
+                                <Button
+                                  size="sm"
+                                  color="primary"
+                                  variant="flat"
+                                  onPress={() => handleGetEnvData(envId)}
+                                >
+                                  Get Data
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  color="secondary"
+                                  variant="flat"
+                                  isDisabled={!completed}
+                                  onPress={() => handleVisualizeCompletedEnv(envId)}
+                                >
+                                  Visualization
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
 
@@ -539,6 +657,81 @@ export const DataSlider = ({ nodes, edges, logs, isOpen, onToggle, envsList, env
           )}
         </div>
       </SliderPanel>
+
+      <Modal
+        isOpen={resultModalOpen}
+        onOpenChange={setResultModalOpen}
+        size="5xl"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                Visualization Results · {activeResultEnvId || "unknown"}
+              </ModalHeader>
+              <ModalBody>
+                {resultLoading ? (
+                  <div className="text-sm text-slate-500">Lade Result-Daten aus Firebase RTDB...</div>
+                ) : resultError ? (
+                  <div className="text-sm text-red-500">{resultError}</div>
+                ) : (
+                  <MathJaxContext config={mathJaxConfig}>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Card className="border border-slate-200 dark:border-slate-700">
+                          <CardBody className="text-sm">Points: <Code>{seriesCount}</Code></CardBody>
+                        </Card>
+                        <Card className="border border-slate-200 dark:border-slate-700">
+                          <CardBody className="text-sm">Min/Max: <Code>{min.toFixed(4)} / {max.toFixed(4)}</Code></CardBody>
+                        </Card>
+                        <Card className="border border-slate-200 dark:border-slate-700">
+                          <CardBody className="text-sm">Mean: <Code>{mean.toFixed(4)}</Code></CardBody>
+                        </Card>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900">
+                        <MathJax>{`$$\\bar{x}=\\frac{1}{n}\\sum_{i=1}^{n}x_i,\; n=${seriesCount},\; \\bar{x}=${mean.toFixed(4)}$$`}</MathJax>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 overflow-x-auto">
+                        <svg width="760" height="260" viewBox="0 0 760 260" role="img" aria-label="Result data points chart">
+                          <rect x="0" y="0" width="760" height="260" fill="transparent" />
+                          <line x1="0" y1="259" x2="760" y2="259" stroke="#64748b" strokeWidth="1" />
+                          <line x1="1" y1="0" x2="1" y2="260" stroke="#64748b" strokeWidth="1" />
+                          {polylinePoints ? (
+                            <polyline points={polylinePoints} fill="none" stroke="#0ea5e9" strokeWidth="2" />
+                          ) : null}
+                        </svg>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                        <Table aria-label="Result points table" isStriped removeWrapper>
+                          <TableHeader>
+                            <TableColumn>INDEX</TableColumn>
+                            <TableColumn>VALUE</TableColumn>
+                          </TableHeader>
+                          <TableBody>
+                            {resultSeries.map((value, idx) => (
+                              <TableRow key={`${idx}-${value}`}>
+                                <TableCell>{idx}</TableCell>
+                                <TableCell>{value}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  </MathJaxContext>
+                )}
+              </ModalBody>
+              <ModalFooter>
+                <Button color="default" variant="light" onPress={onClose}>Close</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       {/* NCFG Slider Modal */}
       <Modal
