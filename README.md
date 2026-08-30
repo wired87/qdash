@@ -181,7 +181,35 @@ Contributions are welcome. Use the usual fork-and-pull-request workflow.
 
 ---
 
-## 📄 License
+## 🔄 Changes
+
+### Issue #1 – Engine Control Center Initial Fetch
+
+**Problem:** When the Engine Control Center opened, the UI had no user data (environments, sessions, modules, methods, parameter sets) because there was no initial request to the backend.
+
+**Solution:**
+
+1. **New Redux slice** – `src/qdash/store/slices/userDataSlice.js`
+   Holds the full user data bundle (`envs`, `sessions`, `modules`, `method_ids`, `param_ids`) returned by the backend. Includes `isLoaded` / `loading` / `error` flags and convenience selectors (`selectUserDataEnvs`, `selectMethodIds`, …).
+
+2. **Store registration** – `src/qdash/store/index.js`
+   The new `userDataSlice` is registered under the `userData` key. A file-level comment now documents every slice and its purpose.
+
+3. **Initial fetch on connect** – `src/qdash/websocket.js`
+   Immediately after the WebSocket connection is established (`onopen`), a `USER_DATA` message is sent:
+   ```json
+   { "type": "USER_DATA", "auth": { "user_id": "...", "session_id": "..." } }
+   ```
+   The handler for the `USER_DATA` response:
+   * dispatches `setUserData` to populate the dedicated Redux slice, and
+   * seeds `envSlice`, `sessionSlice`, and `moduleSlice` so all components
+     render correctly without extra round-trips.
+
+4. **Human-readable comments** added to every changed file, following the existing comment style of the project.
+
+---
+
+
 
 MIT — see [LICENSE](LICENSE).
 
