@@ -12,6 +12,32 @@ import { store } from './qdash/store';
 // Ensure dom-animation shim is not tree-shaken when bundled
 void _herouiDomAnimation;
 
+// AdSense Script & Meta Tag dynamisch in den Head einfügen
+const initAdSense = () => {
+  if (typeof document !== 'undefined') {
+    // 1. Meta Tag hinzufügen (falls noch nicht vorhanden)
+    if (!document.querySelector('meta[name="google-adsense-account"]')) {
+      const meta = document.createElement('meta');
+      meta.name = 'google-adsense-account';
+      meta.content = 'ca-pub-2225753085204049';
+      document.head.appendChild(meta);
+    }
+
+    // 2. JS Script hinzufügen (falls noch nicht vorhanden)
+    if (!document.querySelector('script[src*="adsbygoogle.js"]')) {
+      const script = document.createElement('script');
+      script.src =
+        'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2225753085204049';
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      document.head.appendChild(script);
+    }
+  }
+};
+
+// AdSense vor/beim Start ausführen
+initAdSense();
+
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; message: string }
@@ -33,12 +59,38 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'monospace', background: '#0f172a', color: '#f8fafc' }}>
-          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Something went wrong</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>{this.state.message}</p>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100vh',
+            fontFamily: 'monospace',
+            background: '#0f172a',
+            color: '#f8fafc',
+          }}
+        >
+          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+            Something went wrong
+          </h1>
+          <p style={{ color: '#94a3b8', fontSize: '0.875rem' }}>
+            {this.state.message}
+          </p>
           <button
             onClick={() => window.location.reload()}
-            style={{ marginTop: '1.5rem', padding: '0.5rem 1.5rem', background: '#fff', color: '#000', border: 'none', cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+            style={{
+              marginTop: '1.5rem',
+              padding: '0.5rem 1.5rem',
+              background: '#fff',
+              color: '#000',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'monospace',
+              fontWeight: 700,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+            }}
           >
             Reload
           </button>
