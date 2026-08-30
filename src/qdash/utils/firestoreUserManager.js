@@ -44,6 +44,21 @@ const DEFAULT_USER_PROFILE = {
     }
 };
 
+const buildUserProfileDefaults = (user, now) => ({
+    ...DEFAULT_USER_PROFILE,
+    uid: user.uid,
+    email: user.email,
+    display_name: user.displayName || user.email?.split('@')[0] || 'User',
+    photo_url: user.photoURL || null,
+    metadata: {
+        ...DEFAULT_USER_PROFILE.metadata,
+        created_at: now,
+        last_login: now,
+        last_updated: now,
+        account_status: 'active',
+    }
+});
+
 /**
  * Create or update user document in Firestore
  * @param {Object} firebaseDb - Firestore instance
@@ -63,34 +78,53 @@ export const createOrUpdateUser = async (firebaseDb, user) => {
         const now = serverTimestamp();
 
         if (!userSnap.exists()) {
-            // Create new user document
-            const newUserData = {
-                ...DEFAULT_USER_PROFILE,
-                uid: user.uid,
-                email: user.email,
-                display_name: user.displayName || user.email?.split('@')[0] || 'User',
-                photo_url: user.photoURL || null,
-                metadata: {
-                    created_at: now,
-                    last_login: now,
-                    last_updated: now,
-                    account_status: 'active',
-                }
-            };
+            const newUserData = buildUserProfileDefaults(user, now);
 
             await setDoc(userRef, newUserData);
             console.log('✅ New user document created:', user.uid);
 
             return newUserData;
         } else {
-            // Update existing user - just update last_login
-            await updateDoc(userRef, {
-                'metadata.last_login': now,
-                'metadata.last_updated': now,
-            });
+            const existingData = userSnap.data();
+            const mergedUserData = {
+                ...buildUserProfileDefaults(user, now),
+                ...existingData,
+                uid: user.uid,
+                email: user.email,
+                display_name: existingData.display_name || user.displayName || user.email?.split('@')[0] || 'User',
+                photo_url: existingData.photo_url || user.photoURL || null,
+                balance: {
+                    ...DEFAULT_USER_PROFILE.balance,
+                    ...(existingData.balance || {}),
+                },
+                resources: {
+                    ...DEFAULT_USER_PROFILE.resources,
+                    ...(existingData.resources || {}),
+                },
+                subscription: {
+                    ...DEFAULT_USER_PROFILE.subscription,
+                    ...(existingData.subscription || {}),
+                },
+                billing: {
+                    ...DEFAULT_USER_PROFILE.billing,
+                    ...(existingData.billing || {}),
+                },
+                usage_limits: {
+                    ...DEFAULT_USER_PROFILE.usage_limits,
+                    ...(existingData.usage_limits || {}),
+                },
+                metadata: {
+                    ...DEFAULT_USER_PROFILE.metadata,
+                    ...(existingData.metadata || {}),
+                    last_login: now,
+                    last_updated: now,
+                }
+            };
+
+            await setDoc(userRef, mergedUserData, { merge: true });
 
             console.log('✅ User login updated:', user.uid);
-            return userSnap.data();
+            return mergedUserData;
         }
     } catch (error) {
         console.error('❌ Error creating/updating user:', error);

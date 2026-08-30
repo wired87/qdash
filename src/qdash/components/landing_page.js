@@ -6,17 +6,16 @@ import { X } from 'lucide-react';
 import { LiveMatplotView } from './LiveMatplotView';
 import { ParticleGridEngine } from './ParticleGridEngine';
 import { FuturisticBackground } from './FuturisticBackground';
-import EngineFormsSidebar from './EngineFormsSidebar';
 import ImageTo3DModal, { processImageFile } from './ImageTo3DModal';
-import EngineEnvsSidebar from './EngineEnvsSidebar';
 import EnvCfgGlassPanel from './EnvCfgGlassPanel';
 import ConfigAccordion from './accordeon';
-import ConnectionStatusBadge from './ConnectionStatusBadge';
+import AuthScreen from './AuthScreen';
+import UserInfoCard from './UserInfoCard';
+import ComponentGrid from './ComponentGrid';
 import { USER_ID_KEY, SESSION_ID_KEY, getSessionId } from '../auth';
 import { setActiveSession } from '../store/slices/sessionSlice';
 import { setSelectedEnv, selectSelectedEnv } from '../store/slices/envSlice';
-import { clearCurrentEnv, setSelectedGeometry, selectSelectedGeometry, setInjectionOverlayRects, selectAvailableObjects, setSelectedEngineObject, selectSelectedEngineObject } from '../store/slices/appStateSlice';
-import { setLoading as setInjectionLoading } from '../store/slices/injectionSlice';
+import { clearCurrentEnv, setSelectedGeometry, selectSelectedGeometry, setInjectionOverlayRects, setSelectedEngineObject, selectSelectedEngineObject } from '../store/slices/appStateSlice';
 
 /** Resizable iframe for a hyperdimensions animation; transparent background, sets injection region by bounds. */
 function ResizableHyperdimensionsFrame({ item, onUpdate, onRemove }) {
@@ -93,7 +92,14 @@ export const LandingPage = ({
     user,
     userProfile,
     saveUserWorldConfig,
+    saveUserSessionConfig,
     listenToUserWorldConfig,
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    logout,
+    loading: authLoading,
+    error: authError,
 }) => {
     const heroRef = useRef(null);
     const instructionsSectionRef = useRef(null); // Rename to avoid conflict with instructionsRef used for InView
@@ -107,9 +113,6 @@ export const LandingPage = ({
     const selectedEnv = useSelector(selectSelectedEnv);
     const selectedGeometry = useSelector(selectSelectedGeometry);
     const selectedEngineObject = useSelector(selectSelectedEngineObject);
-    const availableObjects = useSelector(selectAvailableObjects);
-    const userInjections = useSelector((state) => state.injections.userInjections || []);
-    const injectionsLoading = useSelector((state) => state.injections.loading);
     const isInstructionsInView = useInView(instructionsSectionRef, { amount: 0.3 });
     const isEngineInView = useInView(engineRef, { amount: 0.3 });
 
@@ -122,21 +125,6 @@ export const LandingPage = ({
                 sendMessage({
                     type: 'LIST_USERS_SESSIONS',
                     auth: { user_id: userId },
-                    timestamp: new Date().toISOString()
-                });
-                // User environments for left engine sidebar
-                sendMessage({
-                    type: 'GET_USERS_ENVS',
-                    auth: { user_id: userId },
-                    timestamp: new Date().toISOString()
-                });
-                // Spawnable objects catalogue for right control engine sidebar
-                sendMessage({
-                    type: 'GET_AVAILABLE_OBJECTS',
-                    auth: {
-                        user_id: userId,
-                        env_id: selectedEnv?.id ?? selectedEnv?.env_id ?? null
-                    },
                     timestamp: new Date().toISOString()
                 });
             }
@@ -157,14 +145,11 @@ export const LandingPage = ({
 
     const [showSpinner, setShowSpinner] = useState(false);
     const [hasVisitedEngine, setHasVisitedEngine] = useState(false);
-    const FIRST_VISIT_KEY = 'qdash_welcome_shown';
-    const [showWelcome, setShowWelcome] = useState(() => !localStorage.getItem(FIRST_VISIT_KEY));
     const [droppedForms, setDroppedForms] = useState([]);
     /** Hyperdimensions animations dropped under Recognizes (n-dims) pos; each is resizable and sets injection region. */
     const [droppedHyperdimensions, setDroppedHyperdimensions] = useState([]);
     const [isDragOverEnv, setIsDragOverEnv] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
-    const [hoverEnv, setHoverEnv] = useState(null);
 
     useEffect(() => {
         const onDragStart = () => setIsDragging(true);
@@ -180,7 +165,6 @@ export const LandingPage = ({
         };
     }, []);
 
-    const [hoverInjectionType, setHoverInjectionType] = useState(null);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
     const handleObjectMoved = useCallback((objectId, position) => {
@@ -376,29 +360,10 @@ export const LandingPage = ({
         }
     }, [isEngineInView, hasVisitedEngine]);
 
-    const dismissWelcome = () => {
-        setShowWelcome(false);
-        localStorage.setItem(FIRST_VISIT_KEY, '1');
-    };
-
     // Sync hyperdimensions overlay rects to store so injection positions can use them
     useEffect(() => {
         dispatch(setInjectionOverlayRects(droppedHyperdimensions.map(({ id, width, height, left, top }) => ({ id, width, height, left, top }))));
     }, [droppedHyperdimensions, dispatch]);
-
-    // When hovering a geometry icon on the right, ensure injections are loaded
-    useEffect(() => {
-        if (!hoverInjectionType || !sendMessage) return;
-        if (userInjections && userInjections.length > 0) return;
-        const userId = localStorage.getItem(USER_ID_KEY);
-        if (!userId) return;
-        dispatch(setInjectionLoading(true));
-        sendMessage({
-            type: "GET_INJ_USER",
-            auth: { user_id: userId },
-            timestamp: new Date().toISOString(),
-        });
-    }, [hoverInjectionType, sendMessage, userInjections, dispatch]);
 
     React.useEffect(() => {
         if (showSpinner) {
@@ -425,7 +390,32 @@ export const LandingPage = ({
     };
 
     return (
-        <div className="w-screen h-screen font-sans bg-white text-slate-900 overflow-y-scroll snap-y snap-mandatory scroll-smooth relative selection:bg-black selection:text-white">
+        <>
+            {!user ? (
+                <AuthScreen
+                    signInWithGoogle={signInWithGoogle}
+                    signInWithEmail={signInWithEmail}
+                    signUpWithEmail={signUpWithEmail}
+                    loading={authLoading}
+                    error={authError}
+                />
+            ) : (
+                <div className="w-screen h-screen font-sans bg-gradient-to-br from-slate-900 via-blue-900/20 to-slate-900 text-white overflow-hidden relative selection:bg-blue-600 selection:text-white flex flex-col">
+                    {/* User Info Card - Top Right */}
+                    <UserInfoCard
+                        user={user}
+                        userProfile={userProfile}
+                        onLogout={logout}
+                        loading={authLoading}
+                    />
+
+                    {/* Component Grid - Main Content */}
+                    <div className="flex-1 overflow-hidden">
+                        <ComponentGrid user={user} userProfile={userProfile} />
+                    </div>
+
+                    {/* Original full page content - Now hidden, can be re-enabled */}
+                    <div className="hidden w-screen h-screen font-sans bg-white text-slate-900 overflow-y-scroll snap-y snap-mandatory scroll-smooth relative selection:bg-black selection:text-white">
 
             {/* TERMINAL HINT OVERLAY */}
             {!isEngineInView && (
@@ -593,21 +583,11 @@ export const LandingPage = ({
                                     user={user}
                                     userProfile={userProfile}
                                     saveUserWorldConfig={saveUserWorldConfig}
+                                    saveUserSessionConfig={saveUserSessionConfig}
                                     listenToUserWorldConfig={listenToUserWorldConfig}
                                 />
                             </div>
                         )}
-
-                        {/* Left env dock – flex column, never overlapped by 3D scene */}
-                        <div className="flex-shrink-0 flex items-center justify-center w-16 sm:w-[200px] md:w-[260px] pointer-events-auto">
-                            <EngineEnvsSidebar
-                                className="w-full max-h-[60vh]"
-                                sendMessage={sendMessage}
-                                onOpenEnvCfg={onOpenEnvCfg}
-                                isVisible={isEngineInView}
-                                onHoverEnv={setHoverEnv}
-                            />
-                        </div>
 
                         {/* Engine viewport – center column only; 3D scene does not extend under sidebars */}
                         <div className="flex-1 min-w-0 h-full relative transition-all duration-200 px-1 sm:px-2 pointer-events-auto">
@@ -709,6 +689,8 @@ export const LandingPage = ({
                                                     sim_time: selectedEnv.sim_time,
                                                     dims: selectedEnv.dims,
                                                     enable_sm: selectedEnv.enable_sm,
+                                                    gpu_processing: selectedEnv.gpu_processing,
+                                                    cloud_provider: selectedEnv.cloud_provider,
                                                     particle: selectedEnv.particle,
                                                     status: selectedEnv.status ?? selectedEnv.state,
                                                     field_id: selectedEnv.field_id ?? selectedEnv.field,
@@ -718,6 +700,7 @@ export const LandingPage = ({
                                                 user={user}
                                                 userProfile={userProfile}
                                                 saveUserWorldConfig={saveUserWorldConfig}
+                                                saveUserSessionConfig={saveUserSessionConfig}
                                                 listenToUserWorldConfig={listenToUserWorldConfig}
                                             />
                                         </div>
@@ -726,122 +709,10 @@ export const LandingPage = ({
                             )}
                         </div>
 
-                        {/* Right forms sidebar – flex column, never overlapped by 3D scene */}
-                        <div className="flex-shrink-0 hidden md:flex items-center justify-center w-16 sm:w-[220px] md:w-[260px] pointer-events-auto">
-                            <EngineFormsSidebar
-                                className="h-full"
-                                selectedGeometry={selectedGeometry}
-                                selectedEngineObject={selectedEngineObject}
-                                onSelectType={(id) => dispatch(setSelectedGeometry(id ?? null))}
-                                onHoverType={setHoverInjectionType}
-                                onOpenImageModal={() => setIsImageModalOpen(true)}
-                                availableObjects={availableObjects}
-                            />
-                        </div>
-
-                        
-                        {hoverEnv && (
-                            <div className="fixed inset-y-0 right-0 z-40 w-[40vw] min-w-[320px] max-w-xl border-l border-slate-200/40 bg-slate-950/90 text-slate-100 shadow-2xl flex flex-col">
-                                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-200">
-                                            Env cfg
-                                        </span>
-                                        <span className="text-[11px] font-mono text-slate-400 truncate max-w-[240px]">
-                                            {hoverEnv.id ?? hoverEnv.env_id}
-                                        </span>
-                                    </div>
-                                    <Button
-                                        aria-label="Close env config panel"
-                                        isIconOnly
-                                        size="sm"
-                                        variant="light"
-                                        className="min-w-8 w-8 h-8 text-slate-300 hover:text-white"
-                                        onPress={() => setHoverEnv(null)}
-                                        title="Close"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                                <div className="flex-1 min-h-0 overflow-y-auto p-4">
-                                    <pre className="text-[11px] font-mono whitespace-pre-wrap break-all bg-slate-900/70 border border-slate-700/80 rounded-lg p-3">
-{JSON.stringify(hoverEnv, null, 2)}
-                                    </pre>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Injection modal on geometry hover – full height, right side 40% width */}
-                        {hoverInjectionType && (
-                            <div className="fixed inset-y-0 right-0 z-40 w-[40vw] min-w-[320px] max-w-xl border-l border-emerald-400/40 bg-slate-950/95 text-slate-100 shadow-2xl flex flex-col">
-                                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-900/80">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-mono font-bold uppercase tracking-widest text-emerald-300">
-                                            Injections · {hoverInjectionType}
-                                        </span>
-                                        <span className="text-[11px] font-mono text-slate-400">
-                                            {userInjections?.length || 0} total
-                                        </span>
-                                    </div>
-                                    <Button
-                                        aria-label="Close injections panel"
-                                        isIconOnly
-                                        size="sm"
-                                        variant="light"
-                                        className="min-w-8 w-8 h-8 text-slate-300 hover:text-white"
-                                        onPress={() => setHoverInjectionType(null)}
-                                        title="Close"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                                <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
-                                    {injectionsLoading && (
-                                        <div className="text-[11px] text-slate-400 font-mono uppercase tracking-widest">
-                                            Loading injections…
-                                        </div>
-                                    )}
-                                    {!injectionsLoading && (!userInjections || userInjections.length === 0) && (
-                                        <div className="text-[11px] text-slate-500 font-mono uppercase tracking-widest">
-                                            No injections found
-                                        </div>
-                                    )}
-                                    {!injectionsLoading && userInjections && userInjections.length > 0 && (() => {
-                                        const matchesType = (inj) => {
-                                            const t = (inj.geometry || inj.shape || inj.type || '').toLowerCase();
-                                            return t === hoverInjectionType.toLowerCase();
-                                        };
-                                        const primary = userInjections.filter(matchesType);
-                                        const list = primary.length > 0 ? primary : userInjections;
-                                        return list.map((inj) => (
-                                            <div
-                                                key={inj.id}
-                                                className="p-3 rounded-lg border border-slate-700/80 bg-slate-900/80 hover:border-emerald-400/70 transition-colors"
-                                            >
-                                                <div className="flex items-center justify-between gap-2 mb-1">
-                                                    <span className="text-[11px] font-mono font-semibold truncate">
-                                                        {inj.id}
-                                                    </span>
-                                                    <span className="text-[10px] font-mono text-slate-500">
-                                                        {(inj.type || inj.geometry || hoverInjectionType) ?? 'unknown'}
-                                                    </span>
-                                                </div>
-                                                {inj.description && (
-                                                    <p className="text-[11px] text-slate-300 line-clamp-2">
-                                                        {inj.description}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        ));
-                                    })()}
-                                </div>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Engine control: header + content; status badge absolute top-right here */}
+                    {/* Engine control: header + content */}
                     <div className="relative flex flex-col flex-1 min-h-0">
-                        <ConnectionStatusBadge inline />
                         {/* Top bar overlay – responsive */}
                         <header className="relative z-10 flex-shrink-0 flex items-center justify-between border-b border-black/20 px-4 sm:px-6 py-3 sm:py-4 gap-3 sm:gap-4 flex-wrap bg-white/90 backdrop-blur-sm">
                             <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
@@ -894,18 +765,6 @@ export const LandingPage = ({
                     {/* Content overlay – scrollable, responsive */}
                     <div className="relative z-10 flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent bg-white/80 sm:bg-white/85 backdrop-blur-[1px]">
                         <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
-                            {showWelcome && isEngineInView && (
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-black text-white border-2 border-black shadow-lg animate-fadeIn">
-                                    <p className="text-base sm:text-lg font-bold tracking-tight">Welcome to the grid</p>
-                                    <button
-                                        type="button"
-                                        onClick={dismissWelcome}
-                                        className="flex-shrink-0 px-3 py-1.5 text-xs font-mono font-bold uppercase tracking-widest border border-white/50 rounded hover:bg-white/10 transition-colors"
-                                    >
-                                        Dismiss
-                                    </button>
-                                </div>
-                            )}
                             {children}
                         </div>
                     </div>
@@ -917,6 +776,9 @@ export const LandingPage = ({
                 onClose={() => setIsImageModalOpen(false)}
                 onAddToScene={(form) => setDroppedForms((prev) => [...prev, form])}
             />
-        </div >
+                    </div>
+                </div>
+            )}
+        </>
     );
 };

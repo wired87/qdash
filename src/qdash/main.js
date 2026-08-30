@@ -234,14 +234,18 @@ export const MainApp = () => {
   }, []);
 
   // 3. HOOKS THAT DEPEND ON CALLBACKS
-  const { sendMessage, isConnected, latestFrameRef } = _useWebSocket(
-    updateCreds, updateDataset, addEnvs, updateGraph, setClusterData, setLiveData, handleInjectionMessage, addConsoleMessage
-  );
-
   const {
-    fbIsConnected, firebaseDb, saveMessage, user, userProfile, signInWithEmail, signUpWithEmail, logout,
-    saveUserWorldConfig, listenToUserWorldConfig, updateUser, loading, error: authErrorState
+    fbIsConnected, firebaseDb, saveMessage, user, userProfile, signInWithEmail, signUpWithEmail, signInWithGoogle, logout,
+    saveUserWorldConfig, saveUserSessionConfig, listenToUserWorldConfig, updateUser, loading, error: authErrorState,
+    saveUserEntity, deleteUserEntity,
   } = useFirebaseListeners(fbCreds, updateEnv, setMessages);
+
+  const firebaseSaveCallbacks = { saveEntity: saveUserEntity, deleteEntity: deleteUserEntity };
+
+  const { sendMessage, isConnected, latestFrameRef } = _useWebSocket(
+    updateCreds, updateDataset, addEnvs, updateGraph, setClusterData, setLiveData, handleInjectionMessage, addConsoleMessage,
+    firebaseSaveCallbacks
+  );
 
   // 4. ACTION TOGGLES
   const handleLogin = async (email, password) => {
@@ -387,7 +391,26 @@ export const MainApp = () => {
 
     // Always send as array - handle both single env_id and array of env_ids
     const env_ids = Array.isArray(env_id_or_ids) ? env_id_or_ids : [env_id_or_ids];
-    sendMessage({ data: { env_ids }, type: "START_SIM", timestamp: new Date().toISOString() });
+
+    const state = store.getState();
+    const activeSessionId = state.sessions?.activeSessionId || state.sessions?.activeSession?.id;
+    const finalConfig = activeSessionId
+      ? (state.sessions?.sessionData?.[activeSessionId]?.config?.envs || {})
+      : {};
+
+    // Commit final config to engine transport before simulation starts.
+    sendMessage({
+      type: "START_SIM",
+      data: {
+        env_ids,
+        config: finalConfig,
+      },
+      auth: {
+        session_id: activeSessionId || null,
+        user_id: localStorage.getItem(USER_ID_KEY),
+      },
+      timestamp: new Date().toISOString(),
+    });
 
     // Track resource usage in Firestore
     if (user && firebaseDb) {
@@ -398,7 +421,7 @@ export const MainApp = () => {
         console.error('Failed to track resource usage:', error);
       }
     }
-  }, [userProfile, sendMessage, user, updateUser, firebaseDb]);
+  }, [userProfile, sendMessage, user, updateUser, firebaseDb, store]);
 
   const startAllEnvs = useCallback(async () => {
     const allEnvIds = Object.keys(envs);
@@ -495,11 +518,12 @@ Please tell me your email if you want to receive updates or register for early a
     return (
       <WorldCfgCreator sendMessage={sendMessage} isOpen={isCfgSliderOpen} onToggle={toggleCfgSlider} user={user}
         userProfile={userProfile} initialValues={extractedEntities} saveUserWorldConfig={saveUserWorldConfig}
+        saveUserSessionConfig={saveUserSessionConfig}
         listenToUserWorldConfig={listenToUserWorldConfig} authLoading={loading} authError={authErrorState}
         toggleModal={toggleModal} startSim={startSim} toggleDataSlider={toggleDataSlider} openClusterInjection={toggleInjection}
       />
     );
-  }, [isCfgSliderOpen, toggleCfgSlider, user, userProfile, extractedEntities, saveUserWorldConfig, listenToUserWorldConfig, loading, authErrorState, sendMessage, toggleModal, startSim, toggleDataSlider, toggleInjection]);
+  }, [isCfgSliderOpen, toggleCfgSlider, user, userProfile, extractedEntities, saveUserWorldConfig, saveUserSessionConfig, listenToUserWorldConfig, loading, authErrorState, sendMessage, toggleModal, startSim, toggleDataSlider, toggleInjection]);
 
   const get_ncfgslider = useCallback(() => {
     if (isNSliderOpen) return <NCfgCreator sendMessage={sendMessage} isOpen={isNSliderOpen} onToggle={toggleNcfgSlider} initialValues={extractedEntities} />;
@@ -557,9 +581,12 @@ Please tell me your email if you want to receive updates or register for early a
       isOpen={isDataSliderOpen}
       onToggle={toggleDataSlider}
       envsList={Object.keys(envs)}
+      envs={envs}
+      user={user}
+      firebaseDb={firebaseDb}
       sendMessage={sendMessage}
     />
-  ), [graph.nodes, graph.edges, logs, isDataSliderOpen, toggleDataSlider, envs, sendMessage]);
+  ), [graph.nodes, graph.edges, logs, isDataSliderOpen, toggleDataSlider, envs, user, firebaseDb, sendMessage]);
 
   const get_bucket = useCallback(() => {
     if (!isBucketOpen) return <></>;
@@ -742,7 +769,14 @@ Please tell me your email if you want to receive updates or register for early a
           user={user}
           userProfile={userProfile}
           saveUserWorldConfig={saveUserWorldConfig}
+          saveUserSessionConfig={saveUserSessionConfig}
           listenToUserWorldConfig={listenToUserWorldConfig}
+          signInWithGoogle={signInWithGoogle}
+          signInWithEmail={signInWithEmail}
+          signUpWithEmail={signUpWithEmail}
+          logout={logout}
+          loading={loading}
+          error={authErrorState}
         >
           <LogSidebar logs={logs} isOpen={isLogSidebarOpen} onClose={toggleLogSidebar} />
           {get_dashboard()}

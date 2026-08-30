@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onChildChanged, onChildAdded, off, onValue, push, set, query, limitToLast } from "firebase/database";
-import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, signInWithPopup, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
 import { getFirestore, doc, setDoc, onSnapshot } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { saveEntity, deleteEntity, listenEntities } from "./utils/rtdbUserManager";
+import { createOrUpdateUser } from "./utils/firestoreUserManager";
+import { store } from "./store";
+import { setUserFields } from "./store/slices/fieldSlice";
+import { setUserModules } from "./store/slices/moduleSlice";
+import { setUserInjections } from "./store/slices/injectionSlice";
+import { setUserMethods } from "./store/slices/methodSlice";
+import { setSessions } from "./store/slices/sessionSlice";
+import { setUserEnvs } from "./store/slices/envSlice";
 export function useFirebaseListeners(
   fbCreds,
   updateEnv,
@@ -40,6 +49,10 @@ export function useFirebaseListeners(
         firebaseAuth.current = getAuth(firebaseApp.current);
         firebaseFirestore.current = getFirestore(firebaseApp.current);
         firebaseFunctions.current = getFunctions(firebaseApp.current);
+
+        setPersistence(firebaseAuth.current, browserLocalPersistence).catch((authError) => {
+          console.error("Firebase auth persistence setup failed:", authError);
+        });
 
         setFbIsConnected(true);
       } catch (e) {
@@ -82,8 +95,12 @@ export function useFirebaseListeners(
   const signUpWithEmail = async (email, password) => {
     if (!firebaseAuth.current) return;
     setLoading(true);
+    setError(null);
     try {
-      await createUserWithEmailAndPassword(firebaseAuth.current, email, password);
+      const credential = await createUserWithEmailAndPassword(firebaseAuth.current, email, password);
+      if (firebaseFirestore.current && credential.user) {
+        await createOrUpdateUser(firebaseFirestore.current, credential.user);
+      }
     } catch (error) {
       console.error("Error signing up with email", error);
       setError(error.message);
@@ -96,8 +113,12 @@ export function useFirebaseListeners(
   const signInWithEmail = async (email, password) => {
     if (!firebaseAuth.current) return;
     setLoading(true);
+    setError(null);
     try {
-      await signInWithEmailAndPassword(firebaseAuth.current, email, password);
+      const credential = await signInWithEmailAndPassword(firebaseAuth.current, email, password);
+      if (firebaseFirestore.current && credential.user) {
+        await createOrUpdateUser(firebaseFirestore.current, credential.user);
+      }
     } catch (error) {
       console.error("Error signing in with email", error);
       setError(error.message);
@@ -114,6 +135,27 @@ export function useFirebaseListeners(
     } catch (error) {
       console.error("Error signing out", error);
       throw error;
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    if (!firebaseAuth.current) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await signInWithPopup(firebaseAuth.current, provider);
+      if (result.user && firebaseFirestore.current) {
+        await createOrUpdateUser(firebaseFirestore.current, result.user);
+      }
+      return result.user;
+    } catch (error) {
+      console.error("Error signing in with Google", error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -272,6 +314,23 @@ export function useFirebaseListeners(
     return unsubscribe;
   }, [firebaseDb]);
 
+  // Save final transformed env config into session space under user object:
+  // users/{uid}/sessions/{sessionId}/configs/{envId}
+  const saveUserSessionConfig = async (uid, sessionId, envId, payload) => {
+    if (!firebaseDb.current || !uid || !sessionId || !envId) return;
+    try {
+      const sessionCfgRef = ref(firebaseDb.current, `users/${uid}/sessions/${sessionId}/configs/${envId}`);
+      await set(sessionCfgRef, {
+        ...(payload || {}),
+        updated_at: new Date().toISOString(),
+      });
+      console.log("User session config saved to Firebase RTDB");
+    } catch (error) {
+      console.error("Error saving user session config:", error);
+      throw error;
+    }
+  };
+
   const updateUser = async (uid, data) => {
     if (!firebaseFirestore.current || !uid) return;
     const userRef = doc(firebaseFirestore.current, "users", uid);
@@ -281,10 +340,58 @@ export function useFirebaseListeners(
   const getPaymentUrl = async (plan, compute_hours) => {
     if (!firebaseFunctions.current) throw new Error("Functions not initialized");
     const fn = httpsCallable(firebaseFunctions.current, 'get_payment_url');
-    // Default to 'magician' plan and 10 hours if not specified
     const res = await fn({ plan: plan || 'magician', compute_hours: compute_hours || 10 });
     return res.data.url;
   };
+
+  // ---------------------------------------------------------------------------
+  // Entity persistence helpers (RTDB: users/{uid}/{collection}/{id})
+  // ---------------------------------------------------------------------------
+
+  /** Save a single entity to RTDB. Collection: 'envs'|'fields'|'modules'|'injections'|'methods'|'sessions' */
+  const saveUserEntity = useCallback(async (collection, id, data) => {
+    if (!firebaseDb.current || !user?.uid) return;
+    try {
+      await saveEntity(firebaseDb.current, user.uid, collection, id, data);
+    } catch (err) {
+      console.error(`[RTDB] saveUserEntity(${collection}/${id}) failed:`, err);
+    }
+  }, [firebaseDb, user]);
+
+  /** Delete a single entity from RTDB. */
+  const deleteUserEntity = useCallback(async (collection, id) => {
+    if (!firebaseDb.current || !user?.uid) return;
+    try {
+      await deleteEntity(firebaseDb.current, user.uid, collection, id);
+    } catch (err) {
+      console.error(`[RTDB] deleteUserEntity(${collection}/${id}) failed:`, err);
+    }
+  }, [firebaseDb, user]);
+
+  // ---------------------------------------------------------------------------
+  // Live RTDB listeners: users/{uid}/{collection} → Redux
+  // Start when user is authenticated; detach on user change / unmount.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!fbIsConnected || !firebaseDb.current || !user?.uid) return;
+    const uid = user.uid;
+    const db = firebaseDb.current;
+
+    const COLLECTION_DISPATCH = [
+      { collection: 'fields',     dispatch: (arr) => store.dispatch(setUserFields(arr)) },
+      { collection: 'modules',    dispatch: (arr) => store.dispatch(setUserModules(arr)) },
+      { collection: 'injections', dispatch: (arr) => store.dispatch(setUserInjections(arr)) },
+      { collection: 'methods',    dispatch: (arr) => store.dispatch(setUserMethods(arr)) },
+      { collection: 'sessions',   dispatch: (arr) => store.dispatch(setSessions(arr)) },
+      { collection: 'envs',       dispatch: (arr) => store.dispatch(setUserEnvs(arr)) },
+    ];
+
+    const unsubscribers = COLLECTION_DISPATCH.map(({ collection, dispatch }) =>
+      listenEntities(db, uid, collection, dispatch)
+    );
+
+    return () => unsubscribers.forEach((unsub) => unsub());
+  }, [fbIsConnected, user]);
 
   return {
     fbIsConnected,
@@ -297,10 +404,14 @@ export function useFirebaseListeners(
 
     signInWithEmail,
     signUpWithEmail,
+    signInWithGoogle,
     logout,
     saveUserWorldConfig,
+    saveUserSessionConfig,
     listenToUserWorldConfig,
     updateUser,
-    getPaymentUrl
+    getPaymentUrl,
+    saveUserEntity,
+    deleteUserEntity,
   };
 }

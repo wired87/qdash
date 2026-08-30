@@ -8,7 +8,7 @@ import { USER_ID_KEY, getSessionId } from "../auth";
 import { updateLogs, updateVisData } from "../store/slices/envSlice";
 import { addModelEnv, removeModelEnv } from "../store/slices/conversationSlice";
 
-const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldConfig, listenToUserWorldConfig, userProfile }) => {
+const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldConfig, saveUserSessionConfig, listenToUserWorldConfig, userProfile }) => {
   const [environments, setEnvironments] = useState([]);
   const [sessionEnvironments, setSessionEnvironments] = useState([]);
   // const [isLoadingEnvs, setIsLoadingEnvs] = useState(false); // Unused
@@ -157,6 +157,8 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
       sim_time: env.sim_time,
       dims: env.dims,
       enable_sm: env.enable_sm,
+      gpu_processing: env.gpu_processing,
+      cloud_provider: env.cloud_provider,
       particle: env.particle,
       status: env.state || env.status || 'created',
       field_id: env.field_id ?? env.field
@@ -354,6 +356,7 @@ const WorldCfgCreator = ({ sendMessage, isOpen, onToggle, user, saveUserWorldCon
                     user={user}
                     userProfile={userProfile}
                     saveUserWorldConfig={saveUserWorldConfig}
+                    saveUserSessionConfig={saveUserSessionConfig}
                     listenToUserWorldConfig={listenToUserWorldConfig}
                   />
                 </div>

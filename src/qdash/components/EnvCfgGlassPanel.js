@@ -17,6 +17,7 @@ const EnvCfgGlassPanel = ({
     user,
     userProfile,
     saveUserWorldConfig,
+    saveUserSessionConfig,
     listenToUserWorldConfig,
 }) => {
     const dispatch = useDispatch();
@@ -31,6 +32,8 @@ const EnvCfgGlassPanel = ({
             sim_time: selectedEnv.sim_time,
             dims: selectedEnv.dims,
             enable_sm: selectedEnv.enable_sm,
+            gpu_processing: selectedEnv.gpu_processing,
+            cloud_provider: selectedEnv.cloud_provider,
             particle: selectedEnv.particle,
             status: selectedEnv.status ?? selectedEnv.state,
             field_id: selectedEnv.field_id ?? selectedEnv.field,
@@ -88,6 +91,7 @@ const EnvCfgGlassPanel = ({
                     user={user}
                     userProfile={userProfile}
                     saveUserWorldConfig={saveUserWorldConfig}
+                    saveUserSessionConfig={saveUserSessionConfig}
                     listenToUserWorldConfig={listenToUserWorldConfig}
                 />
             </div>
